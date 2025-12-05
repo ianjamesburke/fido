@@ -388,7 +388,7 @@ impl Default for ApiClient {
         } else {
             // For local TUI client, check for override or use production URL
             std::env::var("FIDO_SERVER_URL")
-                .unwrap_or_else(|_| "https://fido-social.fly.dev".to_string())
+                .unwrap_or_else(|_| "https://fido-social.fly.dev/api".to_string())
         };
         Self::new(base_url)
     }

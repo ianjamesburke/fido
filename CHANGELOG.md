@@ -14,3 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Removed
+
+## [0.1.1] - 2024-12-05
+
+### Fixed
+- Fixed production server URL to include `/api` path prefix for deployed Fly.io instance
+- TUI client now correctly connects to `https://fido-social.fly.dev/api` instead of root path
