@@ -1,9 +1,11 @@
 /* Custom ttyd styling - Black background terminal theme */
-body {
+html, body {
     background-color: #000000 !important;
     margin: 0;
     padding: 0;
     overflow: hidden;
+    height: 100%;
+    width: 100%;
 }
 
 #terminal-container {
@@ -11,12 +13,18 @@ body {
     padding: 0;
     margin: 0;
     overflow: hidden;
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
 .xterm {
     background-color: #000000 !important;
     padding: 10px;
     overflow: hidden;
+    flex: 1;
+    height: 100%;
 }
 
 .xterm-viewport {
@@ -28,6 +36,11 @@ body {
 .xterm-screen {
     background-color: #000000 !important;
     pointer-events: auto;
+}
+
+/* Ensure xterm canvas fills available space */
+.xterm-rows {
+    background-color: #000000 !important;
 }
 
 /* Optional: Customize scrollbar */

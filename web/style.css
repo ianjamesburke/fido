@@ -130,6 +130,8 @@ kbd {
     box-shadow: 0 0 30px var(--color-primary-glow);
     max-width: 1200px;
     margin: 0 auto;
+    /* Ensure container doesn't add extra space */
+    line-height: 0;
 }
 
 .terminal-header {
@@ -139,6 +141,8 @@ kbd {
     align-items: center;
     gap: 8px;
     border-bottom: 1px solid var(--color-border);
+    /* Reset line-height for header content */
+    line-height: 1.6;
 }
 
 .terminal-button {
@@ -171,6 +175,11 @@ kbd {
     height: 700px;
     border: none;
     display: block;
+    /* Remove any default spacing */
+    margin: 0;
+    padding: 0;
+    /* Ensure iframe takes exact dimensions */
+    vertical-align: top;
 }
 
 /* Info Section */

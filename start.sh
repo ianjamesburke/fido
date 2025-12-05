@@ -10,7 +10,7 @@ sleep 2
 
 # Start ttyd with the TUI in web mode (uses test users only)
 echo "Starting ttyd web terminal..."
-FIDO_WEB_MODE=true ttyd -W -p 7681 -t 'theme={"background": "#0a0a0a"}' fido &
+FIDO_WEB_MODE=true ttyd -W -p 7681 -t 'theme={"background": "#0a0a0a"}' --client-option 'fontSize=14' --client-option 'fontFamily="Monaco, Menlo, Ubuntu Mono, Consolas, monospace"' fido &
 
 # Start nginx
 echo "Starting nginx..."
