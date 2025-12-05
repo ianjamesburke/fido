@@ -103,4 +103,4 @@ MIT
 
 ---
 
-Built for Kiroween 2024 with [Ratatui](https://github.com/ratatui-org/ratatui), [Axum](https://github.com/tokio-rs/axum), and SQLite.
+Built for Kiroween with [Ratatui](https://github.com/ratatui-org/ratatui), [Axum](https://github.com/tokio-rs/axum), and SQLite.
