@@ -185,13 +185,13 @@ INSERT OR IGNORE INTO users (id, username, bio, join_date, is_test_user) VALUES
 -- ============================================================================
 -- Insert default configs for test users with different preferences
 INSERT OR IGNORE INTO user_configs (user_id, color_scheme, sort_order, max_posts_display, emoji_enabled) VALUES
-    ('550e8400-e29b-41d4-a716-446655440001', 'Default', 'Newest', 25, 1),
+    ('550e8400-e29b-41d4-a716-446655440001', 'Dark', 'Newest', 25, 1),
     ('550e8400-e29b-41d4-a716-446655440002', 'Dark', 'Popular', 50, 1),
-    ('550e8400-e29b-41d4-a716-446655440003', 'Solarized', 'Newest', 30, 1),
-    ('550e8400-e29b-41d4-a716-446655440004', 'Default', 'Popular', 40, 1),
+    ('550e8400-e29b-41d4-a716-446655440003', 'Dark', 'Newest', 30, 1),
+    ('550e8400-e29b-41d4-a716-446655440004', 'Dark', 'Popular', 40, 1),
     ('550e8400-e29b-41d4-a716-446655440005', 'Dark', 'Newest', 35, 1),
-    ('550e8400-e29b-41d4-a716-446655440006', 'Solarized', 'Popular', 20, 1),
-    ('550e8400-e29b-41d4-a716-446655440007', 'Default', 'Newest', 50, 1),
+    ('550e8400-e29b-41d4-a716-446655440006', 'Dark', 'Popular', 20, 1),
+    ('550e8400-e29b-41d4-a716-446655440007', 'Dark', 'Newest', 50, 1),
     ('550e8400-e29b-41d4-a716-446655440008', 'Dark', 'Popular', 25, 1);
 
 -- ============================================================================
