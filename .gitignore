@@ -33,3 +33,5 @@ test_*.md
 
 # Migrations (embedded in code)
 migrations/
+
+ian-docs
