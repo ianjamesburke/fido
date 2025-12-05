@@ -1,14 +1,10 @@
 # To do
-Just a really loose step path for jotting down tasks as they come to me. 
+Scratch pad for jotting down ideas. 
 
 ---
 
 
-
-Add Planned features section to the bottom of the readme
-
-
-
+Add A Planned features section to the bottom of the readme
 
 
 
