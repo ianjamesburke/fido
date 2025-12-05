@@ -1,0 +1,48 @@
+[package]
+name = "fido"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "A blazing-fast, keyboard-driven social platform for developers"
+repository.workspace = true
+homepage.workspace = true
+keywords = ["tui", "social", "terminal", "ratatui"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+# For local development, use path dependency:
+fido-types = { path = "../fido-types" }
+# For publishing to crates.io, uncomment this and comment out the path dependency:
+# fido-types = "0.1.0"
+
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+
+ratatui.workspace = true
+crossterm.workspace = true
+tui-textarea = "0.6"
+
+reqwest.workspace = true
+tokio.workspace = true
+async-trait = "0.1"
+
+emojis = "0.6"
+dirs = "5.0"
+textwrap = "0.16.2"
+unicode-width = "0.1"
+urlencoding = "2.1"
+log = "0.4"
+simplelog = "0.12"
+webbrowser = "1.0"
+dotenv.workspace = true
+
+[dev-dependencies]
+tempfile = "3.8"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_System_Console"] }

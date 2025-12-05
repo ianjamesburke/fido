@@ -1,0 +1,36 @@
+[package]
+name = "fido-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+fido-types = { path = "../fido-types" }
+
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+
+rusqlite.workspace = true
+
+axum.workspace = true
+tokio.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+reqwest.workspace = true
+oauth2.workspace = true
+
+tracing.workspace = true
+tracing-subscriber.workspace = true
+config = { version = "0.15.19", features = ["toml"] }
+dotenv.workspace = true
+r2d2 = "0.8.10"
+r2d2_sqlite = "0.31.0"
+regex = "1.10"
+once_cell = "1.19"
+urlencoding = "2.1"
+lazy_static = "1.4"

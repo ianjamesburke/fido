@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fido - Terminal Social Network</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <pre class="ascii-art">
+ _____ _     _       
+|  ___(_) __| | ___  
+| |_  | |/ _` |/ _ \ 
+|  _| | | (_| | (_) |
+|_|   |_|\__,_|\___/ 
+                </pre>
+            </div>
+            <p class="tagline">Blazing-fast, keyboard-driven social network for developers</p>
+            <p class="tagline">100% in the terminal</p>
+            <div class="resurrection-badge">
+                <span class="badge-icon">🔄</span>
+                <p class="resurrection-text">A Resurrection of Classic BBS Culture</p>
+                <p class="resurrection-subtext">Bringing back the golden age of Bulletin Board Systems with modern tech</p>
+            </div>
+        </header>
+
+        <section class="features">
+            <div class="feature">
+                <span class="icon">⚡</span>
+                <h3>Lightning Fast</h3>
+                <p>Terminal-native UI optimized for speed</p>
+            </div>
+            <div class="feature">
+                <span class="icon">⌨️</span>
+                <h3>Keyboard-Driven</h3>
+                <p>Every action accessible via shortcuts</p>
+            </div>
+            <div class="feature">
+                <span class="icon">🔒</span>
+                <h3>Privacy-First</h3>
+                <p>No algorithms, no ads, no tracking</p>
+            </div>
+            <div class="feature">
+                <span class="icon">🦀</span>
+                <h3>Built with Rust</h3>
+                <p>Modern, safe, and blazingly fast</p>
+            </div>
+        </section>
+
+        <section class="demo">
+            <h2>Try it live</h2>
+            <p class="demo-instructions">
+                Use your keyboard to navigate. Press <kbd>?</kbd> for help.
+            </p>
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <span class="terminal-button close"></span>
+                    <span class="terminal-button minimize"></span>
+                    <span class="terminal-button maximize"></span>
+                    <span class="terminal-title">fido@terminal</span>
+                </div>
+                <iframe id="terminal" src="http://localhost:7681" frameborder="0"></iframe>
+            </div>
+        </section>
+
+        <section class="info">
+            <h2>Features</h2>
+            <ul>
+                <li>📝 Post updates with full Markdown support</li>
+                <li>💬 Direct messaging with real-time conversations</li>
+                <li>#️⃣ Follow hashtags to curate your feed</li>
+                <li>👥 Follow users and build your network</li>
+                <li>⬆️⬇️ Upvote/downvote posts</li>
+                <li>🎨 Customizable color schemes</li>
+                <li>⚙️ Configurable sorting and display options</li>
+            </ul>
+        </section>
+
+        <section class="tech">
+            <h2>Technology Stack</h2>
+            <div class="tech-grid">
+                <div class="tech-item">
+                    <strong>Frontend:</strong> Rust + Ratatui
+                </div>
+                <div class="tech-item">
+                    <strong>Backend:</strong> Axum REST API
+                </div>
+                <div class="tech-item">
+                    <strong>Database:</strong> SQLite
+                </div>
+                <div class="tech-item">
+                    <strong>Deployment:</strong> Docker + ttyd
+                </div>
+            </div>
+        </section>
+
+        <section class="future">
+            <h2>Future Enhancements</h2>
+            <div class="future-grid">
+                <div class="future-item">
+                    <span class="future-icon">📦</span>
+                    <h3>Package Distribution</h3>
+                    <p>Deploy to Homebrew and crates.io for easy installation</p>
+                </div>
+                <div class="future-item">
+                    <span class="future-icon">🔓</span>
+                    <h3>Open Source</h3>
+                    <p>Full GitHub release with community contributions</p>
+                </div>
+                <div class="future-item">
+                    <span class="future-icon">🔐</span>
+                    <h3>GitHub OAuth</h3>
+                    <p>Seamless authentication with GitHub integration</p>
+                </div>
+                <div class="future-item">
+                    <span class="future-icon">⚡</span>
+                    <h3>CLI for Instant DMs</h3>
+                    <p>Send direct messages from your terminal: <code>fido dm @user "message"</code></p>
+                </div>
+                <div class="future-item">
+                    <span class="future-icon">👥</span>
+                    <h3>Group Chats</h3>
+                    <p>Multi-user conversations and channels</p>
+                </div>
+                <div class="future-item">
+                    <span class="future-icon">🔌</span>
+                    <h3>WebSocket Real-time</h3>
+                    <p>Live updates without refreshing</p>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>Built with ❤️ using <a href="https://kiro.ai" target="_blank">Kiro</a> for Kiroween 2025</p>
+            <p>
+                <a href="https://github.com/yourusername/fido" target="_blank">View on GitHub</a> |
+                <a href="#" id="fullscreen-btn">Open Fullscreen Terminal</a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

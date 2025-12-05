@@ -1,0 +1,17 @@
+[package]
+name = "fido-types"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Shared types for the Fido social platform"
+repository.workspace = true
+homepage.workspace = true
+keywords = ["social", "types", "fido"]
+categories = ["data-structures"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true

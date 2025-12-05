@@ -1,0 +1,12 @@
+target/
+.git/
+.gitignore
+*.db
+*.db-journal
+*.log
+.env
+.DS_Store
+*.md
+docs/
+To Do/
+.kiro/

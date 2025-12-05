@@ -1,0 +1,44 @@
+[package]
+name = "fido-migrate"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "fido-migrate"
+path = "src/main.rs"
+
+[[bin]]
+name = "check-db"
+path = "src/bin/check_db.rs"
+
+[[bin]]
+name = "inspect-db"
+path = "src/bin/inspect_db.rs"
+
+[[bin]]
+name = "follow-hashtags"
+path = "src/bin/follow_hashtags.rs"
+
+[[bin]]
+name = "test-query"
+path = "src/bin/test_query.rs"
+
+[[bin]]
+name = "migrate-hashtags"
+path = "src/bin/migrate_hashtags.rs"
+
+[dependencies]
+# Workspace crates
+fido-server = { path = "../fido-server" }
+fido-types = { path = "../fido-types" }
+
+# Workspace dependencies
+anyhow.workspace = true
+clap.workspace = true
+uuid.workspace = true
+rusqlite.workspace = true
+
+[dev-dependencies]
+proptest = "1.0"

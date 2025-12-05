@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "Code Quality Analyzer",
+  "description": "Monitors source code files for changes and provides suggestions for code quality improvements, including identifying code smells, recommending design patterns, and highlighting best practices opportunities. Focuses on readability, maintainability, and performance while preserving functionality.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*.rs",
+      "**/*.toml",
+      "**/*.sql",
+      "**/*.js",
+      "**/*.html",
+      "**/*.css"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Analyze the modified code in the changed files for potential improvements. Focus on:\n\n1. **Code Smells**: Identify any code smells such as duplicated code, long functions, large classes, or complex conditionals\n2. **Design Patterns**: Suggest applicable design patterns that could improve the code structure\n3. **Best Practices**: Highlight opportunities to follow language-specific and project-specific best practices (refer to the Fido project guidelines)\n4. **Readability**: Recommend improvements for code clarity, naming conventions, and documentation\n5. **Maintainability**: Suggest refactoring opportunities that would make the code easier to maintain\n6. **Performance**: Identify potential performance optimizations without premature optimization\n\nProvide specific, actionable suggestions with code examples where appropriate. Maintain a constructive tone and prioritize improvements that offer the most value. Ensure all suggestions preserve the existing functionality."
+  }
+}
