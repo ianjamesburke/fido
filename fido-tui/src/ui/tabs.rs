@@ -488,28 +488,61 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
     
     let theme = get_theme_colors(app);
     
-    // Check if we need to show an error banner
+    // Check if we need to show message or error banners
+    let has_message = app.posts_state.message.is_some();
     let has_error = app.posts_state.error.is_some();
 
-    // Layout: Error banner (if present), posts feed (no inline compose box)
-    let chunks = if has_error {
-        Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3), // Error banner
-                Constraint::Min(0),    // Posts feed
-            ])
-            .split(area)
-    } else {
-        Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(0), // Posts feed
-            ])
-            .split(area)
+    // Layout: Message banner (if present), Error banner (if present), posts feed
+    let chunks = match (has_message, has_error) {
+        (true, true) => {
+            Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(3), // Message banner
+                    Constraint::Length(3), // Error banner
+                    Constraint::Min(0),    // Posts feed
+                ])
+                .split(area)
+        }
+        (true, false) => {
+            Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(3), // Message banner
+                    Constraint::Min(0),    // Posts feed
+                ])
+                .split(area)
+        }
+        (false, true) => {
+            Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(3), // Error banner
+                    Constraint::Min(0),    // Posts feed
+                ])
+                .split(area)
+        }
+        (false, false) => {
+            Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Min(0), // Posts feed
+                ])
+                .split(area)
+        }
     };
 
     let mut chunk_idx = 0;
+
+    // Message banner (success messages - auto-clear after 3 seconds)
+    if let Some((message, _)) = &app.posts_state.message {
+        let message_banner = Paragraph::new(message.clone())
+            .style(Style::default().fg(theme.success).add_modifier(Modifier::BOLD))
+            .alignment(Alignment::Center)
+            .block(Block::default().borders(Borders::ALL).title("Message").border_style(Style::default().fg(theme.border)).style(Style::default().bg(theme.background)));
+        frame.render_widget(message_banner, chunks[chunk_idx]);
+        chunk_idx += 1;
+    }
 
     // Error banner (if present)
     if let Some(error) = &app.posts_state.error {

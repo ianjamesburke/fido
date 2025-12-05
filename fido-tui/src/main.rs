@@ -244,6 +244,9 @@ async fn main() -> Result<()> {
         
         last_tab = app.current_tab;
 
+        // Clear expired messages (auto-clear after 3 seconds)
+        app.clear_expired_messages();
+
         // Render UI with performance optimization
         tui.draw(|frame| {
             // Update viewport height if terminal size changed (for efficient scrolling)

@@ -46,6 +46,7 @@ impl App {
                 list_state: ListState::default(),
                 loading: false,
                 error: None,
+                message: None,
                 show_new_post_modal: false,
                 new_post_content: String::new(),
                 pending_load: false,
@@ -209,6 +210,28 @@ impl App {
     pub fn cancel_tab_switch(&mut self) {
         self.settings_state.show_save_confirmation = false;
         self.settings_state.pending_tab = None;
+    }
+
+    /// Clear expired messages (auto-clear after 3 seconds)
+    pub fn clear_expired_messages(&mut self) {
+        let now = std::time::Instant::now();
+        let duration = std::time::Duration::from_secs(3);
+
+        // Clear posts state message if expired
+        if let Some((_, timestamp)) = &self.posts_state.message {
+            if now.duration_since(*timestamp) > duration {
+                self.posts_state.message = None;
+            }
+        }
+
+        // Clear post detail state message if expired
+        if let Some(detail_state) = &mut self.post_detail_state {
+            if let Some((_, timestamp)) = &detail_state.message {
+                if now.duration_since(*timestamp) > duration {
+                    detail_state.message = None;
+                }
+            }
+        }
     }
 
     /// Check if we need to load data when switching tabs
@@ -2889,6 +2912,7 @@ impl App {
             reply_list_state: ListState::default(),
             loading: true,
             error: None,
+            message: None,
             show_reply_composer: false,
             reply_content: String::new(),
             show_delete_confirmation: false,
@@ -2919,6 +2943,7 @@ impl App {
                 reply_list_state: ListState::default(),
                 loading: true,
                 error: None,
+                message: None,
                 show_reply_composer: false,
                 reply_content: String::new(),
                 show_delete_confirmation: false,
@@ -4165,7 +4190,7 @@ impl App {
                         }
                         self.load_post_detail(main_id).await?;
                         if let Some(detail_state) = &mut self.post_detail_state {
-                            detail_state.error = Some("✓ Reply deleted successfully".to_string());
+                            detail_state.message = Some(("✓ Reply deleted successfully".to_string(), std::time::Instant::now()));
                         }
                     }
                 } else {
@@ -4182,7 +4207,7 @@ impl App {
                                 .select(Some(self.posts_state.posts.len() - 1));
                         }
                     }
-                    self.posts_state.error = Some("✓ Post deleted successfully".to_string());
+                    self.posts_state.message = Some(("✓ Post deleted successfully".to_string(), std::time::Instant::now()));
                 }
             }
             Err(e) => {

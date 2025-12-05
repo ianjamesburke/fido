@@ -312,6 +312,7 @@ pub struct PostsState {
     pub list_state: ListState,
     pub loading: bool,
     pub error: Option<String>,
+    pub message: Option<(String, Instant)>, // (message, timestamp) - auto-clears after 3 seconds
     pub show_new_post_modal: bool,
     pub new_post_content: String,
     /// Flag to trigger actual load after UI renders loading state
@@ -391,6 +392,7 @@ pub struct PostDetailState {
     pub reply_list_state: ListState,
     pub loading: bool,
     pub error: Option<String>,
+    pub message: Option<(String, Instant)>, // (message, timestamp) - auto-clears after 3 seconds
     pub show_reply_composer: bool,
     pub reply_content: String,
     pub show_delete_confirmation: bool,
