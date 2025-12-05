@@ -5,17 +5,26 @@ Scratch pad for jotting down ideas.
 
 # High priority
 
-[ ] - deployed 'fido' app not conecting to server.
+
+
+On the Social Connections modal, the keyboard shortcuts aren't showing up. It seems like the footer is too small and may be blocking them. You need this to work like the other modal, like the User Profile modal, for example, that shows the keyboard shortcuts at the bottom. Enough space. 
+The messaging of follower from the profile view when you press F still seems a little - conbines with the shortcut's not showing up. 
+
+
+The flow from profile viewing to opening to DMing those friends seems a little jank and needs to be cleaned up. 
+On that note, the new conversation flow from the DM page should probably use the same friends and mutuals modal. Let's just open up the mutuals tab and let's search the same way for all of your Mutuals, so you can DM them. 
+
+The keyboard shortcuts for the DM page are not showing up.  
+There's another bug on the conversations page where if you leave a draft open, you can't cursor over that draft in the side panel, so something about the way those drafts are being stored or cached is not working at all
 
 
 
-[ ] - Editing and deleting posts? Broken.
-The delete confirmation page is missing the confirmation shortcuts. We should make them match the "exit without saving" modal popup that shows up when you try to leave the settings page without saving. I like the size and the keyboard shortcuts colors on that. Delete post modal can match. 
-But the edit post feature doesn't seem to work right now. I think we should just cut the edit option for now. 
 
 
 
 # Low priority
+
+Remove test users from showing up in the installed Crate version. Probably more in handling, similar to Howard. 
 
 Add A Planned features section to the bottom of the readme
 

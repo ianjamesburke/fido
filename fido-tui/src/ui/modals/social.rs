@@ -44,7 +44,7 @@ pub fn render_friends_modal(frame: &mut Frame, app: &mut App, area: Rect) {
             Constraint::Length(3),  // Tab bar
             Constraint::Length(3),  // Search bar
             Constraint::Min(0),     // User list
-            Constraint::Length(2),  // Footer
+            Constraint::Length(3),  // Footer (needs 3 for border + text)
         ])
         .split(inner);
 
