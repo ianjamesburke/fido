@@ -1,12 +1,16 @@
-# Fido 🐕
+# Fido
 
 A terminal-based social platform for developers. No algorithms, no ads, just posts and conversations.
 
-Built for the [Kiroween 2024 Hackathon](https://kiro.ai) using spec-driven development.
+Built for the Kiroween using spec-driven development.
 
 ## What is it?
 
 Fido is a social network that lives in your terminal. Think Twitter, but keyboard-driven and without the noise. Post updates, chat with other developers, upvote good content. Everything happens in your terminal with zero distractions.
+
+## Live Demo Here
+https://fido-social.fly.dev/
+
 
 ## Installation
 
