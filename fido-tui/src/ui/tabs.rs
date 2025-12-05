@@ -433,7 +433,7 @@ pub fn get_action_bar_text(app: &App) -> &'static str {
     
     match app.current_tab {
         crate::app::Tab::Posts => {
-            "u/d: Vote | n: New Post | f: Filter | Space: Details | p: View Profile"
+            "u/d: Vote | n: Post | f: Filter | s: Search | Space: View | p: Profile"
         }
         crate::app::Tab::DMs => {
             // Check if user can compose (active conversation or pending draft)
