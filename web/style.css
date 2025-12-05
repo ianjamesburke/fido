@@ -1,3 +1,20 @@
+:root {
+    --color-primary: #00ff00;
+    --color-bg-dark: #0a0a0a;
+    --color-bg-medium: #1a1a1a;
+    --color-text: #e0e0e0;
+    --color-text-dim: #888;
+    --color-text-dimmer: #666;
+    --color-border: #333;
+    --color-border-dark: #222;
+    --color-border-darker: #2a2a2a;
+    --color-overlay: rgba(255, 255, 255, 0.05);
+    --color-overlay-light: rgba(255, 255, 255, 0.03);
+    --color-primary-glow: rgba(0, 255, 0, 0.3);
+    --color-primary-glow-soft: rgba(0, 255, 0, 0.5);
+    --color-primary-bg: rgba(0, 255, 0, 0.1);
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -6,8 +23,8 @@
 
 body {
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
-    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
-    color: #e0e0e0;
+    background: linear-gradient(135deg, var(--color-bg-dark) 0%, var(--color-bg-medium) 100%);
+    color: var(--color-text);
     line-height: 1.6;
     min-height: 100vh;
 }
@@ -22,12 +39,12 @@ body {
 header {
     text-align: center;
     padding: 40px 20px;
-    border-bottom: 2px solid #00ff00;
+    border-bottom: 2px solid var(--color-primary);
     margin-bottom: 40px;
 }
 
 .ascii-art {
-    color: #00ff00;
+    color: var(--color-primary);
     font-size: 14px;
     line-height: 1.2;
     margin-bottom: 10px;
@@ -35,13 +52,13 @@ header {
 
 h1 {
     font-size: 3em;
-    color: #00ff00;
+    color: var(--color-primary);
     margin-bottom: 10px;
 }
 
 .tagline {
     font-size: 1.2em;
-    color: #888;
+    color: var(--color-text-dim);
 }
 
 
@@ -55,15 +72,15 @@ h1 {
 }
 
 .feature {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid #333;
+    background: var(--color-overlay);
+    border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 30px;
     text-align: center;
 }
 
 .feature:hover {
-    border-color: #00ff00;
+    border-color: var(--color-primary);
 }
 
 .icon {
@@ -73,7 +90,7 @@ h1 {
 }
 
 .feature h3 {
-    color: #00ff00;
+    color: var(--color-primary);
     margin-bottom: 10px;
 }
 
@@ -83,7 +100,7 @@ h1 {
 }
 
 .demo h2 {
-    color: #00ff00;
+    color: var(--color-primary);
     font-size: 2em;
     margin-bottom: 20px;
     text-align: center;
@@ -92,33 +109,36 @@ h1 {
 .demo-instructions {
     text-align: center;
     margin-bottom: 20px;
-    color: #888;
+    color: var(--color-text-dim);
 }
 
 kbd {
-    background: #333;
+    background: var(--color-border);
     border: 1px solid #555;
     border-radius: 3px;
     padding: 2px 8px;
     font-family: inherit;
-    color: #00ff00;
+    color: var(--color-primary);
 }
 
 .terminal-container {
-    background: #0a0a0a;
-    border: 2px solid #00ff00;
+    position: relative;
+    background: var(--color-bg-dark);
+    border: 2px solid var(--color-primary);
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 0 30px rgba(0, 255, 0, 0.3);
+    box-shadow: 0 0 30px var(--color-primary-glow);
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
 .terminal-header {
-    background: #1a1a1a;
+    background: var(--color-bg-medium);
     padding: 10px;
     display: flex;
     align-items: center;
     gap: 8px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--color-border);
 }
 
 .terminal-button {
@@ -142,7 +162,7 @@ kbd {
 
 .terminal-title {
     margin-left: auto;
-    color: #666;
+    color: var(--color-text-dimmer);
     font-size: 0.9em;
 }
 
@@ -155,15 +175,15 @@ kbd {
 
 /* Info Section */
 .info {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid #333;
+    background: var(--color-overlay);
+    border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 40px;
     margin-bottom: 40px;
 }
 
 .info h2 {
-    color: #00ff00;
+    color: var(--color-primary);
     font-size: 2em;
     margin-bottom: 20px;
 }
@@ -175,7 +195,7 @@ kbd {
 
 .info li {
     padding: 10px 0;
-    border-bottom: 1px solid #222;
+    border-bottom: 1px solid var(--color-border-dark);
     font-size: 1.1em;
 }
 
@@ -189,7 +209,7 @@ kbd {
 }
 
 .tech h2 {
-    color: #00ff00;
+    color: var(--color-primary);
     font-size: 2em;
     margin-bottom: 20px;
     text-align: center;
@@ -202,15 +222,15 @@ kbd {
 }
 
 .tech-item {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid #333;
+    background: var(--color-overlay);
+    border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 20px;
     text-align: center;
 }
 
 .tech-item strong {
-    color: #00ff00;
+    color: var(--color-primary);
     display: block;
     margin-bottom: 5px;
 }
@@ -221,7 +241,7 @@ kbd {
 }
 
 .future h2 {
-    color: #00ff00;
+    color: var(--color-primary);
     font-size: 2em;
     margin-bottom: 20px;
     text-align: center;
@@ -234,15 +254,15 @@ kbd {
 }
 
 .future-item {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid #2a2a2a;
+    background: var(--color-overlay-light);
+    border: 1px solid var(--color-border-darker);
     border-radius: 8px;
     padding: 25px;
     text-align: center;
 }
 
 .future-item:hover {
-    border-color: rgba(0, 255, 0, 0.5);
+    border-color: var(--color-primary-glow-soft);
 }
 
 .future-icon {
@@ -252,7 +272,7 @@ kbd {
 }
 
 .future-item h3 {
-    color: #00ff00;
+    color: var(--color-primary);
     margin-bottom: 10px;
     font-size: 1.1em;
 }
@@ -264,10 +284,10 @@ kbd {
 }
 
 .future-item code {
-    background: rgba(0, 255, 0, 0.1);
+    background: var(--color-primary-bg);
     padding: 2px 6px;
     border-radius: 3px;
-    color: #00ff00;
+    color: var(--color-primary);
     font-size: 0.9em;
     display: inline-block;
     margin-top: 5px;
@@ -277,19 +297,19 @@ kbd {
 footer {
     text-align: center;
     padding: 40px 20px;
-    border-top: 2px solid #00ff00;
-    color: #666;
+    border-top: 2px solid var(--color-primary);
+    color: var(--color-text-dimmer);
 }
 
 footer a {
-    color: #00ff00;
+    color: var(--color-primary);
     text-decoration: none;
     transition: color 0.3s ease;
 }
 
 footer a:hover {
-    color: #00ff00;
-    text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+    color: var(--color-primary);
+    text-shadow: 0 0 10px var(--color-primary-glow-soft);
 }
 
 /* Responsive */
@@ -316,7 +336,3 @@ footer a:hover {
 }
 
 /* Minimal animations for performance */
-.terminal-container {
-    position: relative;
-    overflow: hidden;
-}
