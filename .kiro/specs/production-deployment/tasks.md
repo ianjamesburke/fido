@@ -399,11 +399,6 @@ The production deployment is **nearly complete**. The core authentication system
   - _Requirements: 10.5_
 
 - [ ] 15. Publish crates to crates.io
-- [ ] 15.1 Obtain crates.io API token
-  - Login to crates.io with GitHub account
-  - Generate API token from account settings
-  - Store token securely for publishing
-  - _Requirements: 10.1, 10.2_
 
 - [ ] 15.2 Publish fido-types
   - Run `cargo publish -p fido-types`

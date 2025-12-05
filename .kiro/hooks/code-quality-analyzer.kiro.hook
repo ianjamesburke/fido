@@ -1,5 +1,5 @@
 {
-  "enabled": true,
+  "enabled": false,
   "name": "Code Quality Analyzer",
   "description": "Monitors source code files for changes and provides suggestions for code quality improvements, including identifying code smells, recommending design patterns, and highlighting best practices opportunities. Focuses on readability, maintainability, and performance while preserving functionality.",
   "version": "1",

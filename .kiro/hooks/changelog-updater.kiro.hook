@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Changelog Updater",
+  "description": "Detects version changes in Cargo.toml files and automatically updates CHANGELOG.md with commits since the last version, categorized by type (Added, Changed, Fixed, Removed).",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/Cargo.toml"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A Cargo.toml file was just saved. Please:\n\n1. **Check for version changes**: Compare the current version in the saved Cargo.toml with the previous git version to detect if the version number changed\n\n2. **If version changed**:\n   - Run `git log --oneline` to get commits since the last version tag (or since the last CHANGELOG entry)\n   - Analyze the commit messages and categorize them into:\n     - **Added**: New features, new functionality (commits with 'add', 'feat', 'feature', 'new')\n     - **Changed**: Changes to existing functionality (commits with 'change', 'update', 'refactor', 'improve')\n     - **Fixed**: Bug fixes (commits with 'fix', 'bug', 'patch', 'resolve')\n     - **Removed**: Removed features or functionality (commits with 'remove', 'delete', 'drop')\n   - Update CHANGELOG.md following the Keep a Changelog format:\n     - Add a new version section with today's date\n     - List changes under appropriate categories\n     - Keep the [Unreleased] section at the top\n     - Move any unreleased items to the new version section\n\n3. **If no version change**: Do nothing and respond with a brief acknowledgment\n\n4. **Format**: Use the existing CHANGELOG.md format with proper markdown, bullet points, and clear categorization\n\nBe concise in your summary - focus on what changed, not implementation details... In some cases, there may already be some notes in the changelog. You can either incorporate these if you don't see the parallel to Git commits, or you can reformat them to fit the formatting of the changelog during your changelog update. "
+  }
+}
