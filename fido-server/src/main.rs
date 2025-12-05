@@ -4,13 +4,16 @@ mod db;
 mod hashtag;
 mod mention;
 mod oauth;
+mod rate_limit;
 mod session;
 mod state;
 
 use axum::{
+    middleware,
     routing::{delete, get, post, put},
     Router,
 };
+use rate_limit::RateLimiter;
 use state::AppState;
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
@@ -91,6 +94,9 @@ async fn main() {
         .allow_methods(Any)
         .allow_headers(Any);
 
+    // Create global rate limiter: 100 requests per minute per user
+    let rate_limiter = RateLimiter::new(100, 60);
+
     // Build router
     let app = Router::new()
         // Health check
@@ -141,8 +147,10 @@ async fn main() {
         .route("/social/following", get(api::friends::get_following_list))
         .route("/social/followers", get(api::friends::get_followers_list))
         .route("/social/mutual", get(api::friends::get_mutual_friends_list))
-        .layer(cors)
-        .with_state(state);
+        .with_state(state)
+        .layer(middleware::from_fn(rate_limit::rate_limit_middleware))
+        .layer(axum::Extension(rate_limiter))
+        .layer(cors);
 
     // Start server
     let addr: SocketAddr = format!("{}:{}", settings.server.host, settings.server.port)

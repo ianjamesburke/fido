@@ -146,6 +146,16 @@ CREATE TABLE IF NOT EXISTS user_configs (
     emoji_enabled INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+-- Post rate limiting table
+CREATE TABLE IF NOT EXISTS post_rate_limits (
+    user_id TEXT PRIMARY KEY,
+    last_post_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Create index for efficient rate limit lookups
+CREATE INDEX IF NOT EXISTS idx_post_rate_limits_user ON post_rate_limits(user_id);
 "#;
 
 /// Test data for development and testing

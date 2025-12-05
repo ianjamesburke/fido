@@ -3,7 +3,8 @@ use axum::{
     http::HeaderMap,
     Json,
 };
-use chrono::Utc;
+use chrono::{DateTime, Duration, Utc};
+use rusqlite::OptionalExtension;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -25,6 +26,63 @@ fn get_user_from_headers(state: &AppState, headers: &HeaderMap) -> Result<Uuid, 
     state
         .get_authenticated_user_id_from_token(token)
         .ok_or_else(|| ApiError::Unauthorized("Invalid session token".to_string()))
+}
+
+/// Check if user has exceeded post rate limit (1 post per 10 minutes)
+fn check_post_rate_limit(state: &AppState, user_id: &Uuid) -> Result<(), ApiError> {
+    let conn = state.db.pool.get()
+        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    
+    // Query last post time for this user
+    let last_post_at: Option<String> = conn
+        .query_row(
+            "SELECT last_post_at FROM post_rate_limits WHERE user_id = ?",
+            [user_id.to_string()],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    
+    if let Some(last_post_str) = last_post_at {
+        // Parse the timestamp
+        let last_post = DateTime::parse_from_rfc3339(&last_post_str)
+            .map_err(|e| ApiError::InternalError(format!("Failed to parse timestamp: {}", e)))?
+            .with_timezone(&Utc);
+        
+        let now = Utc::now();
+        let time_since_last_post = now.signed_duration_since(last_post);
+        let rate_limit_duration = Duration::minutes(10);
+        
+        if time_since_last_post < rate_limit_duration {
+            let remaining = rate_limit_duration - time_since_last_post;
+            let minutes = remaining.num_minutes();
+            let seconds = remaining.num_seconds() % 60;
+            
+            return Err(ApiError::TooManyRequests(format!(
+                "Rate limit exceeded. Please wait {}m {}s before posting again.",
+                minutes, seconds
+            )));
+        }
+    }
+    
+    Ok(())
+}
+
+/// Update the rate limit timestamp after successful post creation
+fn update_post_rate_limit(state: &AppState, user_id: &Uuid) -> Result<(), ApiError> {
+    let conn = state.db.pool.get()
+        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    
+    let now = Utc::now().to_rfc3339();
+    
+    conn.execute(
+        "INSERT INTO post_rate_limits (user_id, last_post_at) VALUES (?, ?)
+         ON CONFLICT(user_id) DO UPDATE SET last_post_at = excluded.last_post_at",
+        (user_id.to_string(), now),
+    )
+    .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -135,6 +193,9 @@ pub async fn create_post(
     // Get authenticated user from session token
     let author_id = get_user_from_headers(&state, &headers)?;
 
+    // Check rate limit (1 post per 10 minutes)
+    check_post_rate_limit(&state, &author_id)?;
+
     let pool = state.db.pool.clone();
     let post_repo = PostRepository::new(pool.clone());
     let hashtag_repo = HashtagRepository::new(pool.clone());
@@ -170,6 +231,9 @@ pub async fn create_post(
     post_repo
         .create(&post)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
+
+    // Update rate limit timestamp
+    update_post_rate_limit(&state, &author_id)?;
 
     // Store hashtags and track activity
     if !hashtags.is_empty() {
@@ -312,6 +376,9 @@ pub async fn create_reply(
     // Get authenticated user from session token
     let author_id = get_user_from_headers(&state, &headers)?;
 
+    // Check rate limit for replies (same as posts - 1 per 10 minutes)
+    check_post_rate_limit(&state, &author_id)?;
+
     let pool = state.db.pool.clone();
     let post_repo = PostRepository::new(pool.clone());
     let hashtag_repo = HashtagRepository::new(pool.clone());
@@ -375,6 +442,9 @@ pub async fn create_reply(
     post_repo
         .create(&reply)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
+
+    // Update rate limit timestamp (replies count toward rate limit)
+    update_post_rate_limit(&state, &author_id)?;
 
     // Store hashtags and track activity
     if !hashtags.is_empty() {
