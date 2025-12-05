@@ -384,10 +384,7 @@ The production deployment is **nearly complete**. The core authentication system
   - _Requirements: 11.4_
 
 - [ ] 14. Prepare for crates.io publishing
-- [ ] 14.1 Update repository URL in Cargo.toml
-  - Update workspace Cargo.toml with actual GitHub repository URL
-  - Replace `https://github.com/yourusername/fido` with actual URL
-  - _Requirements: 10.1, 10.2, 11.1_
+
 
 - [ ] 14.2 Verify package metadata completeness
   - Check all required fields in fido-types/Cargo.toml
@@ -395,7 +392,7 @@ The production deployment is **nearly complete**. The core authentication system
   - Ensure descriptions, keywords, and categories are set
   - _Requirements: 10.1, 10.2_
 
-- [ ] 14.3 Test local package build
+- [x] 14.3 Test local package build
   - Run `cargo package -p fido-types` to verify package builds
   - Run `cargo package -p fido` to verify TUI package builds
   - Check for any warnings or missing files

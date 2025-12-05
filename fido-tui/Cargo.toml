@@ -7,14 +7,12 @@ license.workspace = true
 description = "A blazing-fast, keyboard-driven social platform for developers"
 repository.workspace = true
 homepage.workspace = true
+readme = "README.md"
 keywords = ["tui", "social", "terminal", "ratatui"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-# For local development, use path dependency:
-fido-types = { path = "../fido-types" }
-# For publishing to crates.io, uncomment this and comment out the path dependency:
-# fido-types = "0.1.0"
+fido-types = { version = "0.1.0", path = "../fido-types" }
 
 serde.workspace = true
 serde_json.workspace = true
