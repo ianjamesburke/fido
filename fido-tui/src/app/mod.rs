@@ -66,8 +66,6 @@ impl App {
                 },
                 sort_order: "Newest".to_string(),
                 at_end_of_feed: false,
-                pull_to_refresh_ready: false,
-                last_refresh_time: None,
             },
             profile_state: ProfileState {
                 profile: None,
@@ -2811,40 +2809,13 @@ impl App {
         let current = self.posts_state.list_state.selected();
 
         match current {
-            Some(0) => {
-                // At first post - set pull-to-refresh ready state
-                self.posts_state.pull_to_refresh_ready = true;
-            }
-            Some(i) => {
-                // Normal navigation - clear pull-to-refresh state
-                self.posts_state.pull_to_refresh_ready = false;
+            Some(i) if i > 0 => {
                 self.posts_state.list_state.select(Some(i - 1));
             }
-            None => {
-                self.posts_state.pull_to_refresh_ready = false;
+            _ => {
+                // Already at top or no selection
                 self.posts_state.list_state.select(Some(0));
             }
-        }
-    }
-
-    /// Check if pull-to-refresh can be triggered (respects 1-second cooldown)
-    pub fn can_trigger_refresh(&self) -> bool {
-        if let Some(last_refresh) = self.posts_state.last_refresh_time {
-            last_refresh.elapsed() >= Duration::from_secs(1)
-        } else {
-            true
-        }
-    }
-
-    /// Trigger pull-to-refresh if ready and cooldown has passed
-    pub fn try_pull_to_refresh(&mut self) -> bool {
-        if self.posts_state.pull_to_refresh_ready && self.can_trigger_refresh() {
-            self.posts_state.pull_to_refresh_ready = false;
-            self.posts_state.last_refresh_time = Some(Instant::now());
-            self.posts_state.pending_load = true;
-            true
-        } else {
-            false
         }
     }
 

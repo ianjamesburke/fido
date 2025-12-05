@@ -428,7 +428,7 @@ pub fn get_action_bar_text(app: &App) -> &'static str {
     
     match app.current_tab {
         crate::app::Tab::Posts => {
-            "u/d: Vote | n: New Post | Space: Details | p: View Profile"
+            "u/d: Vote | n: New Post | f: Filter | Space: Details | p: View Profile"
         }
         crate::app::Tab::DMs => {
             match app.dms_state.selected_conversation_index {
@@ -530,6 +530,11 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
             .alignment(Alignment::Center)
             .block(Block::default().borders(Borders::ALL).title("Global Feed"));
         frame.render_widget(loading, posts_area);
+        
+        // Render filter modal if open (even when loading)
+        if app.posts_state.show_filter_modal {
+            render_filter_modal(frame, app, area);
+        }
         return;
     }
 
@@ -552,6 +557,11 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).title("Global Feed"));
         frame.render_widget(empty, posts_area);
+        
+        // Render filter modal if open (even when no posts)
+        if app.posts_state.show_filter_modal {
+            render_filter_modal(frame, app, area);
+        }
         return;
     }
 
@@ -561,12 +571,6 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
     let mut items: Vec<ListItem> = Vec::new();
 
     let available_width = posts_area.width.saturating_sub(BORDER_PADDING) as usize;
-
-    // Add pull-to-refresh indicator at top if ready
-    if app.posts_state.pull_to_refresh_ready && !app.posts_state.loading {
-        let refresh_indicator = create_refresh_indicator(&theme, available_width);
-        items.push(ListItem::new(refresh_indicator));
-    }
 
     // Add loading spinner at top if refreshing (when posts already exist)
     if app.posts_state.loading && !app.posts_state.posts.is_empty() {
@@ -766,28 +770,7 @@ fn create_centered_indicator(text: &str, style: Style, available_width: usize) -
     ]
 }
 
-/// Create a styled pull-to-refresh indicator with custom spans
-/// 
-/// # Arguments
-/// * `theme` - The theme colors to use
-/// * `available_width` - The available width for centering
-fn create_refresh_indicator(theme: &ThemeColors, available_width: usize) -> Vec<Line<'static>> {
-    let text = "↻ Pull to Refresh ↻";
-    let padding = (available_width.saturating_sub(text.len())) / 2;
-    
-    vec![
-        Line::from(""),
-        Line::from(vec![
-            Span::raw(" ".repeat(padding)),
-            Span::styled("↻", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
-            Span::raw(" "),
-            Span::styled("Pull to Refresh", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-            Span::raw(" "),
-            Span::styled("↻", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(""),
-    ]
-}
+
 
 /// Format timestamp for display
 fn format_timestamp(timestamp: &chrono::DateTime<chrono::Utc>) -> String {

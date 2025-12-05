@@ -398,8 +398,8 @@ async fn main() -> Result<()> {
                             };
                             app.apply_filter(filter).await?;
                         }
-                        KeyCode::Enter | KeyCode::Char(' ') if app.current_tab == app::Tab::Posts && !app.posts_state.show_new_post_modal && !app.viewing_post_detail && !app.composer_state.is_open() => {
-                            // Open post detail view for selected post
+                        KeyCode::Enter | KeyCode::Char(' ') if app.current_tab == app::Tab::Posts && !app.posts_state.show_new_post_modal && !app.viewing_post_detail && !app.composer_state.is_open() && !app.posts_state.show_filter_modal => {
+                            // Open post detail view for selected post (only if filter modal is not open)
                             if let Some(selected_index) = app.posts_state.list_state.selected() {
                                 if selected_index < app.posts_state.posts.len() {
                                     let post_id = app.posts_state.posts[selected_index].id;

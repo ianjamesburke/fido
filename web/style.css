@@ -36,11 +36,6 @@ header {
 h1 {
     font-size: 3em;
     color: #00ff00;
-    text-shadow: 
-        0 0 20px rgba(0, 255, 0, 0.8),
-        0 0 40px rgba(0, 255, 0, 0.6),
-        0 0 60px rgba(0, 255, 0, 0.4),
-        0 0 80px rgba(0, 255, 0, 0.2);
     margin-bottom: 10px;
 }
 
@@ -49,35 +44,7 @@ h1 {
     color: #888;
 }
 
-.resurrection-badge {
-    margin-top: 30px;
-    padding: 20px;
-    background: rgba(0, 255, 0, 0.05);
-    border: 1px solid rgba(0, 255, 0, 0.3);
-    border-radius: 8px;
-    display: inline-block;
-    animation: fadeInUp 0.8s ease-out 0.5s forwards, borderGlow 3s ease-in-out 1.5s infinite;
-    opacity: 0;
-}
 
-.badge-icon {
-    font-size: 2em;
-    display: block;
-    margin-bottom: 10px;
-    animation: float 3s ease-in-out infinite;
-}
-
-.resurrection-text {
-    color: #00ff00;
-    font-size: 1.3em;
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-.resurrection-subtext {
-    color: #888;
-    font-size: 0.95em;
-}
 
 /* Features */
 .features {
@@ -93,13 +60,10 @@ h1 {
     border-radius: 8px;
     padding: 30px;
     text-align: center;
-    transition: all 0.3s ease;
 }
 
 .feature:hover {
     border-color: #00ff00;
-    box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
-    transform: translateY(-5px);
 }
 
 .icon {
@@ -184,7 +148,7 @@ kbd {
 
 #terminal {
     width: 100%;
-    height: 600px;
+    height: 700px;
     border: none;
     display: block;
 }
@@ -275,42 +239,16 @@ kbd {
     border-radius: 8px;
     padding: 25px;
     text-align: center;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-}
-
-.future-item::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(0, 255, 0, 0.1), transparent);
-    transition: left 0.5s ease;
-}
-
-.future-item:hover::before {
-    left: 100%;
 }
 
 .future-item:hover {
     border-color: rgba(0, 255, 0, 0.5);
-    box-shadow: 0 0 15px rgba(0, 255, 0, 0.15);
-    transform: translateY(-3px);
 }
 
 .future-icon {
     font-size: 2.5em;
     display: block;
     margin-bottom: 15px;
-    filter: grayscale(0.3);
-    transition: filter 0.3s ease;
-}
-
-.future-item:hover .future-icon {
-    filter: grayscale(0);
 }
 
 .future-item h3 {
@@ -365,7 +303,7 @@ footer a:hover {
     }
 
     #terminal {
-        height: 400px;
+        height: 500px;
     }
 
     .tech-grid {
@@ -375,123 +313,10 @@ footer a:hover {
     .future-grid {
         grid-template-columns: 1fr;
     }
-    
-    .resurrection-badge {
-        padding: 15px;
-    }
-    
-    .resurrection-text {
-        font-size: 1.1em;
-    }
-    
-    .resurrection-subtext {
-        font-size: 0.85em;
-    }
 }
 
-/* Animations */
-@keyframes pulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.5;
-    }
-}
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes glow {
-    0%, 100% {
-        text-shadow: 
-            0 0 20px rgba(0, 255, 0, 0.8),
-            0 0 40px rgba(0, 255, 0, 0.6),
-            0 0 60px rgba(0, 255, 0, 0.4);
-    }
-    50% {
-        text-shadow: 
-            0 0 30px rgba(0, 255, 0, 1),
-            0 0 60px rgba(0, 255, 0, 0.8),
-            0 0 90px rgba(0, 255, 0, 0.6),
-            0 0 120px rgba(0, 255, 0, 0.4);
-    }
-}
-
-@keyframes float {
-    0%, 100% {
-        transform: translateY(0px);
-    }
-    50% {
-        transform: translateY(-10px);
-    }
-}
-
-@keyframes scanline {
-    0% {
-        transform: translateY(-100%);
-    }
-    100% {
-        transform: translateY(100%);
-    }
-}
-
-@keyframes borderGlow {
-    0%, 100% {
-        border-color: rgba(0, 255, 0, 0.3);
-        box-shadow: 0 0 5px rgba(0, 255, 0, 0.2);
-    }
-    50% {
-        border-color: rgba(0, 255, 0, 0.6);
-        box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
-    }
-}
-
-.loading {
-    animation: pulse 2s ease-in-out infinite;
-}
-
-/* Apply animations */
-.ascii-art {
-    animation: glow 3s ease-in-out infinite;
-}
-
-.feature {
-    animation: fadeInUp 0.6s ease-out forwards;
-    opacity: 0;
-}
-
-.feature:nth-child(1) { animation-delay: 0.1s; }
-.feature:nth-child(2) { animation-delay: 0.2s; }
-.feature:nth-child(3) { animation-delay: 0.3s; }
-.feature:nth-child(4) { animation-delay: 0.4s; }
-
-.icon {
-    animation: float 3s ease-in-out infinite;
-}
-
+/* Minimal animations for performance */
 .terminal-container {
     position: relative;
     overflow: hidden;
-}
-
-.terminal-container::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, rgba(0, 255, 0, 0.3), transparent);
-    animation: scanline 4s linear infinite;
-    pointer-events: none;
-    z-index: 10;
 }

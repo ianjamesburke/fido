@@ -46,78 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Add smooth scroll
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function (e) {
-            e.preventDefault();
-            const target = document.querySelector(this.getAttribute('href'));
-            if (target) {
-                target.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
-                });
-            }
-        });
-    });
-    
-    // Add terminal connection status indicator
-    function checkTerminalConnection() {
-        // Simple visual feedback
-        const terminalContainer = document.querySelector('.terminal-container');
-        
-        // Try to detect if iframe is responsive
-        try {
-            if (terminal.contentWindow) {
-                terminalContainer.classList.remove('loading');
-            }
-        } catch {
-            // Cross-origin, but that's expected
-            terminalContainer.classList.remove('loading');
-        }
-    }
-    
-    // Check connection after a delay
-    setTimeout(checkTerminalConnection, 2000);
-    
-    // Add copy button for GitHub link
-    const githubLink = document.querySelector('a[href*="github"]');
-    if (githubLink) {
-        githubLink.addEventListener('click', function() {
-            // Track click (if you add analytics later)
-            console.log('GitHub link clicked');
-        });
-    }
-    
-    // Intersection Observer for scroll animations
-    const observerOptions = {
-        threshold: 0.1,
-        rootMargin: '0px 0px -50px 0px'
-    };
-    
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.style.opacity = '1';
-                entry.target.style.transform = 'translateY(0)';
-            }
-        });
-    }, observerOptions);
-    
-    // Observe future items
-    document.querySelectorAll('.future-item').forEach((item, index) => {
-        item.style.opacity = '0';
-        item.style.transform = 'translateY(30px)';
-        item.style.transition = `all 0.6s ease-out ${index * 0.1}s`;
-        observer.observe(item);
-    });
-    
-    // Observe tech items
-    document.querySelectorAll('.tech-item').forEach((item, index) => {
-        item.style.opacity = '0';
-        item.style.transform = 'translateY(30px)';
-        item.style.transition = `all 0.6s ease-out ${index * 0.1}s`;
-        observer.observe(item);
-    });
+
 });
 
 // Add console easter egg

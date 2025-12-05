@@ -78,8 +78,14 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
             None => return, // Should never happen
         };
 
-    // Create centered modal area (70% width, 80% height) - consistent with friends modal
-    let modal_area = centered_rect(70, 80, area);
+    // Create centered modal area
+    // Reply modal is smaller (70% width, 56% height) to show thread context behind it
+    // Other modals use standard size (70% width, 80% height)
+    let height_percent = match &app.composer_state.mode {
+        Some(ComposerMode::Reply { .. }) => 56, // 30% smaller than 80%
+        _ => 80,
+    };
+    let modal_area = centered_rect(70, height_percent, area);
 
     // Clear background (always clear to ensure clean rendering)
     frame.render_widget(Clear, modal_area);

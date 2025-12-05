@@ -326,10 +326,6 @@ pub struct PostsState {
     pub sort_order: String,
     /// Track if at end of feed (for "End of Feed" indicator)
     pub at_end_of_feed: bool,
-    /// Pull-to-refresh: ready state (true when at top and pressed up once)
-    pub pull_to_refresh_ready: bool,
-    /// Pull-to-refresh: last refresh time for cooldown
-    pub last_refresh_time: Option<Instant>,
 }
 
 impl PostsState {
@@ -337,11 +333,6 @@ impl PostsState {
     /// This is used to convert between post indices and list indices
     pub fn items_before_posts(&self) -> usize {
         let mut count = 0;
-
-        // Pull-to-refresh indicator
-        if self.pull_to_refresh_ready && !self.loading {
-            count += 1;
-        }
 
         // Loading spinner
         if self.loading && !self.posts.is_empty() {

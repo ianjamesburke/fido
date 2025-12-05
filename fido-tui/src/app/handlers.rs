@@ -221,15 +221,10 @@ pub fn handle_posts_keys(app: &mut App, key: KeyEvent) -> Result<()> {
 
     match key.code {
         KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
-            app.posts_state.pull_to_refresh_ready = false;
             app.next_post();
         }
         KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => {
-            if app.posts_state.pull_to_refresh_ready {
-                app.try_pull_to_refresh();
-            } else {
-                app.previous_post();
-            }
+            app.previous_post();
         }
         KeyCode::Char('u') | KeyCode::Char('U') => {}
         KeyCode::Char('d') | KeyCode::Char('D') => {}

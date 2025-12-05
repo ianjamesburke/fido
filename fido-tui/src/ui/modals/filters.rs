@@ -42,7 +42,7 @@ pub fn render_filter_modal(frame: &mut Frame, app: &mut App, area: Rect) {
         .constraints([
             Constraint::Length(3), // Tab selector
             Constraint::Min(0),    // Content
-            Constraint::Length(2), // Instructions
+            Constraint::Length(3), // Instructions (needs 3 for border + text)
         ])
         .split(inner);
 
