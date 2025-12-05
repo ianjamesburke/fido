@@ -100,6 +100,15 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
         return app.handle_friends_modal_keys(key);
     }
 
+    // Priority: User search modal
+    if app.user_search_state.show_modal {
+        if matches!(key.code, KeyCode::Esc) {
+            app.close_user_search_modal();
+            return Ok(());
+        }
+        return app.handle_user_search_modal_keys(key);
+    }
+
     // Priority: Hashtags modal
     if app.hashtags_state.show_hashtags_modal {
         if matches!(key.code, KeyCode::Esc) {
@@ -233,6 +242,9 @@ pub fn handle_posts_keys(app: &mut App, key: KeyEvent) -> Result<()> {
         }
         KeyCode::Char('f') | KeyCode::Char('F') => {
             app.open_filter_modal();
+        }
+        KeyCode::Char('s') | KeyCode::Char('S') => {
+            app.open_user_search_modal();
         }
         KeyCode::Char('p') | KeyCode::Char('P') => {}
         KeyCode::Enter => {}

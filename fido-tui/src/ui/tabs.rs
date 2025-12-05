@@ -360,6 +360,11 @@ pub fn render_main_screen(frame: &mut Frame, app: &mut App) {
         render_friends_modal(frame, app, area);
     }
 
+    // Render user search modal
+    if app.user_search_state.show_modal {
+        render_user_search_modal(frame, app, area);
+    }
+
     // Render user profile view
     if app.user_profile_view.is_some() {
         render_user_profile_view(frame, app, area);
@@ -439,11 +444,11 @@ pub fn get_action_bar_text(app: &App) -> &'static str {
             let can_compose = has_active_conversation || has_pending_draft;
             
             if app.dms_state.selected_conversation_index == Some(usize::MAX) {
-                "" // New Conversation button - shortcut shown in modal only
+                "Enter: Start New Conversation | ↑/↓/j/k: Navigate | Esc: Back"
             } else if can_compose {
                 "↑/↓/j/k: Navigate | Type to compose | Enter: Send | Esc: Clear"
             } else {
-                "↑/↓/j/k: Navigate | Enter: Select conversation"
+                "↑/↓/j/k: Navigate | Enter: Select conversation | n: New Conversation"
             }
         }
         crate::app::Tab::Profile => "e: Edit Bio | f: Friends",

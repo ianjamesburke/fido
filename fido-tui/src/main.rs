@@ -41,6 +41,8 @@ struct ModalStateTracker {
     filter_modal: bool,
     friends_modal: bool,
     new_conversation_modal: bool,
+    user_search_modal: bool,
+    last_search_query: String,
 }
 
 impl ModalStateTracker {
@@ -49,6 +51,8 @@ impl ModalStateTracker {
             filter_modal: false,
             friends_modal: false,
             new_conversation_modal: false,
+            user_search_modal: false,
+            last_search_query: String::new(),
         }
     }
 
@@ -65,6 +69,22 @@ impl ModalStateTracker {
             app.load_social_connections().await?;
         }
         self.friends_modal = app.friends_state.show_friends_modal;
+
+        // User search modal - trigger search on query change
+        if app.user_search_state.show_modal {
+            if !self.user_search_modal {
+                // Modal just opened - no search yet
+                self.user_search_modal = true;
+                self.last_search_query = String::new();
+            } else if app.user_search_state.search_query != self.last_search_query {
+                // Query changed - trigger search
+                self.last_search_query = app.user_search_state.search_query.clone();
+                app.search_users().await?;
+            }
+        } else {
+            self.user_search_modal = false;
+            self.last_search_query.clear();
+        }
 
         // New conversation modal
         if app.dms_state.show_new_conversation_modal && !self.new_conversation_modal {
@@ -429,6 +449,23 @@ async fn main() -> Result<()> {
                                 app.friends_state.return_to_modal_after_profile = true;
                                 app.close_friends_modal();
                                 app.load_user_profile_view(user_id).await?;
+                            }
+                        }
+                        KeyCode::Enter if app.user_search_state.show_modal => {
+                            // View selected user's profile from search modal
+                            if let Some(user_id) = app.user_search_view_profile() {
+                                app.close_user_search_modal();
+                                app.load_user_profile_view(user_id).await?;
+                            }
+                        }
+                        KeyCode::Char('d') | KeyCode::Char('D') if app.user_search_state.show_modal => {
+                            // Start DM with selected user from search modal
+                            if let Some(username) = app.user_search_start_dm() {
+                                app.close_user_search_modal();
+                                app.current_tab = app::Tab::DMs;
+                                app.dms_state.pending_conversation_username = Some(username);
+                                app.dms_state.selected_conversation_index = None;
+                                app.dms_state.needs_message_load = true;
                             }
                         }
                         KeyCode::Char('f') | KeyCode::Char('F') if app.friends_state.show_friends_modal && !app.friends_state.search_mode => {

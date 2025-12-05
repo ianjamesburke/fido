@@ -261,6 +261,7 @@ pub fn add_posts_feed_shortcuts(
             ("d", "Downvote selected post"),
             ("n", "New post"),
             ("f", "Filter posts"),
+            ("s", "Search users"),
             ("p", "View author profile"),
         ],
     ));
@@ -272,6 +273,20 @@ pub fn add_posts_feed_shortcuts(
                 ("Enter", "Submit post"),
                 ("Esc", "Cancel"),
                 (":emoji:", "Use emoji shortcodes"),
+            ],
+        ));
+    }
+
+    if app.user_search_state.show_modal {
+        shortcuts.push((
+            "User Search Modal",
+            vec![
+                ("Type", "Search for users"),
+                ("↓/j", "Next result"),
+                ("↑/k", "Previous result"),
+                ("Enter", "View profile"),
+                ("d", "Send DM"),
+                ("Esc", "Close search"),
             ],
         ));
     }

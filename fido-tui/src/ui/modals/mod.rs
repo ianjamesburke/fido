@@ -3,6 +3,7 @@ mod utils;
 mod composer;
 mod posts;
 mod social;
+mod social_components;
 mod filters;
 mod help;
 

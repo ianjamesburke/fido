@@ -5,7 +5,7 @@ Scratch pad for jotting down ideas.
 
 # High priority
 
-
+Fix the message that shows up when you have no friends. It says to use the post API route, but instead that should just... I don't know, that should be something else. 
 
 
 The messaging of follower from the profile view when you press F still seems a little - conbines with the shortcut's not showing up. 

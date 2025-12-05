@@ -336,6 +336,14 @@ impl ApiClient {
         self.handle_response(response).await
     }
 
+    /// Search users by username
+    pub async fn search_users(&self, query: String) -> ApiResult<Vec<UserSearchResult>> {
+        let url = format!("{}/users/search?q={}", self.base_url, urlencoding::encode(&query));
+        let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
     // OAuth endpoints
 
     /// Initiate GitHub Device Flow
@@ -400,6 +408,12 @@ pub struct SocialUserInfo {
     pub username: String,
     pub follower_count: usize,
     pub following_count: usize,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UserSearchResult {
+    pub id: String,
+    pub username: String,
 }
 
 #[derive(Debug, serde::Deserialize)]

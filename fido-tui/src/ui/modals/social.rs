@@ -439,3 +439,106 @@ pub fn render_dm_error_modal(frame: &mut Frame, app: &App, area: Rect) {
         );
     frame.render_widget(footer, chunks[1]);
 }
+
+/// Render user search modal using shared components
+pub fn render_user_search_modal(frame: &mut Frame, app: &mut App, area: Rect) {
+    let theme = get_theme_colors(app);
+
+    // Create modal container using shared component
+    let modal_area = centered_rect(70, 80, area);
+    frame.render_widget(Clear, modal_area);
+    
+    let block = Block::default()
+        .title(" Search Users ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+        .style(Style::default().bg(theme.background));
+    
+    let inner = block.inner(modal_area);
+    frame.render_widget(block, modal_area);
+
+    // Handle loading state
+    if app.user_search_state.loading {
+        let loading = Paragraph::new("Searching...")
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(theme.warning));
+        frame.render_widget(loading, inner);
+        return;
+    }
+
+    // Split into sections
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),  // Search bar
+            Constraint::Min(0),     // User list
+            Constraint::Length(3),  // Footer
+        ])
+        .split(inner);
+
+    // Render search bar
+    let search_text = if app.user_search_state.search_query.is_empty() {
+        "Type to search users...".to_string()
+    } else {
+        format!("Search: {}", app.user_search_state.search_query)
+    };
+
+    let search_bar = Paragraph::new(search_text)
+        .style(Style::default().fg(theme.accent))
+        .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.border)));
+    frame.render_widget(search_bar, chunks[0]);
+
+    // Render user list or empty state
+    let results = &app.user_search_state.search_results;
+    if results.is_empty() {
+        let empty_msg = if app.user_search_state.search_query.is_empty() {
+            "Start typing to search for users"
+        } else if app.user_search_state.search_query.len() < 2 {
+            "Type at least 2 characters to search"
+        } else {
+            "No users found matching your search"
+        };
+
+        let empty = Paragraph::new(empty_msg)
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(theme.text_dim));
+        frame.render_widget(empty, chunks[1]);
+    } else {
+        // Build user list - simplified without stats
+        let items: Vec<ListItem> = results
+            .iter()
+            .map(|user| ListItem::new(format!("@{}", user.username)))
+            .collect();
+
+        let list = List::new(items)
+            .highlight_style(
+                Style::default()
+                    .bg(theme.highlight_bg)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol(">> ");
+
+        let mut list_state = ListState::default();
+        list_state.select(Some(app.user_search_state.selected_index.min(results.len().saturating_sub(1))));
+
+        frame.render_stateful_widget(list, chunks[1], &mut list_state);
+    }
+
+    // Render footer
+    let footer = Paragraph::new("↑/↓/j/k: Navigate | Enter: View Profile | d: Send DM | Esc: Close")
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(theme.text))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border)),
+        );
+    frame.render_widget(footer, chunks[2]);
+}
+
+// TODO: Refactor all social modals to use shared components from social_components.rs
+// This will reduce code duplication by ~280 lines across:
+// - render_friends_modal
+// - render_new_conversation_modal  
+// - render_user_search_modal
+// See social_refactored_example.rs for the pattern

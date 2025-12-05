@@ -123,6 +123,22 @@ pub struct HashtagsState {
     pub hashtag_to_unfollow: Option<String>,
 }
 
+/// User search modal state
+pub struct UserSearchState {
+    pub show_modal: bool,
+    pub search_query: String,
+    pub search_results: Vec<UserSearchResult>,
+    pub selected_index: usize,
+    pub loading: bool,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UserSearchResult {
+    pub id: String,
+    pub username: String,
+}
+
 /// Main application state
 pub struct App {
     pub running: bool,
@@ -143,6 +159,7 @@ pub struct App {
     pub composer_state: ComposerState,
     pub friends_state: FriendsState,
     pub hashtags_state: HashtagsState,
+    pub user_search_state: UserSearchState,
     pub user_profile_view: Option<UserProfileViewState>,
     pub log_config: crate::logging::LogConfig,
 }
