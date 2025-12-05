@@ -24,11 +24,15 @@ There's another bug on the conversations page where if you leave a draft open, y
 
 # Low priority
 
-Remove test users from showing up in the installed Crate version. Probably more in handling, similar to Howard. 
+
+add crate version update alerts
+... maybe 'u' to open changelog file
+
+
+Remove test users from showing up in the installed Crate version. 
 
 Add A Planned features section to the bottom of the readme
 
-CI/CD
 
 
 # Future Considerations 
@@ -44,5 +48,7 @@ Definitely in the new conversation, fuzzy find there would be good, but I think 
 Add a convenient flow for requesting features that opens an issue template in GitHub.
 
 ---
+
+CI/CD
 
 
