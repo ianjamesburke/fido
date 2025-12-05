@@ -483,9 +483,6 @@ pub fn handle_post_detail_keys(app: &mut App, key: KeyEvent) -> Result<()> {
         if detail_state.show_reply_composer {
             return handle_reply_composer_keys(app, key);
         }
-        if detail_state.show_edit_modal {
-            return app.handle_edit_post_modal_keys(key);
-        }
         if detail_state.show_delete_confirmation {
             return app.handle_delete_confirmation_keys(key);
         }
@@ -581,16 +578,6 @@ pub fn handle_post_detail_keys(app: &mut App, key: KeyEvent) -> Result<()> {
                             reply.author_username.clone(),
                             reply.content.clone(),
                         );
-                    }
-                }
-            }
-        }
-        KeyCode::Char('e') | KeyCode::Char('E') => {
-            if let Some(detail_state) = &app.post_detail_state {
-                if let Some(post) = &detail_state.post {
-                    let current_user_id = app.auth_state.current_user.as_ref().map(|u| u.id);
-                    if current_user_id == Some(post.author_id) {
-                        app.open_composer_edit_post(post.id, post.content.clone());
                     }
                 }
             }

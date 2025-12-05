@@ -393,8 +393,6 @@ pub struct PostDetailState {
     pub error: Option<String>,
     pub show_reply_composer: bool,
     pub reply_content: String,
-    pub show_edit_modal: bool,
-    pub edit_content: String,
     pub show_delete_confirmation: bool,
     pub previous_feed_position: Option<usize>,
     /// Track which posts are expanded (post_id -> is_expanded)

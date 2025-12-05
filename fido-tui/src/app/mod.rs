@@ -2696,37 +2696,6 @@ impl App {
             KeyCode::Char('d') | KeyCode::Char('D') => {
                 // Downvote from modal (will be handled async in main loop)
             }
-            KeyCode::Char('e') | KeyCode::Char('E') => {
-                // Edit selected post (only if user owns it)
-                if let Some(detail_state) = &self.post_detail_state {
-                    let selected_idx = detail_state.modal_list_state.selected().unwrap_or(0);
-                    
-                    if selected_idx == 0 {
-                        // Editing root post
-                        if let Some(modal_post_id) = detail_state.full_post_modal_id {
-                            let post_to_edit = if let Some(post) = &detail_state.post {
-                                if post.id == modal_post_id {
-                                    Some(post.clone())
-                                } else {
-                                    detail_state.replies.iter().find(|r| r.id == modal_post_id).cloned()
-                                }
-                            } else {
-                                None
-                            };
-                            
-                            if let Some(post) = post_to_edit {
-                                let current_user_id = self.auth_state.current_user.as_ref().map(|u| u.id);
-                                if current_user_id == Some(post.author_id) {
-                                    // Close the post modal so composer is visible
-                                    self.close_full_post_modal();
-                                    self.open_composer_edit_post(post.id, post.content.clone());
-                                }
-                            }
-                        }
-                    }
-                    // TODO: Handle editing replies (selected_idx > 0)
-                }
-            }
             KeyCode::Char('x') | KeyCode::Char('X') => {
                 // Delete selected post (only if user owns it)
                 self.show_delete_confirmation();
@@ -2922,8 +2891,6 @@ impl App {
             error: None,
             show_reply_composer: false,
             reply_content: String::new(),
-            show_edit_modal: false,
-            edit_content: String::new(),
             show_delete_confirmation: false,
             previous_feed_position: previous_position,
             expanded_posts: std::collections::HashMap::new(),
@@ -2954,8 +2921,6 @@ impl App {
                 error: None,
                 show_reply_composer: false,
                 reply_content: String::new(),
-                show_edit_modal: false,
-                edit_content: String::new(),
                 show_delete_confirmation: false,
                 previous_feed_position: self.posts_state.list_state.selected(),
                 expanded_posts: std::collections::HashMap::new(),
@@ -3460,31 +3425,7 @@ impl App {
         Ok(())
     }
 
-    pub fn open_edit_post_modal(&mut self) {
-        if let Some(detail_state) = &mut self.post_detail_state {
-            if let Some(post) = &detail_state.post {
-                detail_state.edit_content = post.content.clone();
-                detail_state.show_edit_modal = true;
-                self.input_mode = InputMode::Typing;
-            }
-        }
-    }
 
-    pub fn close_edit_post_modal(&mut self) {
-        if let Some(detail_state) = &mut self.post_detail_state {
-            detail_state.show_edit_modal = false;
-            detail_state.edit_content.clear();
-            self.input_mode = InputMode::Navigation;
-        }
-    }
-
-    pub fn add_char_to_edit(&mut self, c: char) {
-        if let Some(detail_state) = &mut self.post_detail_state {
-            if detail_state.edit_content.len() < 280 {
-                detail_state.edit_content.push(c);
-            }
-        }
-    }
 
     /// Get author ID from selected post in feed
     pub fn get_selected_post_author_id(&self) -> Option<String> {
@@ -4166,66 +4107,7 @@ impl App {
         Ok(())
     }
 
-    pub fn remove_char_from_edit(&mut self) {
-        if let Some(detail_state) = &mut self.post_detail_state {
-            detail_state.edit_content.pop();
-        }
-    }
 
-    pub async fn submit_post_edit(&mut self) -> Result<()> {
-        let detail_state = match &mut self.post_detail_state {
-            Some(state) => state,
-            None => return Ok(()),
-        };
-        let trimmed = detail_state.edit_content.trim();
-        if trimmed.is_empty() {
-            detail_state.error =
-                Some("Validation Error: Cannot save empty post. Type something first!".to_string());
-            return Ok(());
-        }
-        let char_count = crate::emoji::count_characters(&detail_state.edit_content);
-        if char_count > 280 {
-            detail_state.error = Some(format!(
-                "Validation Error: Post exceeds 280 characters (current: {})",
-                char_count
-            ));
-            return Ok(());
-        }
-        let post_id = match &detail_state.post {
-            Some(post) => post.id,
-            None => return Ok(()),
-        };
-        detail_state.error = None;
-        let content = crate::emoji::parse_emoji_shortcodes(&detail_state.edit_content);
-        match self.api_client.update_post(post_id, content.clone()).await {
-            Ok(updated_post) => {
-                if let Some(detail_state) = &mut self.post_detail_state {
-                    detail_state.post = Some(updated_post);
-                }
-                self.close_edit_post_modal();
-            }
-            Err(e) => {
-                if let Some(detail_state) = &mut self.post_detail_state {
-                    detail_state.error = Some(categorize_error(&e.to_string()));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn handle_edit_post_modal_keys(&mut self, key: KeyEvent) -> Result<()> {
-        match key.code {
-            KeyCode::Char(c) => self.add_char_to_edit(c),
-            KeyCode::Backspace => self.remove_char_from_edit(),
-            KeyCode::Enter
-                if key
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL) => {}
-            KeyCode::Esc => self.close_edit_post_modal(),
-            _ => {}
-        }
-        Ok(())
-    }
 
     pub fn show_delete_confirmation(&mut self) {
         if let Some(detail_state) = &mut self.post_detail_state {

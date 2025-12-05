@@ -5,7 +5,11 @@ Scratch pad for jotting down ideas.
 
 # High priority
 
-Editing and deleting posts? Broken.
+[ ] - deployed 'fido' app not conecting to server.
+
+
+
+[ ] - Editing and deleting posts? Broken.
 The delete confirmation page is missing the confirmation shortcuts. We should make them match the "exit without saving" modal popup that shows up when you try to leave the settings page without saving. I like the size and the keyboard shortcuts colors on that. Delete post modal can match. 
 But the edit post feature doesn't seem to work right now. I think we should just cut the edit option for now. 
 

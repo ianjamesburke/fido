@@ -218,7 +218,7 @@ pub fn add_post_detail_shortcuts(
                 if post.author_id == user.id {
                     shortcuts.push((
                         "Post Owner Actions",
-                        vec![("e", "Edit post"), ("x", "Delete post")],
+                        vec![("x", "Delete post")],
                     ));
                 }
             }
@@ -233,11 +233,6 @@ pub fn add_post_detail_shortcuts(
                     ("Esc", "Cancel reply"),
                     (":emoji:", "Use emoji shortcodes"),
                 ],
-            ));
-        } else if detail_state.show_edit_modal {
-            shortcuts.push((
-                "Edit Post Modal",
-                vec![("Enter", "Save changes"), ("Esc", "Cancel edit")],
             ));
         } else if detail_state.show_delete_confirmation {
             shortcuts.push((

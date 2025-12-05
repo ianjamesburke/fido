@@ -13,7 +13,7 @@ use super::super::theme::get_theme_colors;
 use super::super::formatting::*;
 use super::utils::centered_rect;
 
-/// Render delete confirmation modal
+/// Render delete confirmation modal (matches unsaved changes modal style)
 pub fn render_delete_confirmation_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
 
@@ -29,33 +29,13 @@ pub fn render_delete_confirmation_modal(frame: &mut Frame, app: &mut App, area: 
         None => return,
     };
 
-    // Create centered modal area (70% width, 80% height) - consistent with friends modal
-    let modal_area = centered_rect(70, 80, area);
+    // Create centered modal area (50% width, 35% height) - sized to show all content including shortcuts
+    let modal_area = centered_rect(50, 35, area);
 
     // Clear background
     frame.render_widget(Clear, modal_area);
 
-    let block = Block::default()
-        .title(" Delete Post ")
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
-        .style(Style::default().bg(theme.background));
-
-    let inner = block.inner(modal_area);
-    frame.render_widget(block, modal_area);
-
-    // Create modal layout
-    let modal_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(0),    // Message
-            Constraint::Length(2), // Instructions
-        ])
-        .split(inner);
-
-    // Message with warning if post has replies
-    // Only show warning if the post being deleted actually has replies
-    // (not just if the detail view has replies)
+    // Get post being deleted info
     let post_being_deleted = detail_state.get_deletable_post();
     
     // Determine if we're deleting a reply or the main post
@@ -69,11 +49,12 @@ pub fn render_delete_confirmation_modal(frame: &mut Frame, app: &mut App, area: 
         "Are you sure you want to delete this post?"
     };
     
-    let mut message_lines = vec![
+    // Build content with message and styled keyboard shortcuts
+    let mut content = vec![
         Line::from(""),
         Line::from(Span::styled(
             delete_message,
-            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.text),
         )),
         Line::from(""),
     ];
@@ -85,10 +66,9 @@ pub fn render_delete_confirmation_modal(frame: &mut Frame, app: &mut App, area: 
             .count();
         
         if direct_reply_count > 0 {
-            message_lines.push(Line::from(Span::styled(
+            content.push(Line::from(Span::styled(
                 format!(
-                    "⚠ Warning: This {} has {} direct {}!",
-                    if is_deleting_reply { "reply" } else { "post" },
+                    "⚠ Warning: {} direct {}!",
                     direct_reply_count,
                     if direct_reply_count == 1 { "reply" } else { "replies" }
                 ),
@@ -96,35 +76,39 @@ pub fn render_delete_confirmation_modal(frame: &mut Frame, app: &mut App, area: 
                     .fg(theme.warning)
                     .add_modifier(Modifier::BOLD),
             )));
-            message_lines.push(Line::from(Span::styled(
-                "Nested replies will become orphaned.",
-                Style::default().fg(theme.warning),
-            )));
-            message_lines.push(Line::from(""));
+            content.push(Line::from(""));
         }
     }
 
-    message_lines.push(Line::from(Span::styled(
+    content.push(Line::from(Span::styled(
         "This action cannot be undone.",
-        Style::default()
-            .fg(theme.text_dim)
-            .add_modifier(Modifier::ITALIC),
+        Style::default().fg(theme.text_dim),
     )));
+    content.push(Line::from(""));
+    content.push(Line::from("─".repeat(46)).style(Style::default().fg(theme.border)));
+    content.push(Line::from(""));
+    
+    // Styled keyboard shortcuts matching unsaved changes modal
+    content.push(Line::from(vec![
+        Span::styled("Y", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
+        Span::styled(": Delete  ", Style::default().fg(theme.text)),
+        Span::styled("N", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
+        Span::styled(": Cancel  ", Style::default().fg(theme.text)),
+        Span::styled("Esc", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+        Span::styled(": Cancel", Style::default().fg(theme.text)),
+    ]));
 
-    let message = Paragraph::new(message_lines)
-        .alignment(Alignment::Center);
-    frame.render_widget(message, modal_chunks[0]);
-
-    // Instructions
-    let instructions = Paragraph::new("y: Confirm Delete | n/Esc: Cancel")
-        .style(Style::default().fg(theme.text))
+    let modal = Paragraph::new(content)
         .alignment(Alignment::Center)
         .block(
             Block::default()
+                .title(" Delete Post ")
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
+                .border_style(Style::default().fg(theme.warning).add_modifier(Modifier::BOLD))
+                .style(Style::default().bg(theme.background)),
         );
-    frame.render_widget(instructions, modal_chunks[1]);
+
+    frame.render_widget(modal, modal_area);
 }
 
 /// Render full post modal (for viewing complete nested reply content with thread tree)
@@ -281,7 +265,7 @@ pub fn render_full_post_modal(frame: &mut Frame, app: &mut App, area: Rect) {
             ),
         ]));
         
-        // Show edit/delete options if user owns the post
+        // Show delete option if user owns the post
         if let Some(current_user) = &app.auth_state.current_user {
             if current_user.id == root_post.author_id {
                 content_lines.push(Line::from(vec![
@@ -289,11 +273,6 @@ pub fn render_full_post_modal(frame: &mut Frame, app: &mut App, area: Rect) {
                         "Your post - ",
                         Style::default().fg(theme.text_dim).add_modifier(Modifier::ITALIC),
                     ),
-                    Span::styled(
-                        "e: Edit",
-                        Style::default().fg(theme.accent),
-                    ),
-                    Span::raw(" | "),
                     Span::styled(
                         "x: Delete",
                         Style::default().fg(theme.error),
@@ -403,11 +382,6 @@ pub fn render_full_post_modal(frame: &mut Frame, app: &mut App, area: Rect) {
                         "Your post - ",
                         Style::default().fg(theme.text_dim).add_modifier(Modifier::ITALIC),
                     ),
-                    Span::styled(
-                        "e: Edit",
-                        Style::default().fg(theme.accent),
-                    ),
-                    Span::raw(" | "),
                     Span::styled(
                         "x: Delete",
                         Style::default().fg(theme.error),
@@ -522,7 +496,7 @@ pub fn render_full_post_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     }
 
     // Footer with keyboard shortcuts (context-sensitive and detailed)
-    let footer_text = "↑/↓/j/k: Navigate | Space: Expand/Collapse | u/d: Vote | r: Reply | e: Edit | x: Delete | p: View Profile | Esc: Close";
+    let footer_text = "↑/↓/j/k: Navigate | Space: Expand/Collapse | u/d: Vote | r: Reply | x: Delete | p: View Profile | Esc: Close";
     let footer = Paragraph::new(footer_text)
         .style(Style::default().fg(theme.text))
         .alignment(Alignment::Center)
