@@ -2354,7 +2354,7 @@ impl App {
 
     /// Add digit to max posts input
     pub fn add_digit_to_max_posts(&mut self, c: char) {
-        if c.is_ascii_digit() && self.settings_state.max_posts_input.len() < 4 {
+        if c.is_ascii_digit() && self.settings_state.max_posts_input.len() < 3 {
             self.settings_state.max_posts_input.push(c);
             self.check_settings_changes();
         }
@@ -2371,7 +2371,7 @@ impl App {
     /// Increment max posts display
     pub fn increment_max_posts(&mut self) {
         if let Ok(current) = self.settings_state.max_posts_input.parse::<i32>() {
-            let new_value = (current + 1).min(9999); // Increment by 1, max 9999
+            let new_value = (current + 1).min(420); // Increment by 1, max 100
             self.settings_state.max_posts_input = new_value.to_string();
             self.check_settings_changes();
         }
