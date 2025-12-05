@@ -292,12 +292,12 @@ pub fn render_user_profile_view(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(actions, modal_chunks[4]);
 }
 
-/// Render new conversation modal
+/// Render new conversation modal (matches friends modal design)
 pub fn render_new_conversation_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
 
-    // Create centered modal area (60% width, 40% height)
-    let modal_area = centered_rect(60, 40, area);
+    // Create centered modal area (70% width, 80% height) - same as friends modal
+    let modal_area = centered_rect(70, 80, area);
 
     // Clear background
     frame.render_widget(Clear, modal_area);
@@ -311,71 +311,87 @@ pub fn render_new_conversation_modal(frame: &mut Frame, app: &mut App, area: Rec
     let inner = block.inner(modal_area);
     frame.render_widget(block, modal_area);
 
-    // Create modal layout
-    let modal_chunks = Layout::default()
+    // Split into sections (same layout as friends modal)
+    let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Input
-            Constraint::Min(0),    // Help text
-            Constraint::Length(3), // Instructions (needs 3 for border + text)
+            Constraint::Length(3),  // Search bar
+            Constraint::Min(0),     // User list
+            Constraint::Length(3),  // Footer (needs 3 for border + text)
         ])
         .split(inner);
 
-    // Username input
-    let input_text = if app.dms_state.new_conversation_username.is_empty() {
-        "Enter username...".to_string()
+    // Render search bar
+    let search_text = if app.dms_state.new_conversation_search_mode {
+        format!("/{}", app.dms_state.new_conversation_search_query)
+    } else if !app.dms_state.new_conversation_search_query.is_empty() {
+        format!("Filter: {}", app.dms_state.new_conversation_search_query)
     } else {
-        app.dms_state.new_conversation_username.clone()
+        "Press / to search".to_string()
     };
 
-    let input_style = if app.dms_state.new_conversation_username.is_empty() {
-        Style::default().fg(theme.text_dim)
+    let search_bar = Paragraph::new(search_text)
+        .style(Style::default().fg(if app.dms_state.new_conversation_search_mode { theme.accent } else { theme.text_dim }))
+        .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.border)));
+    frame.render_widget(search_bar, chunks[0]);
+
+    // Get filtered user list
+    let filtered_users = app.get_filtered_mutual_friends();
+
+    if filtered_users.is_empty() {
+        let empty_msg = if app.dms_state.new_conversation_search_query.is_empty() {
+            "No mutual friends available for messaging"
+        } else {
+            "No users match your search"
+        };
+
+        let empty = Paragraph::new(empty_msg)
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(theme.text_dim));
+        frame.render_widget(empty, chunks[1]);
     } else {
-        Style::default().fg(theme.text)
-    };
+        // Build user list (same format as friends modal)
+        let items: Vec<ListItem> = filtered_users
+            .iter()
+            .map(|user| {
+                let content = format!(
+                    "@{}  {} followers | {} following",
+                    user.username, user.follower_count, user.following_count
+                );
+                ListItem::new(content)
+            })
+            .collect();
 
-    let input = Paragraph::new(input_text)
-        .style(input_style)
-        .block(Block::default().borders(Borders::ALL).title("Username").border_style(Style::default().fg(theme.border)));
-    frame.render_widget(input, modal_chunks[0]);
+        let list = List::new(items)
+            .highlight_style(
+                Style::default()
+                    .bg(theme.highlight_bg)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol(">> ");
 
-    // Set cursor
-    if app.dms_state.show_new_conversation_modal {
-        let input_width = modal_chunks[0].width.saturating_sub(2) as usize;
-        let text = &app.dms_state.new_conversation_username;
-        let wrapped_lines = textwrap::wrap(text, input_width);
-        let cursor_y = modal_chunks[0].y + 1 + wrapped_lines.len() as u16 - 1;
-        let cursor_x = modal_chunks[0].x + 1 + wrapped_lines.last().map_or(0, |l| l.len()) as u16;
-        frame.set_cursor_position((cursor_x, cursor_y));
+        let mut list_state = ListState::default();
+        list_state.select(Some(app.dms_state.new_conversation_selected_index.min(filtered_users.len().saturating_sub(1))));
+
+        frame.render_stateful_widget(list, chunks[1], &mut list_state);
     }
 
-    // Help text - show available mutual friends
-    let available_text = if app.dms_state.available_mutual_friends.is_empty() {
-        "No mutual friends available for messaging".to_string()
+    // Render footer with context-sensitive shortcuts
+    let footer_text = if app.dms_state.new_conversation_search_mode {
+        "Type to search | Esc: Exit search"
     } else {
-        format!("Available users: {}", app.dms_state.available_mutual_friends.join(", "))
+        "↑/↓/j/k: Navigate | Enter: Start Conversation | /: Search | Esc: Close"
     };
-    
-    let help_text = vec![
-        Line::from(""),
-        Line::from(Span::styled(
-            available_text,
-            Style::default().fg(theme.text_dim),
-        )),
-    ];
-    let help = Paragraph::new(help_text).alignment(Alignment::Center);
-    frame.render_widget(help, modal_chunks[1]);
 
-    // Instructions
-    let instructions = Paragraph::new("Enter: Start a new conversation | Esc: Cancel")
-        .style(Style::default().fg(theme.text))
+    let footer = Paragraph::new(footer_text)
         .alignment(Alignment::Center)
+        .style(Style::default().fg(theme.text))
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(theme.border)),
         );
-    frame.render_widget(instructions, modal_chunks[2]);
+    frame.render_widget(footer, chunks[2]);
 }
 
 /// Render DM error modal

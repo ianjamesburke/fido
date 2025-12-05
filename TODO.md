@@ -7,7 +7,7 @@ Scratch pad for jotting down ideas.
 
 
 
-On the Social Connections modal, the keyboard shortcuts aren't showing up. It seems like the footer is too small and may be blocking them. You need this to work like the other modal, like the User Profile modal, for example, that shows the keyboard shortcuts at the bottom. Enough space. 
+
 The messaging of follower from the profile view when you press F still seems a little - conbines with the shortcut's not showing up. 
 
 

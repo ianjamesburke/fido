@@ -183,9 +183,14 @@ pub struct DMsState {
     pub dm_error_message: String,
     /// Username that failed when attempting to start a conversation
     pub failed_username: Option<String>,
-    /// Mutual friends available for DMs, shown as suggestions when a DM fails
-    /// (e.g., when trying to message a non-friend)
-    pub available_mutual_friends: Vec<String>,
+    /// Mutual friends available for DMs (full user info with stats)
+    pub available_mutual_friends: Vec<UserInfo>,
+    /// Selected index in new conversation modal
+    pub new_conversation_selected_index: usize,
+    /// Search mode for new conversation modal
+    pub new_conversation_search_mode: bool,
+    /// Search query for new conversation modal
+    pub new_conversation_search_query: String,
 }
 
 /// Conversation summary

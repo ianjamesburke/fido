@@ -274,6 +274,11 @@ pub fn handle_dms_keys(app: &mut App, key: KeyEvent) -> Result<()> {
         InputMode::Navigation => match key.code {
             KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => match app.dms_state.selected_conversation_index {
                 None => {
+                    // If there's a pending conversation, clear it and move to "New Conversation" button
+                    if app.dms_state.pending_conversation_username.is_some() {
+                        app.dms_state.pending_conversation_username = None;
+                        app.dms_state.message_input.clear();
+                    }
                     app.dms_state.selected_conversation_index = Some(usize::MAX);
                 }
                 Some(usize::MAX) => {
@@ -289,6 +294,11 @@ pub fn handle_dms_keys(app: &mut App, key: KeyEvent) -> Result<()> {
             },
             KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => match app.dms_state.selected_conversation_index {
                 None => {
+                    // If there's a pending conversation, clear it and navigate
+                    if app.dms_state.pending_conversation_username.is_some() {
+                        app.dms_state.pending_conversation_username = None;
+                        app.dms_state.message_input.clear();
+                    }
                     if !app.dms_state.conversations.is_empty() {
                         app.dms_state.selected_conversation_index =
                             Some(app.dms_state.conversations.len() - 1);

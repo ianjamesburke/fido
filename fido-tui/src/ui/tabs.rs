@@ -431,10 +431,19 @@ pub fn get_action_bar_text(app: &App) -> &'static str {
             "u/d: Vote | n: New Post | f: Filter | Space: Details | p: View Profile"
         }
         crate::app::Tab::DMs => {
-            match app.dms_state.selected_conversation_index {
-                Some(usize::MAX) => "", // New Conversation button - shortcut shown in modal only
-                Some(_) => "Type to compose | Enter: Send | Esc: Clear",
-                None => "Enter: Select conversation",
+            // Check if user can compose (active conversation or pending draft)
+            let has_active_conversation = app.dms_state.selected_conversation_index
+                .filter(|&idx| idx != usize::MAX)
+                .is_some();
+            let has_pending_draft = app.dms_state.pending_conversation_username.is_some();
+            let can_compose = has_active_conversation || has_pending_draft;
+            
+            if app.dms_state.selected_conversation_index == Some(usize::MAX) {
+                "" // New Conversation button - shortcut shown in modal only
+            } else if can_compose {
+                "↑/↓/j/k: Navigate | Type to compose | Enter: Send | Esc: Clear"
+            } else {
+                "↑/↓/j/k: Navigate | Enter: Select conversation"
             }
         }
         crate::app::Tab::Profile => "e: Edit Bio | f: Friends",

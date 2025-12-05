@@ -104,6 +104,9 @@ impl App {
                 dm_error_message: String::new(),
                 failed_username: None,
                 available_mutual_friends: Vec::new(),
+                new_conversation_selected_index: 0,
+                new_conversation_search_mode: false,
+                new_conversation_search_query: String::new(),
             },
             settings_state: SettingsState {
                 config: None,
@@ -2078,8 +2081,15 @@ impl App {
     pub async fn load_mutual_friends_for_dms(&mut self) -> Result<()> {
         match self.api_client.get_mutual_friends_list().await {
             Ok(friends) => {
-                self.dms_state.available_mutual_friends =
-                    friends.into_iter().map(|f| f.username).collect();
+                self.dms_state.available_mutual_friends = friends
+                    .into_iter()
+                    .map(|f| UserInfo {
+                        id: f.id,
+                        username: f.username,
+                        follower_count: f.follower_count,
+                        following_count: f.following_count,
+                    })
+                    .collect();
             }
             Err(e) => {
                 // Don't block the modal from opening, just clear the list
@@ -2094,7 +2104,39 @@ impl App {
     pub fn close_new_conversation_modal(&mut self) {
         self.dms_state.show_new_conversation_modal = false;
         self.dms_state.new_conversation_username.clear();
+        self.dms_state.new_conversation_selected_index = 0;
+        self.dms_state.new_conversation_search_mode = false;
+        self.dms_state.new_conversation_search_query.clear();
         self.input_mode = InputMode::Navigation;
+    }
+
+    /// Get filtered mutual friends list for new conversation modal
+    pub fn get_filtered_mutual_friends(&self) -> Vec<&UserInfo> {
+        let query = self.dms_state.new_conversation_search_query.to_lowercase();
+        
+        if query.is_empty() {
+            self.dms_state.available_mutual_friends.iter().collect()
+        } else {
+            self.dms_state
+                .available_mutual_friends
+                .iter()
+                .filter(|u| u.username.to_lowercase().contains(&query))
+                .collect()
+        }
+    }
+
+    /// Check if a username is a mutual friend (can be messaged)
+    /// 
+    /// Returns `true` if the username exists in the available mutual friends list,
+    /// which means the user can initiate a DM conversation with them.
+    /// 
+    /// # Arguments
+    /// * `username` - The username to check (case-sensitive)
+    fn is_mutual_friend(&self, username: &str) -> bool {
+        self.dms_state
+            .available_mutual_friends
+            .iter()
+            .any(|u| u.username == username)
     }
 
     /// Add character to new conversation username
@@ -2119,11 +2161,7 @@ impl App {
         let to_username = self.dms_state.new_conversation_username.clone();
 
         // Validate that the user is a mutual friend
-        if !self
-            .dms_state
-            .available_mutual_friends
-            .contains(&to_username)
-        {
+        if !self.is_mutual_friend(&to_username) {
             self.dms_state.error = Some(format!(
                 "Cannot message '{}': You can only message mutual friends",
                 to_username
@@ -2566,15 +2604,43 @@ impl App {
 
     /// Handle keys for new conversation modal
     pub fn handle_new_conversation_modal_keys(&mut self, key: KeyEvent) -> Result<()> {
-        match key.code {
-            KeyCode::Char(c) => {
-                self.add_char_to_new_conversation(c);
+        // If in search mode, handle search input
+        if self.dms_state.new_conversation_search_mode {
+            match key.code {
+                KeyCode::Char(c) => {
+                    self.dms_state.new_conversation_search_query.push(c);
+                    self.dms_state.new_conversation_selected_index = 0;
+                }
+                KeyCode::Backspace => {
+                    self.dms_state.new_conversation_search_query.pop();
+                    self.dms_state.new_conversation_selected_index = 0;
+                }
+                KeyCode::Esc => {
+                    self.dms_state.new_conversation_search_mode = false;
+                }
+                _ => {}
             }
-            KeyCode::Backspace => {
-                self.remove_char_from_new_conversation();
+            return Ok(());
+        }
+
+        // Normal navigation mode
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
+                let filtered = self.get_filtered_mutual_friends();
+                if !filtered.is_empty() {
+                    self.dms_state.new_conversation_selected_index = 
+                        (self.dms_state.new_conversation_selected_index + 1).min(filtered.len() - 1);
+                }
+            }
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => {
+                self.dms_state.new_conversation_selected_index = 
+                    self.dms_state.new_conversation_selected_index.saturating_sub(1);
+            }
+            KeyCode::Char('/') => {
+                self.dms_state.new_conversation_search_mode = true;
             }
             KeyCode::Enter => {
-                // Start conversation (will be handled async in main loop)
+                // Start conversation with selected user (will be handled async in main loop)
             }
             _ => {}
         }
