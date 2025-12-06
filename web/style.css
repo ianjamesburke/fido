@@ -37,6 +37,39 @@ body {
     max-width: 1400px;
     margin: 0 auto;
     padding: 20px;
+    position: relative;
+}
+
+.github-button {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: 8px;
+    color: var(--color-text);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    z-index: 1000;
+}
+
+.github-button:hover,
+.github-button:focus-visible {
+    background: var(--color-bg-medium);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.github-button svg {
+    width: 24px;
+    height: 24px;
 }
 
 /* Header */
@@ -351,9 +384,12 @@ footer a {
     transition: color 0.3s ease, text-shadow 0.3s ease;
 }
 
-footer a:hover {
+footer a:hover,
+footer a:focus-visible {
     color: var(--color-primary);
     text-shadow: 0 0 10px var(--color-primary-glow-soft);
+    outline: 1px solid var(--color-primary);
+    outline-offset: 2px;
 }
 
 /* Responsive */

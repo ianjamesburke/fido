@@ -1,21 +1,45 @@
-// Update iframe src based on environment
+// Configuration constants
+const CONFIG = {
+    IFRAME_LOAD_DELAY: 50,
+    RESIZE_ATTEMPTS: [50, 150, 300, 600, 1000],
+    RESIZE_DEBOUNCE: 250,
+    TERMINAL_URL_LOCAL: 'http://localhost:7681',
+    TERMINAL_URL_PROD: '/terminal/',
+};
+
+// Utility: Safely dispatch resize event to iframe
+function dispatchIframeResize(iframe) {
+    try {
+        if (iframe?.contentWindow) {
+            iframe.contentWindow.dispatchEvent(new Event('resize'));
+        }
+    } catch (e) {
+        // Cross-origin restriction, silently ignore
+    }
+}
+
+// Utility: Check if running in production
+function isProduction() {
+    const hostname = window.location.hostname;
+    return hostname !== 'localhost' && hostname !== '127.0.0.1';
+}
+
+// Main initialization
 document.addEventListener('DOMContentLoaded', function() {
     const terminal = document.getElementById('terminal');
     const fullscreenBtn = document.getElementById('fullscreen-btn');
     
-    // Detect if we're in production or local
-    const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    if (!terminal || !fullscreenBtn) {
+        console.error('Required DOM elements not found');
+        return;
+    }
     
-    // Small delay to ensure container is fully rendered before loading iframe
+    // Set iframe source based on environment
     setTimeout(() => {
-        if (isProduction) {
-            // In production, use relative path (nginx will proxy)
-            terminal.src = '/terminal/';
-        } else {
-            // Local development
-            terminal.src = 'http://localhost:7681';
-        }
-    }, 50);
+        terminal.src = isProduction() 
+            ? CONFIG.TERMINAL_URL_PROD 
+            : CONFIG.TERMINAL_URL_LOCAL;
+    }, CONFIG.IFRAME_LOAD_DELAY);
     
     // Handle iframe loading and terminal resizing
     terminal.addEventListener('load', function() {
@@ -23,23 +47,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Force terminal resize after load with multiple attempts
         // This helps xterm.js inside ttyd recalculate its dimensions
-        const resizeAttempts = [50, 150, 300, 600, 1000];
-        resizeAttempts.forEach(delay => {
+        CONFIG.RESIZE_ATTEMPTS.forEach(delay => {
             setTimeout(() => {
-                // Trigger a resize event on the window
                 window.dispatchEvent(new Event('resize'));
+                dispatchIframeResize(terminal);
                 
-                // Try to communicate with the iframe if same-origin
-                try {
-                    if (terminal.contentWindow) {
-                        terminal.contentWindow.dispatchEvent(new Event('resize'));
-                    }
-                } catch (e) {
-                    // Cross-origin, can't access iframe window
-                }
-                
-                // Force a reflow by reading offsetHeight
-                const _ = terminal.offsetHeight;
+                // Force reflow to ensure layout recalculation
+                void terminal.offsetHeight;
             }, delay);
         });
     });
@@ -76,32 +90,25 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('resize', function() {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
-            // Trigger resize in iframe if possible
-            try {
-                if (terminal.contentWindow) {
-                    terminal.contentWindow.dispatchEvent(new Event('resize'));
-                }
-            } catch (e) {
-                // Cross-origin, ignore
-            }
-            
-            // Force a reflow
-            const _ = terminal.offsetHeight;
-        }, 250);
+            dispatchIframeResize(terminal);
+            void terminal.offsetHeight; // Force reflow
+        }, CONFIG.RESIZE_DEBOUNCE);
     });
 });
 
-// Add console easter egg
-console.log(`
- _____ _     _       
-|  ___(_) __| | ___  
-| |_  | |/ _\` |/ _ \\ 
-|  _| | | (_| | (_) |
-|_|   |_|\\__,_|\\___/ 
-
-Welcome to Fido! 🐕
-Built with Rust + Ratatui
-Press Ctrl+K to focus the terminal
-
-🔄 Resurrecting BBS culture for the modern age
-`);
+// Console easter egg for curious developers
+console.log(
+    '%c _____ _     _       \n' +
+    '|  ___(_) __| | ___  \n' +
+    '| |_  | |/ _` |/ _ \\ \n' +
+    '|  _| | | (_| | (_) |\n' +
+    '|_|   |_|\\__,_|\\___/ \n',
+    'font-family: monospace; color: #0ea5e9;'
+);
+console.log(
+    '%cWelcome to Fido! 🐕\n' +
+    'Built with Rust + Ratatui\n' +
+    'Press Ctrl+K to focus the terminal\n\n' +
+    '🔄 Resurrecting BBS culture for the modern age',
+    'font-family: monospace; color: #a3a3a3;'
+);
