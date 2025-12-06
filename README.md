@@ -14,12 +14,14 @@ https://fido-social.fly.dev/
 
 ## Installation
 
-MacOS
+### MacOS
+
+First, make sure you have [Rust](https://rustup.rs/) installed
+
 ```bash
 brew install rust 
 ```
 
-Or use [rustup.rs](https://rustup.rs/).
 
 
 Then install Fido:
@@ -27,8 +29,6 @@ Then install Fido:
 ```bash
 cargo install fido
 ```
-
-The client connects to a live server at `https://fido-social.fly.dev` - no setup required.
 
 ## Quick Start
 
