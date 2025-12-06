@@ -14,7 +14,13 @@ https://fido-social.fly.dev/
 
 ## Installation
 
-You'll need Rust installed. Get it from [rustup.rs](https://rustup.rs/) if you don't have it.
+MacOS
+```bash
+brew install rust 
+```
+
+Or use [rustup.rs](https://rustup.rs/).
+
 
 Then install Fido:
 
