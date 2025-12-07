@@ -40,9 +40,30 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
     let mut lines = vec![
         Line::from(""),
         Line::from(Span::styled(
-            "Welcome to Fido!",
-            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            "  _____ _     _       ",
+            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
         )),
+        Line::from(Span::styled(
+            " |  ___(_) __| | ___  ",
+            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(Span::styled(
+            " | |_  | |/ _` |/ _ \\ ",
+            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(Span::styled(
+            " |  _| | | (_| | (_) |",
+            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(Span::styled(
+            " |_|   |_|\\__,_|\\___/ ",
+            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        // Line::from(Span::styled(
+        //     "Welcome to Fido!",
+        //     Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        // )),
         Line::from(""),
     ];
 
