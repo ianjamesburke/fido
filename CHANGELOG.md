@@ -15,6 +15,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.1.3] - 2024-12-07
+
+### Added
+- ASCII art logo to auth screen
+- SEO metadata and GitHub link to landing page
+
+### Changed
+- Standardized auth screen colors to white
+- Redesigned website with updated color scheme and improved typography
+- Refined landing page copy and simplified feature presentation
+- Simplified installation instructions and feature list in README
+
+### Fixed
+- Adjusted max posts input constraints in settings
+
 ## [0.1.2] - 2024-12-05
 
 ### Added
