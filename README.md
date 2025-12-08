@@ -1,12 +1,16 @@
 # Fido
 
-A terminal-based social platform for developers. No algorithms, no ads, just posts and conversations.
+A Rust based terminal social platform for developers reminicent of the BBS days
 
-Built for the Kiroween using spec-driven development.
+Built for the Kiroween 2025.
+
+![Fido](assets/Screenshot%202025-12-07%20at%209.43.19 PM.png)
+
+![Fido](assets/Screenshot%202025-12-07%20at%209.53.56 PM.png)
 
 ## What is it?
 
-Fido is a social network that lives in your terminal. Think Twitter, but keyboard-driven and without the noise. Post updates, chat with other developers, upvote good content. Everything happens in your terminal with zero distractions.
+Fido is a social network that lives in your terminal. Think Twitter, but keyboard-driven and without the noise. Post updates, chat with other developers, upvote good content, downvote lame content.
 
 ## Live Demo Here
 https://fido-social.fly.dev/
@@ -14,14 +18,13 @@ https://fido-social.fly.dev/
 
 ## Installation
 
-### MacOS
+### MacOS (untested on Windows)
 
 First, make sure you have [Rust](https://rustup.rs/) installed
 
 ```bash
 brew install rust 
 ```
-
 
 
 Then install Fido:
@@ -48,7 +51,6 @@ See [QUICKSTART.md](QUICKSTART.md) for more details.
 ## Features
 
 - **Keyboard-driven** - `j/k` to navigate, `u/d` to vote, `n` to post
-- **Markdown posts** - Format your thoughts with hashtags and emoji shortcodes
 - **Direct messages** - Private conversations with other users
 - **GitHub auth** - Login with your GitHub account
 - **Customizable** - Themes, sorting, display preferences
@@ -80,15 +82,10 @@ Built with Rust:
 
 ## Troubleshooting
 
-**Can't connect?** Check your internet and verify the server is up: `curl https://fido-social.fly.dev/health`
-
-**Browser won't open for OAuth?** Copy the URL from the terminal and paste it manually.
-
 **Session expired?** Press `Shift+L` to logout and login again.
 
-**Emojis look weird?** Use a modern terminal with UTF-8 support (Windows Terminal, iTerm2, Alacritty).
+**UI look weird?** Use a modern terminal with UTF-8 support (iTerm2, Alacritty, Ghostty).
 
-More help in [QUICKSTART.md](QUICKSTART.md).
 
 ## Contributing
 
@@ -107,6 +104,3 @@ fido --server http://localhost:3000
 
 MIT
 
----
-
-Built for Kiroween with [Ratatui](https://github.com/ratatui-org/ratatui), [Axum](https://github.com/tokio-rs/axum), and SQLite.
