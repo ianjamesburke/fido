@@ -1,6 +1,6 @@
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
     Frame,
@@ -29,62 +29,53 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
     let header = Paragraph::new("Fido - Terminal Social Platform")
         .style(
             Style::default()
-                .fg(theme.primary)
+                .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
         )
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
     frame.render_widget(header, chunks[0]);
 
-    // Main content
-    let mut lines = vec![
-        Line::from(""),
-        Line::from(Span::styled(
-            "  _____ _     _       ",
-            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
-        )),
-        Line::from(Span::styled(
-            " |  ___(_) __| | ___  ",
-            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
-        )),
-        Line::from(Span::styled(
-            " | |_  | |/ _` |/ _ \\ ",
-            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
-        )),
-        Line::from(Span::styled(
-            " |  _| | | (_| | (_) |",
-            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
-        )),
-        Line::from(Span::styled(
-            " |_|   |_|\\__,_|\\___/ ",
-            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
-        )),
-        Line::from(""),
-        // Line::from(Span::styled(
-        //     "Welcome to Fido!",
-        //     Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-        // )),
-        Line::from(""),
+    // Main content - ASCII logo
+    let mut lines = vec![Line::from("")];
+    
+    // Fido ASCII art logo with theme colors
+    const LOGO_LINES: &[&str] = &[
+        "  _____ _     _       ",
+        " |  ___(_) __| | ___  ",
+        " | |_  | |/ _` |/ _ \\ ",
+        " |  _| | | (_| | (_) |",
+        " |_|   |_|\\__,_|\\___/ ",
     ];
+    
+    for logo_line in LOGO_LINES {
+        lines.push(Line::from(Span::styled(
+            *logo_line,
+            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+        )));
+    }
+    
+    lines.push(Line::from(""));
+    lines.push(Line::from(""));
 
     if app.auth_state.github_auth_in_progress {
         // Show GitHub Device Flow in progress
         lines.push(Line::from(Span::styled(
             "GitHub Device Authorization",
-            Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
+            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
         )));
         lines.push(Line::from(""));
         
         if let Some(user_code) = &app.auth_state.github_user_code {
             lines.push(Line::from(Span::styled(
                 "Enter this code on GitHub:",
-                Style::default().fg(theme.text),
+                Style::default().fg(Color::White),
             )));
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 user_code.clone(),
                 Style::default()
-                    .fg(theme.primary)
+                    .fg(Color::White)
                     .add_modifier(Modifier::BOLD)
                     .add_modifier(Modifier::UNDERLINED),
             )));
@@ -94,28 +85,28 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
         if let Some(uri) = &app.auth_state.github_verification_uri {
             lines.push(Line::from(Span::styled(
                 "If the browser didn't open, visit:",
-                Style::default().fg(theme.text_dim),
+                Style::default().fg(Color::White),
             )));
             lines.push(Line::from(Span::styled(
                 uri.clone(),
-                Style::default().fg(theme.primary),
+                Style::default().fg(Color::White),
             )));
             lines.push(Line::from(""));
         }
         
         lines.push(Line::from(Span::styled(
             "Waiting for authorization...",
-            Style::default().fg(theme.text),
+            Style::default().fg(Color::White),
         )));
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             "Press Esc to cancel",
-            Style::default().fg(theme.text_dim),
+            Style::default().fg(Color::White),
         )));
     } else if app.auth_state.loading {
         lines.push(Line::from(Span::styled(
             "Loading...",
-            Style::default().fg(theme.warning),
+            Style::default().fg(Color::White),
         )));
     } else if let Some(error) = &app.auth_state.error {
         lines.push(Line::from(Span::styled(
@@ -125,31 +116,31 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             "Press any key to continue",
-            Style::default().fg(theme.text_dim),
+            Style::default().fg(Color::White),
         )));
     } else if app.auth_state.test_users.is_empty() {
         lines.push(Line::from(Span::styled(
             "Choose authentication method:",
-            Style::default().fg(theme.text),
+            Style::default().fg(Color::White),
         )));
         lines.push(Line::from(""));
         
         if app.auth_state.show_github_option {
             lines.push(Line::from(Span::styled(
                 "Press 'g' to login with GitHub",
-                Style::default().fg(theme.success).add_modifier(Modifier::BOLD),
+                Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
             )));
             lines.push(Line::from(""));
         }
         
         lines.push(Line::from(Span::styled(
             "Press 'l' to load test users (development only)",
-            Style::default().fg(theme.text_dim),
+            Style::default().fg(Color::White),
         )));
     } else {
         lines.push(Line::from(Span::styled(
             "Select a test user (development only):",
-            Style::default().fg(theme.text),
+            Style::default().fg(Color::White),
         )));
         lines.push(Line::from(""));
 
@@ -157,10 +148,10 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
         for (i, user) in app.auth_state.test_users.iter().take(3).enumerate() {
             let style = if i == app.auth_state.selected_index {
                 Style::default()
-                    .fg(theme.success)
+                    .fg(Color::White)
                     .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(theme.text)
+                Style::default().fg(Color::White)
             };
 
             let prefix = if i == app.auth_state.selected_index {
@@ -178,14 +169,14 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             "Press Enter to login with test user",
-            Style::default().fg(theme.text),
+            Style::default().fg(Color::White),
         )));
         
         if app.auth_state.show_github_option {
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 "Press 'g' to login with GitHub instead",
-                Style::default().fg(theme.success),
+                Style::default().fg(Color::White),
             )));
         }
     }
@@ -215,7 +206,7 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
     };
 
     let footer = Paragraph::new(footer_text)
-        .style(Style::default().fg(theme.text_dim))
+        .style(Style::default().fg(Color::White))
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
     frame.render_widget(footer, chunks[2]);
