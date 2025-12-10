@@ -10,7 +10,7 @@ homepage.workspace = true
 publish = false  # Server is not published to crates.io, only deployed to Fly.io
 
 [dependencies]
-fido-types = { path = "../fido-types" }
+fido-types.workspace = true
 
 serde.workspace = true
 serde_json.workspace = true

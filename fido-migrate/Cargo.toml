@@ -36,7 +36,7 @@ path = "src/bin/migrate_hashtags.rs"
 [dependencies]
 # Workspace crates
 fido-server = { path = "../fido-server" }
-fido-types = { path = "../fido-types" }
+fido-types.workspace = true
 
 # Workspace dependencies
 anyhow.workspace = true
