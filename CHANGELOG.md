@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.1.4] - 2024-12-10
+
+### Added
+- Improved API client robustness for better error handling
+- Enhanced Docker security configurations
+
+### Changed
+- Updated README.md with latest project information
+
 ## [0.1.3] - 2024-12-07
 
 ### Added

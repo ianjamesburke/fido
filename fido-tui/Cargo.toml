@@ -12,7 +12,7 @@ keywords = ["tui", "social", "terminal", "ratatui"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-fido-types = { version = "0.1.0", path = "../fido-types" }
+fido-types = { path = "../fido-types" }
 
 serde.workspace = true
 serde_json.workspace = true
