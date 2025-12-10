@@ -13,7 +13,18 @@ COPY fido-server ./fido-server
 COPY fido-tui ./fido-tui
 COPY fido-migrate ./fido-migrate
 
-# Build dependencies first (better Docker layer caching)
+# Build dependencies first (create dummy main files for better caching)
+RUN mkdir -p fido-server/src fido-tui/src fido-migrate/src && \
+    echo "fn main() {}" > fido-server/src/main.rs && \
+    echo "fn main() {}" > fido-tui/src/main.rs && \
+    echo "fn main() {}" > fido-migrate/src/main.rs && \
+    cargo build --release --bin fido-server --bin fido && \
+    rm -rf fido-server/src fido-tui/src fido-migrate/src
+
+# Copy actual source code and build
+COPY fido-server/src ./fido-server/src
+COPY fido-tui/src ./fido-tui/src
+COPY fido-migrate/src ./fido-migrate/src
 RUN cargo build --release --bin fido-server --bin fido
 
 # Stage 2: Runtime - full web stack with nginx + ttyd

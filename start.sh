@@ -3,25 +3,41 @@ set -e
 
 # Function to check if API server is ready
 check_api_ready() {
-    local max_attempts=30
+    local max_attempts=${HEALTH_CHECK_ATTEMPTS:-10}
     local attempt=1
+    local port=${PORT:-3000}
     
     while [ $attempt -le $max_attempts ]; do
-        if curl -f http://localhost:${PORT:-8080}/health >/dev/null 2>&1; then
-            echo "API server is ready!"
+        # Check if the process is still running
+        if ! kill -0 $API_PID 2>/dev/null; then
+            echo "API server process died!"
+            return 1
+        fi
+        
+        # Use wget instead of curl, and try different addresses
+        if wget -q --spider "http://127.0.0.1:${port}/health" 2>/dev/null; then
+            echo "API server is ready on port ${port}!"
+            return 0
+        elif wget -q --spider "http://localhost:${port}/health" 2>/dev/null; then
+            echo "API server is ready on port ${port}!"
             return 0
         fi
+        
         echo "Waiting for API server... (attempt $attempt/$max_attempts)"
-        sleep 1
+        sleep 2
         ((attempt++))
     done
     
     echo "API server failed to start within timeout"
+    echo "Debug: Checking if port is listening..."
+    ss -tlnp 2>/dev/null | grep ":${port}" || echo "Port ${port} not listening"
     return 1
 }
 
 # Start the API server in the background
-echo "Starting Fido API server on port ${PORT:-8080}..."
+PORT=${PORT:-3000}
+echo "Starting Fido API server on port ${PORT}..."
+export PORT
 fido-server &
 API_PID=$!
 
@@ -34,7 +50,7 @@ fi
 
 # Start ttyd with the TUI in web mode (uses test users only)
 echo "Starting ttyd web terminal..."
-FIDO_WEB_MODE=true ttyd -W -p 7681 -t 'theme={"background": "#0a0a0a"}' --client-option 'fontSize=14' --client-option 'fontFamily="Monaco, Menlo, Ubuntu Mono, Consolas, monospace"' fido &
+FIDO_WEB_MODE=true ttyd -W -p 7681 -v 0 -t 'theme={"background": "#0a0a0a"}' --client-option 'fontSize=14' --client-option 'fontFamily="Monaco, Menlo, Ubuntu Mono, Consolas, monospace"' fido &
 TTYD_PID=$!
 
 # Function to cleanup on exit
