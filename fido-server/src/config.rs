@@ -43,7 +43,7 @@ impl Settings {
         // Can be overridden with HOST environment variable for local development
         builder = builder
             .set_default("server.host", "0.0.0.0")?
-            .set_default("server.port", 3000)?
+            .set_default("server.port", 8080)?  // Match Fly.io's internal_port
             .set_default("database.path", "fido.db")?;
 
         // Read from environment variables

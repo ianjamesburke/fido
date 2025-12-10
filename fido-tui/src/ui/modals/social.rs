@@ -9,25 +9,36 @@ use ratatui::{
 use crate::app::App;
 use super::super::theme::get_theme_colors;
 use super::utils::centered_rect;
+use super::social_components::*;
+
+// Implement UserListItem for existing types
+impl UserListItem for crate::api::SocialUserInfo {
+    fn username(&self) -> &str {
+        &self.username
+    }
+    
+    fn follower_count(&self) -> Option<usize> {
+        Some(self.follower_count)
+    }
+    
+    fn following_count(&self) -> Option<usize> {
+        Some(self.following_count)
+    }
+}
 
 /// Render social connections modal (Following/Followers/Mutual Friends)
 pub fn render_friends_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
-
-    // Create centered modal area (70% width, 80% height)
-    let modal_area = centered_rect(70, 80, area);
-
-    // Clear background
-    frame.render_widget(Clear, modal_area);
-
-    let block = Block::default()
-        .title(" Social Connections ")
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
-        .style(Style::default().bg(theme.background));
-
-    let inner = block.inner(modal_area);
-    frame.render_widget(block, modal_area);
+    
+    use super::social_components::*;
+    
+    let config = SocialModalConfig {
+        title: " Social Connections ",
+        width_percent: 70,
+        height_percent: 80,
+    };
+    
+    let inner = create_modal_container(frame, area, &config, &theme);
 
     if app.friends_state.loading {
         let loading = Paragraph::new("Loading...")

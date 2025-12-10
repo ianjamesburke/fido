@@ -3,7 +3,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use fido_types::Post;
 use ratatui::style::Style;
 use ratatui::widgets::ListState;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tui_textarea::TextArea;
 use uuid::Uuid;
 
@@ -547,9 +547,11 @@ impl App {
             }
 
             // Send vote to server (don't reload feed)
+            let vote_direction = crate::api::VoteDirection::from_str(direction)
+                .ok_or_else(|| anyhow::anyhow!("Invalid vote direction: {}", direction))?;
             match self
                 .api_client
-                .vote_on_post(post_id, direction.to_string())
+                .vote_on_post(post_id, vote_direction)
                 .await
             {
                 Ok(_) => {
@@ -3229,9 +3231,11 @@ impl App {
                 _ => {}
             }
         }
+        let vote_direction = crate::api::VoteDirection::from_str(direction)
+            .ok_or_else(|| anyhow::anyhow!("Invalid vote direction: {}", direction))?;
         match self
             .api_client
-            .vote_on_post(post_id, direction.to_string())
+            .vote_on_post(post_id, vote_direction)
             .await
         {
             Ok(_) => {}
@@ -3445,9 +3449,11 @@ impl App {
         }
 
         // Send vote to server
+        let vote_direction = crate::api::VoteDirection::from_str(direction)
+            .ok_or_else(|| anyhow::anyhow!("Invalid vote direction: {}", direction))?;
         match self
             .api_client
-            .vote_on_post(post_id, direction.to_string())
+            .vote_on_post(post_id, vote_direction)
             .await
         {
             Ok(_) => {

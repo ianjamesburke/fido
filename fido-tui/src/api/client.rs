@@ -5,6 +5,37 @@ use uuid::Uuid;
 use super::{ApiError, ApiResult};
 use fido_types::*;
 
+/// Vote direction for posts
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum VoteDirection {
+    Up,
+    Down,
+}
+
+impl std::fmt::Display for VoteDirection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            VoteDirection::Up => "up",
+            VoteDirection::Down => "down",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl VoteDirection {
+    /// Convert from string to VoteDirection
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "up" => Some(VoteDirection::Up),
+            "down" => Some(VoteDirection::Down),
+            _ => None,
+        }
+    }
+}
+
+
+
 /// API client for communicating with the Fido server
 #[derive(Clone)]
 pub struct ApiClient {
@@ -16,11 +47,37 @@ pub struct ApiClient {
 impl ApiClient {
     /// Create a new API client
     pub fn new(base_url: impl Into<String>) -> Self {
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .build()
+            .expect("Failed to create HTTP client");
+            
         Self {
-            client: Client::new(),
+            client,
             base_url: base_url.into(),
             session_token: None,
         }
+    }
+
+    /// Helper to build API URLs
+    fn build_url(&self, path: &str) -> String {
+        format!("{}{}", self.base_url, path)
+    }
+
+    /// Helper to build URLs with query parameters
+    fn build_url_with_params(&self, path: &str, params: &[(&str, &str)]) -> String {
+        let mut url = self.build_url(path);
+        if !params.is_empty() {
+            url.push('?');
+            let query_string = params
+                .iter()
+                .map(|(key, value)| format!("{}={}", key, urlencoding::encode(value)))
+                .collect::<Vec<_>>()
+                .join("&");
+            url.push_str(&query_string);
+        }
+        url
     }
 
     /// Set the session token for authenticated requests
@@ -42,7 +99,7 @@ impl ApiClient {
         let status = response.status();
         
         if status.is_success() {
-            Ok(response.json().await?)
+            response.json().await.map_err(ApiError::from)
         } else {
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
             
@@ -53,12 +110,16 @@ impl ApiClient {
                 error_text
             };
             
-            match status.as_u16() {
-                404 => Err(ApiError::NotFound(clean_error)),
-                401 => Err(ApiError::Unauthorized(clean_error)),
-                400 => Err(ApiError::BadRequest(clean_error)),
-                _ => Err(ApiError::Api(clean_error)),
-            }
+            let api_error = match status.as_u16() {
+                404 => ApiError::NotFound(clean_error),
+                401 => ApiError::Unauthorized(clean_error),
+                400 => ApiError::BadRequest(clean_error),
+                403 => ApiError::Unauthorized(clean_error), // Add forbidden handling
+                500..=599 => ApiError::Api(format!("Server error ({}): {}", status.as_u16(), clean_error)),
+                _ => ApiError::Api(clean_error),
+            };
+            
+            Err(api_error)
         }
     }
 
@@ -88,26 +149,23 @@ impl ApiClient {
 
     /// Get posts with optional limit, sort order, and filters
     pub async fn get_posts(&self, limit: Option<i32>, sort: Option<String>, hashtag: Option<String>, username: Option<String>) -> ApiResult<Vec<Post>> {
-        let mut url = format!("{}/posts", self.base_url);
-        let mut params = vec![];
+        let mut params = Vec::new();
         
         if let Some(l) = limit {
-            params.push(format!("limit={}", l));
+            params.push(("limit", l.to_string()));
         }
         if let Some(s) = sort {
-            params.push(format!("sort={}", s));
+            params.push(("sort", s));
         }
         if let Some(h) = hashtag {
-            params.push(format!("hashtag={}", h));
+            params.push(("hashtag", h));
         }
         if let Some(u) = username {
-            params.push(format!("username={}", u));
+            params.push(("username", u));
         }
         
-        if !params.is_empty() {
-            url.push('?');
-            url.push_str(&params.join("&"));
-        }
+        let params_ref: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        let url = self.build_url_with_params("/posts", &params_ref);
         
         let req = self.add_auth_header(self.client.get(&url));
         let response = req.send().await?;
@@ -124,9 +182,11 @@ impl ApiClient {
     }
 
     /// Vote on a post
-    pub async fn vote_on_post(&self, post_id: Uuid, direction: String) -> ApiResult<serde_json::Value> {
-        let url = format!("{}/posts/{}/vote", self.base_url, post_id);
-        let request = VoteRequest { direction };
+    pub async fn vote_on_post(&self, post_id: Uuid, direction: VoteDirection) -> ApiResult<serde_json::Value> {
+        let url = self.build_url(&format!("/posts/{}/vote", post_id));
+        let request = VoteRequest { 
+            direction: direction.to_string()
+        };
         let req = self.add_auth_header(self.client.post(&url).json(&request));
         let response = req.send().await?;
         self.handle_response(response).await
@@ -266,20 +326,20 @@ impl ApiClient {
 
     /// Follow a hashtag
     pub async fn follow_hashtag(&self, name: String) -> ApiResult<()> {
-        let url = format!("{}/hashtags/follow", self.base_url);
+        let url = self.build_url("/hashtags/follow");
         let request_body = serde_json::json!({ "name": name });
         let req = self.add_auth_header(self.client.post(&url).json(&request_body));
         let response = req.send().await?;
-        response.error_for_status()?;
+        let _: serde_json::Value = self.handle_response(response).await?;
         Ok(())
     }
 
     /// Unfollow a hashtag
     pub async fn unfollow_hashtag(&self, name: String) -> ApiResult<()> {
-        let url = format!("{}/hashtags/follow/{}", self.base_url, name);
+        let url = self.build_url(&format!("/hashtags/follow/{}", name));
         let req = self.add_auth_header(self.client.delete(&url));
         let response = req.send().await?;
-        response.error_for_status()?;
+        let _: serde_json::Value = self.handle_response(response).await?;
         Ok(())
     }
 
