@@ -22,6 +22,11 @@ impl App {
         // Clean up old sessions on startup
         let _ = config_manager.cleanup_old_sessions();
 
+        // Initialize mode detection and storage adapter
+        let mode_detector = crate::mode::ModeDetector::new();
+        let storage_adapter = crate::storage::StorageAdapterFactory::create_adapter(mode_detector.mode())
+            .expect("Failed to create storage adapter");
+
         Self {
             running: true,
             current_screen: Screen::Auth,
@@ -161,6 +166,8 @@ impl App {
             },
             user_profile_view: None,
             log_config: crate::logging::LogConfig::default(),
+            mode_detector,
+            storage_adapter,
         }
     }
 
@@ -172,6 +179,11 @@ impl App {
 
         // Clean up old sessions on startup
         let _ = config_manager.cleanup_old_sessions();
+
+        // Initialize mode detection and storage adapter
+        let mode_detector = crate::mode::ModeDetector::new();
+        let storage_adapter = crate::storage::StorageAdapterFactory::create_adapter(mode_detector.mode())
+            .expect("Failed to create storage adapter");
 
         Self {
             running: true,
@@ -312,6 +324,8 @@ impl App {
             },
             user_profile_view: None,
             log_config: crate::logging::LogConfig::default(),
+            mode_detector,
+            storage_adapter,
         }
     }
 
@@ -412,15 +426,13 @@ impl App {
 
         // Call server logout endpoint to invalidate session (best effort)
         // We don't fail if this errors since we'll clear local session anyway
-        if let Ok(session_store) = crate::session::SessionStore::new() {
-            if let Ok(Some(token)) = session_store.load() {
-                let _ = self.api_client.logout(token).await;
-            }
-            
-            // Delete local session file
-            if let Err(e) = session_store.delete() {
-                log::warn!("Failed to delete session file: {}", e);
-            }
+        if let Ok(Some(token)) = self.storage_adapter.load_credentials() {
+            let _ = self.api_client.logout(token).await;
+        }
+        
+        // Clear credentials using storage adapter
+        if let Err(e) = self.storage_adapter.clear_credentials() {
+            log::warn!("Failed to clear credentials: {}", e);
         }
 
         // Also clear old config_manager session for backwards compatibility
@@ -446,6 +458,43 @@ impl App {
         self.auth_state.error = None;
 
         Ok(())
+    }
+
+    /// Check for existing session using storage adapter
+    pub async fn check_existing_session(&mut self) -> Result<Option<fido_types::User>> {
+        // Try to load session token using storage adapter
+        let token = match self.storage_adapter.load_credentials()? {
+            Some(t) => t,
+            None => {
+                log::debug!("No existing session found");
+                return Ok(None);
+            }
+        };
+
+        log::info!("Found existing session token, validating with server");
+
+        // Set the session token in the API client
+        self.api_client.set_session_token(Some(token.clone()));
+
+        // Validate the session with the server
+        match self.api_client.validate_session().await {
+            Ok(response) if response.valid => {
+                log::info!("Session is valid for user: {}", response.user.username);
+                Ok(Some(response.user))
+            }
+            Ok(_) => {
+                log::warn!("Session validation returned invalid");
+                // Clear invalid session
+                let _ = self.storage_adapter.clear_credentials();
+                Ok(None)
+            }
+            Err(e) => {
+                log::warn!("Session validation failed: {}", e);
+                // Clear invalid session
+                let _ = self.storage_adapter.clear_credentials();
+                Ok(None)
+            }
+        }
     }
 
     /// Load test users from API
@@ -492,7 +541,12 @@ impl App {
                 self.auth_state.loading = false;
                 self.current_screen = Screen::Main;
 
-                // Save session data
+                // Save session token using storage adapter
+                if let Err(e) = self.storage_adapter.store_credentials(&response.session_token) {
+                    log::warn!("Failed to store credentials: {}", e);
+                }
+
+                // Also save session data to config_manager for backwards compatibility
                 let session_data = crate::config::SessionData {
                     username: response.user.username.clone(),
                     session_token: response.session_token.clone(),
@@ -503,7 +557,7 @@ impl App {
                     .config_manager
                     .save_session(&self.instance_id, &session_data)
                 {
-                    eprintln!("Warning: Failed to save session: {}", e);
+                    log::warn!("Warning: Failed to save session to config_manager: {}", e);
                 }
 
                 // Load user settings first (so posts use correct preferences)

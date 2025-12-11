@@ -6,7 +6,9 @@ mod debug_log;
 mod emoji;
 #[macro_use]
 mod logging;
+mod mode;
 mod session;
+mod storage;
 mod terminal;
 mod text_wrapper;
 mod ui;
@@ -140,23 +142,22 @@ async fn main() -> Result<()> {
     app.log_config = log_config;
 
     // Check if running in web mode (for web terminal interface)
-    let is_web_mode = std::env::var("FIDO_WEB_MODE").is_ok();
+    let is_web_mode = app.mode_detector.is_web_mode();
     
-    // In web mode, hide GitHub OAuth option (test users only)
+    // Log the detected mode
     if is_web_mode {
+        log::info!("Running in web mode - using browser storage");
         app.auth_state.show_github_option = false;
+    } else {
+        log::info!("Running in native mode - using file storage");
     }
     
     // Check for existing session on startup (skip in web mode)
-    let mut auth_flow = auth::AuthFlow::new(app.api_client.clone())?;
     if !is_web_mode {
-        if let Ok(Some(user)) = auth_flow.check_existing_session().await {
+        if let Ok(Some(user)) = app.check_existing_session().await {
             log::info!("Restored session for user: {}", user.username);
             app.auth_state.current_user = Some(user);
             app.current_screen = app::Screen::Main;
-            
-            // Update API client with session token
-            app.api_client = auth_flow.api_client().clone();
             
             // Load initial data
             let _ = app.load_settings().await;
@@ -172,6 +173,9 @@ async fn main() -> Result<()> {
         // In web mode, always show test users (no GitHub OAuth)
         let _ = app.load_test_users().await;
     }
+    
+    // Create auth flow for GitHub Device Flow (only used for GitHub OAuth)
+    let mut auth_flow = auth::AuthFlow::new(app.api_client.clone())?;
 
     // Main event loop
     let mut last_tab = app.current_tab;
@@ -210,8 +214,8 @@ async fn main() -> Result<()> {
                         Ok(login_response) => {
                             log::info!("GitHub Device Flow completed successfully for user: {}", login_response.user.username);
                             
-                            // Store session and update state
-                            if let Err(e) = auth_flow.save_session(&login_response.session_token) {
+                            // Store session using storage adapter
+                            if let Err(e) = app.storage_adapter.store_credentials(&login_response.session_token) {
                                 log::error!("Failed to save session: {}", e);
                             }
                             

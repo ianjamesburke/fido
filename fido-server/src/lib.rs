@@ -6,6 +6,8 @@ pub mod config;
 pub mod db;
 pub mod hashtag;
 pub mod mention;
+pub mod middleware;
 pub mod oauth;
 pub mod session;
 pub mod state;
+pub mod test_user_service;

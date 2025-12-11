@@ -6,5 +6,6 @@ pub mod config;
 pub mod error;
 pub mod hashtags;
 pub mod friends;
+pub mod web_session;
 
 pub use error::{ApiError, ApiResult};

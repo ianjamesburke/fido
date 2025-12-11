@@ -162,6 +162,8 @@ pub struct App {
     pub user_search_state: UserSearchState,
     pub user_profile_view: Option<UserProfileViewState>,
     pub log_config: crate::logging::LogConfig,
+    pub mode_detector: crate::mode::ModeDetector,
+    pub storage_adapter: Box<dyn crate::storage::StorageAdapter>,
 }
 
 /// Settings tab state

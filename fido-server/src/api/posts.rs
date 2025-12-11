@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, Query, State, Request},
     http::HeaderMap,
     Json,
 };
@@ -10,9 +10,11 @@ use uuid::Uuid;
 
 use crate::{
     api::{ApiError, ApiResult},
-    db::repositories::{HashtagRepository, PostRepository, VoteRepository},
+    db::{repositories::{HashtagRepository, PostRepository, VoteRepository}, isolation::DatabaseAdapter},
     hashtag::extract_hashtags,
+    middleware::RequestUserContext,
     state::AppState,
+    test_user_service::TestUserService,
 };
 use fido_types::{CreatePostRequest, Post, SortOrder, VoteDirection, VoteRequest};
 
@@ -26,6 +28,11 @@ fn get_user_from_headers(state: &AppState, headers: &HeaderMap) -> Result<Uuid, 
     state
         .get_authenticated_user_id_from_token(token)
         .ok_or_else(|| ApiError::Unauthorized("Invalid session token".to_string()))
+}
+
+/// Extract user context from request extensions (populated by middleware)
+fn get_user_context_from_request(request: &Request) -> Option<&RequestUserContext> {
+    request.extensions().get::<RequestUserContext>()
 }
 
 /// Check if user has exceeded post rate limit (1 post per 10 minutes)
@@ -110,7 +117,7 @@ pub async fn get_posts(
     let pool = state.db.pool.clone();
     let post_repo = PostRepository::new(pool.clone());
     let hashtag_repo = HashtagRepository::new(pool.clone());
-    let vote_repo = VoteRepository::new(pool);
+    let vote_repo = VoteRepository::new(pool.clone());
 
     // Parse sort order
     let sort_order = query
@@ -119,36 +126,71 @@ pub async fn get_posts(
         .and_then(SortOrder::parse)
         .unwrap_or(SortOrder::Newest);
 
-    // Get posts (filtered by hashtag and/or username if specified)
-    let mut posts = match (&query.hashtag, &query.username) {
-        (Some(hashtag), Some(username)) => {
-            // Both filters: posts must match both criteria
-            post_repo
-                .get_posts_by_hashtag_and_username(hashtag, username, sort_order, query.limit)
-                .map_err(|e| ApiError::InternalError(e.to_string()))?
+    // Try to get authenticated user and determine user context
+    let user_id = get_user_from_headers(&state, &headers).ok();
+    let user_context = if let Some(uid) = user_id {
+        // Get user to determine context
+        let user_repo = crate::db::repositories::UserRepository::new(pool.clone());
+        if let Ok(Some(user)) = user_repo.get_by_id(&uid) {
+            if user.is_test_user {
+                Some(fido_types::UserContext::test_user(user.username.clone()))
+            } else {
+                user.github_login.map(fido_types::UserContext::real_user)
+            }
+        } else {
+            None
         }
-        (Some(hashtag), None) => {
-            // Only hashtag filter
-            post_repo
-                .get_posts_by_hashtag(hashtag, sort_order, query.limit)
-                .map_err(|e| ApiError::InternalError(e.to_string()))?
-        }
-        (None, Some(username)) => {
-            // Only username filter
-            post_repo
-                .get_posts_by_username(username, sort_order, query.limit)
-                .map_err(|e| ApiError::InternalError(e.to_string()))?
-        }
-        (None, None) => {
-            // No filters
-            post_repo
-                .get_posts(sort_order, query.limit)
-                .map_err(|e| ApiError::InternalError(e.to_string()))?
-        }
+    } else {
+        None
     };
 
-    // Try to get authenticated user (optional for posts endpoint)
-    let user_id = get_user_from_headers(&state, &headers).ok();
+    // Get posts with user context filtering
+    let mut posts = if let Some(context) = &user_context {
+        // Use test user service for data isolation
+        let test_service = TestUserService::new(pool.clone());
+        let db_adapter = test_service.get_database_adapter();
+        let db_ops = db_adapter.with_context(context);
+        
+        // Get posts through isolated database operations
+        db_ops.get_posts(sort_order, query.limit)
+            .map_err(|e| ApiError::InternalError(e.to_string()))?
+    } else {
+        // Unauthenticated users see only real user content (no test user posts)
+        let mut all_posts = match (&query.hashtag, &query.username) {
+            (Some(hashtag), Some(username)) => {
+                post_repo
+                    .get_posts_by_hashtag_and_username(hashtag, username, sort_order, query.limit)
+                    .map_err(|e| ApiError::InternalError(e.to_string()))?
+            }
+            (Some(hashtag), None) => {
+                post_repo
+                    .get_posts_by_hashtag(hashtag, sort_order, query.limit)
+                    .map_err(|e| ApiError::InternalError(e.to_string()))?
+            }
+            (None, Some(username)) => {
+                post_repo
+                    .get_posts_by_username(username, sort_order, query.limit)
+                    .map_err(|e| ApiError::InternalError(e.to_string()))?
+            }
+            (None, None) => {
+                post_repo
+                    .get_posts(sort_order, query.limit)
+                    .map_err(|e| ApiError::InternalError(e.to_string()))?
+            }
+        };
+
+        // Filter out test user posts for unauthenticated users
+        let user_repo = crate::db::repositories::UserRepository::new(pool.clone());
+        all_posts.retain(|post| {
+            if let Ok(Some(user)) = user_repo.get_by_id(&post.author_id) {
+                !user.is_test_user
+            } else {
+                false
+            }
+        });
+
+        all_posts
+    };
 
     // Track activity if viewing filtered posts and user is authenticated
     if let (Some(ref hashtag), Some(uid)) = (&query.hashtag, user_id) {
@@ -197,15 +239,22 @@ pub async fn create_post(
     check_post_rate_limit(&state, &author_id)?;
 
     let pool = state.db.pool.clone();
-    let post_repo = PostRepository::new(pool.clone());
     let hashtag_repo = HashtagRepository::new(pool.clone());
-    let user_repo = crate::db::repositories::UserRepository::new(pool);
+    let user_repo = crate::db::repositories::UserRepository::new(pool.clone());
 
-    // Get author username
+    // Get author and determine user context
     let author = user_repo
         .get_by_id(&author_id)
         .map_err(|e| ApiError::InternalError(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound("Author not found".to_string()))?;
+
+    let user_context = if author.is_test_user {
+        fido_types::UserContext::test_user(author.username.clone())
+    } else {
+        let github_login = author.github_login
+            .ok_or_else(|| ApiError::InternalError("Real user missing GitHub login".to_string()))?;
+        fido_types::UserContext::real_user(github_login)
+    };
 
     // Extract hashtags using the new hashtag module
     let hashtags = extract_hashtags(&payload.content);
@@ -227,16 +276,28 @@ pub async fn create_post(
         reply_to_username: None,
     };
 
-    // Store post
-    post_repo
-        .create(&post)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    // Store post using user context for proper isolation
+    if user_context.is_test_user() {
+        // Use isolated database operations for test users
+        let test_service = TestUserService::new(pool.clone());
+        let db_adapter = test_service.get_database_adapter();
+        let db_ops = db_adapter.with_context(&user_context);
+        
+        db_ops.create_post(&post)
+            .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    } else {
+        // Use regular database operations for real users
+        let post_repo = PostRepository::new(pool.clone());
+        post_repo
+            .create(&post)
+            .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    }
 
     // Update rate limit timestamp
     update_post_rate_limit(&state, &author_id)?;
 
-    // Store hashtags and track activity
-    if !hashtags.is_empty() {
+    // Store hashtags and track activity (only for real users in database)
+    if !hashtags.is_empty() && !user_context.is_test_user() {
         hashtag_repo
             .store_hashtags(&post.id, &hashtags)
             .map_err(|e| ApiError::InternalError(e.to_string()))?;

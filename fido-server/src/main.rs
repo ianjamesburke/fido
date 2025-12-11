@@ -3,13 +3,15 @@ mod config;
 mod db;
 mod hashtag;
 mod mention;
+mod middleware;
 mod oauth;
 mod rate_limit;
 mod session;
 mod state;
+mod test_user_service;
 
 use axum::{
-    middleware,
+    middleware as axum_middleware,
     routing::{delete, get, post, put},
     Router,
 };
@@ -209,8 +211,14 @@ async fn main() {
         .route("/social/following", get(api::friends::get_following_list))
         .route("/social/followers", get(api::friends::get_followers_list))
         .route("/social/mutual", get(api::friends::get_mutual_friends_list))
-        .with_state(state)
-        .layer(middleware::from_fn(rate_limit::rate_limit_middleware))
+        // Web session management routes
+        .route("/web/session", post(api::web_session::create_web_session))
+        .route("/web/context", get(api::web_session::get_user_context))
+        .route("/web/reset-test-data", post(api::web_session::reset_test_data))
+        .route("/web/mode", get(api::web_session::get_mode_info))
+        .with_state(state.clone())
+        .layer(axum_middleware::from_fn_with_state(state, middleware::user_context_middleware))
+        .layer(axum_middleware::from_fn(rate_limit::rate_limit_middleware))
         .layer(axum::Extension(rate_limiter))
         .layer(cors)
         // Serve static files from web directory (must be last)

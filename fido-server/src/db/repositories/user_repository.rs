@@ -20,7 +20,7 @@ impl UserRepository {
     pub fn get_test_users(&self) -> Result<Vec<User>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            "SELECT id, username, bio, join_date, is_test_user 
+            "SELECT id, username, bio, join_date, is_test_user, github_id, github_login
              FROM users 
              WHERE is_test_user = 1
              ORDER BY username"
@@ -33,6 +33,8 @@ impl UserRepository {
                 bio: row.get(2)?,
                 join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
                 is_test_user: row.get::<_, i32>(4)? == 1,
+                github_id: row.get(5)?,
+                github_login: row.get(6)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -44,7 +46,7 @@ impl UserRepository {
     pub fn get_by_id(&self, user_id: &Uuid) -> Result<Option<User>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            "SELECT id, username, bio, join_date, is_test_user 
+            "SELECT id, username, bio, join_date, is_test_user, github_id, github_login
              FROM users 
              WHERE id = ?"
         )?;
@@ -56,6 +58,8 @@ impl UserRepository {
                 bio: row.get(2)?,
                 join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
                 is_test_user: row.get::<_, i32>(4)? == 1,
+                github_id: row.get(5)?,
+                github_login: row.get(6)?,
             })
         }).optional()?;
 
@@ -66,7 +70,7 @@ impl UserRepository {
     pub fn get_by_username(&self, username: &str) -> Result<Option<User>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            "SELECT id, username, bio, join_date, is_test_user 
+            "SELECT id, username, bio, join_date, is_test_user, github_id, github_login
              FROM users 
              WHERE username = ?"
         )?;
@@ -78,6 +82,8 @@ impl UserRepository {
                 bio: row.get(2)?,
                 join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
                 is_test_user: row.get::<_, i32>(4)? == 1,
+                github_id: row.get(5)?,
+                github_login: row.get(6)?,
             })
         }).optional()?;
 
@@ -99,14 +105,16 @@ impl UserRepository {
     pub fn create(&self, user: &User) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(
-            "INSERT INTO users (id, username, bio, join_date, is_test_user) 
-             VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO users (id, username, bio, join_date, is_test_user, github_id, github_login) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 user.id.to_string(),
                 &user.username,
                 &user.bio,
                 user.join_date.to_rfc3339(),
                 if user.is_test_user { 1 } else { 0 },
+                user.github_id,
+                &user.github_login,
             ),
         ).context("Failed to create user")?;
         Ok(())
@@ -116,7 +124,7 @@ impl UserRepository {
     pub fn list_all(&self) -> Result<Vec<User>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            "SELECT id, username, bio, join_date, is_test_user 
+            "SELECT id, username, bio, join_date, is_test_user, github_id, github_login
              FROM users 
              ORDER BY username"
         )?;
@@ -128,6 +136,8 @@ impl UserRepository {
                 bio: row.get(2)?,
                 join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
                 is_test_user: row.get::<_, i32>(4)? == 1,
+                github_id: row.get(5)?,
+                github_login: row.get(6)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -150,7 +160,7 @@ impl UserRepository {
     pub fn get_by_github_id(&self, github_id: i64) -> Result<Option<User>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            "SELECT id, username, bio, join_date, is_test_user 
+            "SELECT id, username, bio, join_date, is_test_user, github_id, github_login
              FROM users 
              WHERE github_id = ?"
         )?;
@@ -162,6 +172,8 @@ impl UserRepository {
                 bio: row.get(2)?,
                 join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
                 is_test_user: row.get::<_, i32>(4)? == 1,
+                github_id: row.get(5)?,
+                github_login: row.get(6)?,
             })
         }).optional()?;
 
@@ -208,6 +220,8 @@ impl UserRepository {
             bio,
             join_date,
             is_test_user: false,
+            github_id: Some(github_id),
+            github_login: Some(github_login.to_string()),
         })
     }
 }
