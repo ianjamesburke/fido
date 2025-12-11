@@ -35,3 +35,4 @@ test_*.md
 migrations/
 
 ian-docs
+.kiro/hooks/code-quality-analyzer.kiro.hook

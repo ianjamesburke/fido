@@ -10,13 +10,30 @@ primary_region = 'ord'
   dockerfile = "Dockerfile"
 
 [env]
+  # Database configuration
   DATABASE_PATH = '/data/fido.db'
-  RUST_LOG = 'info'
+  
+  # Server configuration
   HOST = '0.0.0.0'
+  # PORT intentionally omitted - fido-server uses default 3000, nginx uses 8080
+  
+  # Logging configuration
+  RUST_LOG = 'info'
+  
+  # Health check configuration
+  HEALTH_CHECK_ATTEMPTS = '15'
+  
+  # Performance tuning
+  RUST_BACKTRACE = '0'
+  
+  # Deployment metadata
+  FIDO_DEPLOYMENT_ENV = 'production'
 
 [[mounts]]
   source = 'fido_data'
   destination = '/data'
+  # Initial size for SQLite database and logs
+  initial_size = '1gb'
 
 [http_service]
   internal_port = 8080
@@ -24,17 +41,24 @@ primary_region = 'ord'
   auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
-  max_retries = 2
+  max_retries = 3
 
-  
-[[services]]
-  protocol = 'tcp'
-  internal_port = 8080
+[checks]
+  [checks.health]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"
+    port = 8080
+    timeout = "5s"
+    type = "http"
 
-  [[services.ports]]
-    port = 80
-    handlers = ['http']
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
 
-  [[services.ports]]
-    port = 443
-    handlers = ['tls', 'http']
+[metrics]
+  port = 9091
+  path = "/metrics"
+

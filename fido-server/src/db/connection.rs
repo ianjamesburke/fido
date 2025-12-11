@@ -5,6 +5,9 @@ use std::path::Path;
 
 use super::schema::{SCHEMA, TEST_DATA};
 
+/// SQLite in-memory database identifier
+const MEMORY_DB_PATH: &str = ":memory:";
+
 pub type DbPool = Pool<SqliteConnectionManager>;
 pub type DbConnection = PooledConnection<SqliteConnectionManager>;
 
@@ -17,19 +20,34 @@ pub struct Database {
 impl Database {
     /// Create a new database connection pool
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let manager = SqliteConnectionManager::file(path);
+        let manager = Self::create_connection_manager(path)?;
         let pool = Pool::new(manager)
             .context("Failed to create database connection pool")?;
         Ok(Self { pool })
     }
 
+    /// Create appropriate connection manager based on path
+    /// 
+    /// # Arguments
+    /// * `path` - Database file path or ":memory:" for in-memory database
+    /// 
+    /// # Returns
+    /// * `SqliteConnectionManager` configured for file or memory storage
+    fn create_connection_manager<P: AsRef<Path>>(path: P) -> Result<SqliteConnectionManager> {
+        let path_str = path.as_ref().to_string_lossy();
+        let trimmed_path = path_str.trim();
+        
+        if trimmed_path.eq_ignore_ascii_case(MEMORY_DB_PATH) {
+            Ok(SqliteConnectionManager::memory())
+        } else {
+            Ok(SqliteConnectionManager::file(path))
+        }
+    }
+
     /// Create an in-memory database pool (useful for testing)
     #[allow(dead_code)]
     pub fn in_memory() -> Result<Self> {
-        let manager = SqliteConnectionManager::memory();
-        let pool = Pool::new(manager)
-            .context("Failed to create in-memory database connection pool")?;
-        Ok(Self { pool })
+        Self::new(MEMORY_DB_PATH)
     }
 
     /// Initialize the database schema
@@ -150,6 +168,29 @@ mod tests {
             .expect("Failed to count test users");
         
         assert_eq!(count, 8);
+    }
+
+    #[test]
+    fn test_memory_database_detection() {
+        // Test various memory database path formats
+        let memory_paths = [":memory:", " :memory: ", ":MEMORY:", " :Memory: "];
+        
+        for path in &memory_paths {
+            let db = Database::new(path).expect("Failed to create memory database");
+            db.initialize().expect("Failed to initialize schema");
+            
+            // Verify it's actually in memory by checking we can create multiple instances
+            let db2 = Database::new(path).expect("Failed to create second memory database");
+            db2.initialize().expect("Failed to initialize second schema");
+        }
+        
+        // Test file database path
+        let temp_path = "/tmp/test_fido.db";
+        let db = Database::new(temp_path).expect("Failed to create file database");
+        db.initialize().expect("Failed to initialize file schema");
+        
+        // Cleanup
+        let _ = std::fs::remove_file(temp_path);
     }
 
     #[test]

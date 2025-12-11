@@ -1,6 +1,17 @@
 # Fido Project Development Guidelines
 
-do not need to create summary documents after every code change. 
+do not need to create summary documents after every code change.
+
+## Kiro Development Best Practices
+
+### Command Execution Guidelines
+- **CRITICAL**: When using `fly logs`, ALWAYS include `--tail` with a specific number (e.g., `--tail 50`)
+- **Why**: Without `--tail`, the command streams logs indefinitely and blocks agentic execution
+- **Examples**:
+  - ✅ `fly logs -a fido-social --tail 50` (gets last 50 lines)
+  - ✅ `fly logs -a fido-social --tail 100` (gets last 100 lines for more history)
+  - ❌ `fly logs -a fido-social` (streams forever, blocks execution)
+- **Rule**: Use higher numbers for more history, lower for recent logs only 
 
 ## Project Overview
 
@@ -162,6 +173,14 @@ let log_config = logging::LogConfig::default();
 - Disable logging in production builds
 - Keep `clear_on_startup: true` to avoid massive log files
 - Include relevant context in log messages (IDs, states, etc.)
+
+### Production Server Logs (Fly.io)
+To get logs from the deployed Fly server, use:
+```bash
+fly logs -a fido-social --tail 50
+```
+
+**Important**: Always use `--tail` with a specific number (e.g., 50) to limit output. Without it, the command runs forever and blocks execution. Use higher numbers for more history or lower for recent logs only.
 
 ## Future Considerations
 

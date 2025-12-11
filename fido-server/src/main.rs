@@ -33,19 +33,80 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    // Load settings
-    let settings = config::Settings::new().expect("Failed to load settings");
+    tracing::info!("Starting Fido server v1.0.1...");
 
-    // Initialize database
-    let db = db::Database::new(&settings.database.path)
-        .expect("Failed to create database");
+    // Load settings with detailed error handling
+    let settings = match config::Settings::new() {
+        Ok(settings) => {
+            tracing::info!("Successfully loaded configuration: host={}, port={}, db_path={}", 
+                           settings.server.host, settings.server.port, settings.database.path);
+            settings
+        }
+        Err(e) => {
+            tracing::error!("Failed to load settings: {}", e);
+            eprintln!("FATAL: Failed to load settings: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // Validate settings
+    if let Err(e) = settings.validate() {
+        tracing::error!("Invalid configuration: {}", e);
+        eprintln!("FATAL: Invalid configuration: {}", e);
+        std::process::exit(1);
+    }
+
+    // Check database directory permissions
+    let db_path = std::path::Path::new(&settings.database.path);
+    if let Some(parent) = db_path.parent() {
+        tracing::info!("Checking database directory: {}", parent.display());
+        match std::fs::metadata(parent) {
+            Ok(metadata) => {
+                tracing::info!("Database directory exists, permissions: {:?}", metadata.permissions());
+            }
+            Err(e) => {
+                tracing::warn!("Database directory check failed: {}", e);
+                // Try to create the directory
+                if let Err(create_err) = std::fs::create_dir_all(parent) {
+                    tracing::error!("Failed to create database directory: {}", create_err);
+                    eprintln!("FATAL: Failed to create database directory {}: {}", parent.display(), create_err);
+                    std::process::exit(1);
+                } else {
+                    tracing::info!("Created database directory: {}", parent.display());
+                }
+            }
+        }
+    }
+
+    // Initialize database with detailed error handling
+    tracing::info!("Creating database connection...");
+    let db = match db::Database::new(&settings.database.path) {
+        Ok(db) => {
+            tracing::info!("Successfully created database connection");
+            db
+        }
+        Err(e) => {
+            tracing::error!("Failed to create database: {}", e);
+            eprintln!("FATAL: Failed to create database: {}", e);
+            std::process::exit(1);
+        }
+    };
     
-    db.initialize()
-        .expect("Failed to initialize database schema");
+    tracing::info!("Initializing database schema...");
+    if let Err(e) = db.initialize() {
+        tracing::error!("Failed to initialize database schema: {}", e);
+        eprintln!("FATAL: Failed to initialize database schema: {}", e);
+        std::process::exit(1);
+    }
+    tracing::info!("Database schema initialized successfully");
     
     // Always seed test data for development
-    db.seed_test_data()
-        .expect("Failed to seed test data");
+    tracing::info!("Seeding test data...");
+    if let Err(e) = db.seed_test_data() {
+        tracing::error!("Failed to seed test data: {}", e);
+        eprintln!("FATAL: Failed to seed test data: {}", e);
+        std::process::exit(1);
+    }
     tracing::info!("Test data seeded successfully");
 
     tracing::info!("Database initialized successfully");
@@ -153,18 +214,37 @@ async fn main() {
         .layer(cors);
 
     // Start server
-    let addr: SocketAddr = format!("{}:{}", settings.server.host, settings.server.port)
-        .parse()
-        .expect("Failed to parse server address");
-    tracing::info!("Starting server on {}", addr);
+    let addr_str = format!("{}:{}", settings.server.host, settings.server.port);
+    let addr: SocketAddr = match addr_str.parse() {
+        Ok(addr) => addr,
+        Err(e) => {
+            tracing::error!("Failed to parse server address '{}': {}", addr_str, e);
+            eprintln!("FATAL: Failed to parse server address '{}': {}", addr_str, e);
+            std::process::exit(1);
+        }
+    };
+    
+    tracing::info!("Binding to address: {}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .expect("Failed to bind to address");
+    let listener = match tokio::net::TcpListener::bind(addr).await {
+        Ok(listener) => {
+            tracing::info!("Successfully bound to address: {}", addr);
+            listener
+        }
+        Err(e) => {
+            tracing::error!("Failed to bind to address {}: {}", addr, e);
+            eprintln!("FATAL: Failed to bind to address {}: {}", addr, e);
+            std::process::exit(1);
+        }
+    };
 
-    axum::serve(listener, app)
-        .await
-        .expect("Server error");
+    tracing::info!("Server starting successfully on {}", addr);
+    
+    if let Err(e) = axum::serve(listener, app).await {
+        tracing::error!("Server error: {}", e);
+        eprintln!("FATAL: Server error: {}", e);
+        std::process::exit(1);
+    }
 }
 
 async fn health_check() -> &'static str {
