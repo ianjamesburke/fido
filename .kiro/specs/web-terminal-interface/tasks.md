@@ -70,6 +70,7 @@
   - **Validates: Requirements 2.1, 2.5**
 
 - [x] 4.2 Write property test for session cleanup on logout
+
   - **Property 4: Session Cleanup on Logout**
   - **Validates: Requirements 2.3, 2.4**
 
@@ -124,43 +125,45 @@
   - Verify web session endpoints respond correctly
   - Confirm user context detection works for both test and real users
 
-- [ ] 7. Create nginx configuration
+- [x] 7. Create nginx configuration
   - Configure nginx to serve static files on port 8080
   - Set up API proxy to forward requests to port 3000 without path modification
   - Configure terminal proxy to route `/terminal/` to ttyd on port 7681
   - Ensure proper CORS headers for web terminal
   - _Requirements: 5.1, 5.2, 5.3, 5.5_
 
-- [ ]* 7.1 Write property test for nginx path preservation
+
+
+- [x] 7.1 Write property test for nginx path preservation
   - **Property 11: Nginx Path Preservation**
   - **Validates: Requirements 5.5**
 
-- [ ] 7.2 Verification: nginx configuration works correctly
+- [x] 7.2 Verification: nginx configuration works correctly
   - Install and configure nginx with the new configuration
   - Start nginx on port 8080 and verify static files are served
   - Test API proxy: `curl http://localhost:8080/posts` should reach API server
   - Test terminal proxy: verify `/terminal/` routes to ttyd service
   - Confirm CORS headers are present for web terminal requests
 
-- [ ] 8. Checkpoint - Ensure all tests pass
+- [x] 8. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Implement web interface with terminal integration
+- [x] 9. Implement web interface with terminal integration
   - Update HTML to include terminal iframe pointing to ttyd
   - Add dark theme CSS for terminal container
   - Implement JavaScript for terminal initialization and communication
   - Add authentication UI for GitHub login in web mode
   - _Requirements: 1.1, 7.1, 7.2_
 
-- [ ]* 9.1 Write property test for keyboard shortcut consistency
+- [x] 9.1 Write property test for keyboard shortcut consistency
   - **Property 1: Keyboard Shortcut Consistency**
   - **Validates: Requirements 1.2**
 
-- [ ]* 9.2 Write property test for ANSI color code support
+- [x] 9.2 Write property test for ANSI color code support
   - **Property 12: ANSI Color Code Support**
   - **Validates: Requirements 7.5**
 
-- [ ] 9.3 Verification: Web interface displays and functions correctly
+- [x] 9.3 Verification: Web interface displays and functions correctly
   - Open browser and navigate to `http://localhost:8080`
   - Verify dark theme CSS is applied and looks modern
   - Confirm terminal iframe loads and displays Fido TUI with proper colors and fonts
@@ -170,36 +173,36 @@
   - Verify terminal text is readable and properly formatted
   - Confirm terminal responds to mouse clicks for focus
 
-- [ ] 10. Update TUI for web mode compatibility
+- [x] 10. Update TUI for web mode compatibility
   - Modify TUI initialization to detect web mode
   - Implement browser storage integration for web sessions
   - Add web-specific authentication flow
   - Ensure keyboard shortcuts work consistently across modes
   - _Requirements: 1.2, 2.1, 4.1, 4.2_
 
-- [ ]* 10.1 Write property test for cross-mode functional consistency
+- [x] 10.1 Write property test for cross-mode functional consistency
   - **Property 8: Cross-Mode Functional Consistency**
   - **Validates: Requirements 4.2, 4.3**
 
-- [ ]* 10.2 Write property test for mode-specific configuration handling
+- [x] 10.2 Write property test for mode-specific configuration handling
   - **Property 9: Mode-Specific Configuration Handling**
   - **Validates: Requirements 4.5**
 
-- [ ] 10.3 Verification: TUI works identically in both modes
+- [x] 10.3 Verification: TUI works identically in both modes
   - Test native mode: Run `cargo run` and verify all features work
   - Test web mode: Run with `FIDO_WEB_MODE=true` and verify same functionality
   - Compare keyboard shortcuts between modes - they should be identical
   - Verify authentication flows work correctly in both modes
   - Confirm configuration settings apply correctly per mode
 
-- [ ] 11. Configure ttyd for web terminal
+- [x] 11. Configure ttyd for web terminal
   - Set up ttyd to spawn Fido TUI with `FIDO_WEB_MODE=true`
   - Configure dark theme and monospace font settings
   - Set ttyd to run on port 7681 with proper WebSocket configuration
   - Add terminal styling for modern aesthetics
   - _Requirements: 5.3, 7.1, 7.2, 7.5_
 
-- [ ] 11.1 Verification: ttyd terminal service works correctly
+- [x] 11.1 Verification: ttyd terminal service works correctly
   - Install ttyd and start it on port 7681
   - Verify ttyd spawns Fido TUI with `FIDO_WEB_MODE=true` environment variable
   - Open browser to `http://localhost:7681` and confirm terminal loads
@@ -210,14 +213,14 @@
   - Verify WebSocket connection is stable and responsive
   - Confirm terminal handles special characters and Unicode properly
 
-- [ ] 12. Update startup script and deployment
+- [x] 12. Update startup script and deployment
   - Modify start.sh to coordinate nginx, ttyd, and API server startup
   - Ensure proper port configuration (API: 3000, nginx: 8080, ttyd: 7681)
   - Add health checks for all services
   - Configure proper service shutdown and cleanup
   - _Requirements: 5.1, 5.2, 5.3_
 
-- [ ] 12.1 Verification: All services start and coordinate correctly
+- [x] 12.1 Verification: All services start and coordinate correctly
   - Run `./start.sh` and verify all three services start successfully
   - Check API server is running on port 3000: `curl http://localhost:3000/posts`
   - Check nginx is running on port 8080: `curl http://localhost:8080`
@@ -225,21 +228,21 @@
   - Verify health checks pass for all services
   - Test graceful shutdown when stopping start.sh
 
-- [ ] 13. Add user documentation and warnings
+- [x] 13. Add user documentation and warnings
   - Create clear documentation distinguishing test and real user modes
   - Add prominent warnings about test user data persistence
   - Implement user notifications for test data resets
   - Add guidance for creating real accounts
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 13.1 Verification: User documentation is clear and accessible
+- [x] 13.1 Verification: User documentation is clear and accessible
   - Review documentation for clarity and completeness
   - Verify warnings about test user data are prominent and clear
   - Test that user notifications appear when test data is reset
   - Confirm guidance for creating real accounts is easy to follow
   - Have a non-technical person review the documentation for clarity
 
-- [ ] 14. Terminal Functionality Verification: Comprehensive keyboard and display testing
+- [x] 14. Terminal Functionality Verification: Comprehensive keyboard and display testing
   - **Visual Verification**: Confirm web terminal looks identical to native TUI
   - **Keyboard Input**: Test all keyboard shortcuts work in web terminal iframe
   - **Navigation**: Verify Tab, Shift+Tab, arrow keys navigate correctly
@@ -249,7 +252,7 @@
   - **Performance**: Verify keyboard input has no noticeable lag compared to native
   - **Browser Compatibility**: Test in Chrome, Firefox, Safari (if available)
 
-- [ ] 15. Implement server configuration management
+- [x] 15. Implement server configuration management
   - Add server URL configuration system to distinguish local vs production
   - Create configuration file or environment variable for `FIDO_SERVER_URL`
   - Set local development default to `http://localhost:3000`
@@ -258,7 +261,7 @@
   - Make server configuration easily discoverable in documentation
   - **Note**: Production server changes are outside scope - contributor cannot modify deployed server
 
-- [ ] 15.1 Verification: Server configuration works correctly
+- [x] 15.1 Verification: Server configuration works correctly
   - Test local development: Verify TUI connects to `http://localhost:3000` by default
   - Test production mode: Set production URL to `https://fido-social.fly.dev` and verify TUI connects correctly
   - Verify TUI clearly shows which server it's connected to
@@ -266,12 +269,12 @@
   - Test local terminal connecting to local server: Run TUI and verify it communicates with local API
   - **Note**: Only test production URL configuration - actual production server testing requires deployment access
 
-- [ ] 16. Final checkpoint - Ensure all tests pass
+- [x] 16. Final checkpoint - Ensure all tests pass
   - Run all automated tests: `cargo test`
   - Ensure all unit tests, integration tests, and property-based tests pass
   - Fix any failing tests before proceeding to final verification
 
-- [ ] 17. End-to-End Verification: Complete web terminal interface works
+- [x] 17. End-to-End Verification: Complete web terminal interface works
   - Run `./start.sh` to start all services (API, nginx, ttyd)
   - Open browser to `http://localhost:8080` and verify web interface loads
   - **Critical: Verify terminal iframe captures keyboard input immediately on page load**

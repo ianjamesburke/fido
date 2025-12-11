@@ -216,6 +216,7 @@ async fn main() {
         .route("/web/context", get(api::web_session::get_user_context))
         .route("/web/reset-test-data", post(api::web_session::reset_test_data))
         .route("/web/mode", get(api::web_session::get_mode_info))
+        .route("/web/write-session", post(api::web_session::write_session_file))
         .with_state(state.clone())
         .layer(axum_middleware::from_fn_with_state(state, middleware::user_context_middleware))
         .layer(axum_middleware::from_fn(rate_limit::rate_limit_middleware))

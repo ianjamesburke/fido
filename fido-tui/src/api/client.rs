@@ -440,6 +440,13 @@ impl ApiClient {
         Ok(())
     }
 
+    /// Get web user context (for web terminal interface)
+    pub async fn get_web_user_context(&self) -> ApiResult<WebUserContextResponse> {
+        let url = format!("{}/web/context?mode=web", self.base_url);
+        let req = self.client.get(&url);
+        self.handle_response(req.send().await?).await
+    }
+
     // Placeholder for future WebSocket integration
     // TODO: Add WebSocket support for real-time updates
     // pub async fn connect_websocket(&self) -> ApiResult<WebSocketStream> {

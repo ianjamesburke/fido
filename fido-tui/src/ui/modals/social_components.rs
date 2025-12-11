@@ -8,20 +8,8 @@
 //! 
 //! # Example Usage
 //! 
-//! ```rust
-//! use super::social_components::*;
-//! 
-//! let config = SocialModalConfig::new(" Friends ")
-//!     .with_size(70, 80);
-//! let inner = create_modal_container(frame, area, &config, &theme);
-//! 
-//! let search_config = SearchBarConfig {
-//!     query: &app.search_query,
-//!     is_active: app.search_mode,
-//!     placeholder: "Press / to search",
-//! };
-//! render_search_bar(frame, search_area, &search_config, &theme);
-//! ```
+//! This module provides reusable components for social modals including
+//! modal containers, search bars, user lists, and tab navigation.
 use ratatui::{
     layout::{Alignment, Rect},
     style::{Modifier, Style},

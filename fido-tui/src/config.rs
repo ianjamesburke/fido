@@ -21,6 +21,22 @@ pub struct UserPreferences {
     pub filter_users: Vec<String>,
 }
 
+/// Server configuration stored locally
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerConfig {
+    pub server_url: String,
+    pub last_updated: chrono::DateTime<chrono::Utc>,
+}
+
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            server_url: "https://fido-social.fly.dev".to_string(),
+            last_updated: chrono::Utc::now(),
+        }
+    }
+}
+
 /// Configuration manager for .fido directory
 pub struct ConfigManager {
     config_dir: PathBuf,
@@ -120,6 +136,40 @@ impl ConfigManager {
             .context("Failed to parse preferences")?;
         
         Ok(Some(prefs))
+    }
+    
+    /// Get the server config file path
+    fn get_server_config_file(&self) -> PathBuf {
+        self.config_dir.join("server_config.json")
+    }
+    
+    /// Save server configuration
+    pub fn save_server_config(&self, config: &ServerConfig) -> Result<()> {
+        let config_file = self.get_server_config_file();
+        let json = serde_json::to_string_pretty(config)
+            .context("Failed to serialize server config")?;
+        
+        fs::write(&config_file, json)
+            .context("Failed to write server config file")?;
+        
+        Ok(())
+    }
+    
+    /// Load server configuration
+    pub fn load_server_config(&self) -> Result<Option<ServerConfig>> {
+        let config_file = self.get_server_config_file();
+        
+        if !config_file.exists() {
+            return Ok(None);
+        }
+        
+        let json = fs::read_to_string(&config_file)
+            .context("Failed to read server config file")?;
+        
+        let config: ServerConfig = serde_json::from_str(&json)
+            .context("Failed to parse server config")?;
+        
+        Ok(Some(config))
     }
     
     /// Clean up old session files (older than 30 days)

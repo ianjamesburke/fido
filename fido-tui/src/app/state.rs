@@ -164,6 +164,9 @@ pub struct App {
     pub log_config: crate::logging::LogConfig,
     pub mode_detector: crate::mode::ModeDetector,
     pub storage_adapter: Box<dyn crate::storage::StorageAdapter>,
+    pub demo_mode_warning: Option<(String, Instant)>, // Demo mode warning message with timestamp
+    pub server_config_manager: crate::server_config::ServerConfigManager,
+    pub current_server_url: String,
 }
 
 /// Settings tab state
@@ -552,6 +555,7 @@ pub struct AuthState {
     pub github_verification_uri: Option<String>,
     pub github_poll_interval: Option<i64>,
     pub github_auth_start_time: Option<std::time::Instant>,
+    pub refresh_requested: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]

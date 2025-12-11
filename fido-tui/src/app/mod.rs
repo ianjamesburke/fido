@@ -26,24 +26,33 @@ impl App {
         let mode_detector = crate::mode::ModeDetector::new();
         let storage_adapter = crate::storage::StorageAdapterFactory::create_adapter(mode_detector.mode())
             .expect("Failed to create storage adapter");
+        
+        // Initialize server configuration manager
+        let server_config_manager = crate::server_config::ServerConfigManager::new()
+            .expect("Failed to initialize server config manager");
+        
+        // Determine server URL (no CLI override in this constructor)
+        let server_url = server_config_manager.determine_server_url(None)
+            .expect("Failed to determine server URL");
 
         Self {
             running: true,
             current_screen: Screen::Auth,
-            api_client: ApiClient::default(),
+            api_client: ApiClient::new(&server_url),
             auth_state: AuthState {
                 test_users: Vec::new(),
                 selected_index: 0,
                 loading: false,
                 error: None,
                 current_user: None,
-                show_github_option: true,
+                show_github_option: !mode_detector.is_web_mode(), // Disable GitHub in web mode
                 github_auth_in_progress: false,
                 github_device_code: None,
                 github_user_code: None,
                 github_verification_uri: None,
                 github_poll_interval: None,
                 github_auth_start_time: None,
+                refresh_requested: false,
             },
             current_tab: Tab::Posts,
             posts_state: PostsState {
@@ -168,11 +177,14 @@ impl App {
             log_config: crate::logging::LogConfig::default(),
             mode_detector,
             storage_adapter,
+            demo_mode_warning: None,
+            server_config_manager,
+            current_server_url: server_url,
         }
     }
 
-    /// Create a new App with a custom server URL
-    pub fn with_server_url(server_url: String) -> Self {
+    /// Create a new App with a custom server URL and server config manager
+    pub fn with_server_url_and_config(server_url: String, server_config_manager: crate::server_config::ServerConfigManager) -> Self {
         let config_manager =
             crate::config::ConfigManager::new().expect("Failed to initialize config manager");
         let instance_id = crate::config::ConfigManager::generate_instance_id();
@@ -188,20 +200,21 @@ impl App {
         Self {
             running: true,
             current_screen: Screen::Auth,
-            api_client: ApiClient::new(server_url),
+            api_client: ApiClient::new(&server_url),
             auth_state: AuthState {
                 test_users: Vec::new(),
                 selected_index: 0,
                 loading: false,
                 error: None,
                 current_user: None,
-                show_github_option: true,
+                show_github_option: !mode_detector.is_web_mode(), // Disable GitHub in web mode
                 github_auth_in_progress: false,
                 github_device_code: None,
                 github_user_code: None,
                 github_verification_uri: None,
                 github_poll_interval: None,
                 github_auth_start_time: None,
+                refresh_requested: false,
             },
             current_tab: Tab::Posts,
             posts_state: PostsState {
@@ -326,7 +339,17 @@ impl App {
             log_config: crate::logging::LogConfig::default(),
             mode_detector,
             storage_adapter,
+            demo_mode_warning: None,
+            server_config_manager,
+            current_server_url: server_url,
         }
+    }
+
+    /// Create a new App with a custom server URL (deprecated - use with_server_url_and_config)
+    pub fn with_server_url(server_url: String) -> Self {
+        let server_config_manager = crate::server_config::ServerConfigManager::new()
+            .expect("Failed to initialize server config manager");
+        Self::with_server_url_and_config(server_url, server_config_manager)
     }
 
     /// Toggle help modal
@@ -372,6 +395,9 @@ impl App {
                 eprintln!("Warning: Failed to delete session: {}", e);
             }
 
+            // Show data reset notification if in demo mode
+            self.show_data_reset_notification();
+
             // Reset app state
             self.auth_state.current_user = None;
             self.current_screen = Screen::Auth;
@@ -408,6 +434,39 @@ impl App {
                 }
             }
         }
+
+        // Clear demo mode warning if expired (after 30 seconds)
+        if let Some((_, timestamp)) = &self.demo_mode_warning {
+            if now.duration_since(*timestamp) > std::time::Duration::from_secs(30) {
+                self.demo_mode_warning = None;
+            }
+        }
+    }
+
+    /// Show demo mode warning if in web mode
+    pub fn show_demo_mode_warning_if_needed(&mut self) {
+        if self.mode_detector.is_web_mode() && self.demo_mode_warning.is_none() {
+            let warning_message = "⚠️ DEMO MODE ACTIVE: All posts, messages, and settings are TEMPORARY and will be COMPLETELY RESET when you refresh or close this page. For permanent data, press 'Escape' and choose 'Login with GitHub'.".to_string();
+            self.demo_mode_warning = Some((warning_message, std::time::Instant::now()));
+        }
+    }
+
+    /// Clear demo mode warning
+    pub fn clear_demo_mode_warning(&mut self) {
+        self.demo_mode_warning = None;
+    }
+
+    /// Show data reset notification when leaving demo mode
+    pub fn show_data_reset_notification(&mut self) {
+        if self.mode_detector.is_web_mode() {
+            let reset_message = "🔄 DEMO DATA RESET: All test posts, messages, and settings have been cleared. This provides a clean experience for the next user. To keep your data permanently, use 'Login with GitHub'.".to_string();
+            self.posts_state.message = Some((reset_message, std::time::Instant::now()));
+        }
+    }
+
+    /// Check if demo mode warning should be shown
+    pub fn should_show_demo_warning(&self) -> bool {
+        self.mode_detector.is_web_mode() && self.demo_mode_warning.is_some()
     }
 
     /// Check if we need to load data when switching tabs
@@ -440,6 +499,9 @@ impl App {
             log::warn!("Failed to delete config_manager session: {}", e);
         }
 
+        // Show data reset notification if in demo mode
+        self.show_data_reset_notification();
+
         // Reset app state
         self.auth_state.current_user = None;
         self.current_screen = Screen::Auth;
@@ -457,6 +519,57 @@ impl App {
         self.auth_state.github_auth_start_time = None;
         self.auth_state.error = None;
 
+        Ok(())
+    }
+
+    /// Refresh authentication by checking for new web session file
+    pub async fn refresh_authentication(&mut self) -> Result<()> {
+        use std::path::Path;
+        use tokio::fs;
+        
+        log::info!("Refreshing authentication - checking for web session file");
+        
+        let session_file = Path::new("temp/web_session.json");
+        
+        if session_file.exists() {
+            log::info!("Found web session file, loading authentication");
+            
+            // Load the web session data
+            let content = fs::read_to_string(session_file).await?;
+            
+            #[derive(serde::Deserialize)]
+            struct WebSessionData {
+                session_token: String,
+                user: fido_types::User,
+            }
+            
+            let session_data: WebSessionData = serde_json::from_str(&content)?;
+            
+            log::info!("Loaded web session for user: {}", session_data.user.username);
+            
+            // Set the session token in the API client
+            self.api_client.set_session_token(Some(session_data.session_token.clone()));
+            
+            // Update the current user
+            self.auth_state.current_user = Some(session_data.user.clone());
+            
+            // Switch to main screen if we're still on auth screen
+            if self.current_screen == crate::app::state::Screen::Auth {
+                self.current_screen = crate::app::state::Screen::Main;
+            }
+            
+            // Load user data
+            let _ = self.load_posts().await;
+            let _ = self.load_settings().await;
+            
+            // Clean up the session file after reading
+            let _ = fs::remove_file(session_file).await;
+            
+            log::info!("Successfully refreshed authentication for user: {}", session_data.user.username);
+        } else {
+            log::info!("No web session file found during refresh");
+        }
+        
         Ok(())
     }
 
@@ -568,6 +681,9 @@ impl App {
 
                 // Load posts after successful login (will use loaded settings and filter)
                 let _ = self.load_posts().await;
+
+                // Show demo mode warning if in web mode
+                self.show_demo_mode_warning_if_needed();
             }
             Err(e) => {
                 self.auth_state.error = Some(format!("Login failed: {}", e));

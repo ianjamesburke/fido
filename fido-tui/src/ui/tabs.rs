@@ -514,51 +514,55 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
     
     let theme = get_theme_colors(app);
     
-    // Check if we need to show message or error banners
+    // Check if we need to show message, error, or demo warning banners
     let has_message = app.posts_state.message.is_some();
     let has_error = app.posts_state.error.is_some();
+    let has_demo_warning = app.should_show_demo_warning();
 
-    // Layout: Message banner (if present), Error banner (if present), posts feed
-    let chunks = match (has_message, has_error) {
-        (true, true) => {
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(3), // Message banner
-                    Constraint::Length(3), // Error banner
-                    Constraint::Min(0),    // Posts feed
-                ])
-                .split(area)
-        }
-        (true, false) => {
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(3), // Message banner
-                    Constraint::Min(0),    // Posts feed
-                ])
-                .split(area)
-        }
-        (false, true) => {
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(3), // Error banner
-                    Constraint::Min(0),    // Posts feed
-                ])
-                .split(area)
-        }
-        (false, false) => {
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Min(0), // Posts feed
-                ])
-                .split(area)
-        }
-    };
+    // Layout: Demo warning (if present), Message banner (if present), Error banner (if present), posts feed
+    let mut constraints = Vec::new();
+    
+    if has_demo_warning {
+        constraints.push(Constraint::Length(3)); // Demo warning banner
+    }
+    if has_message {
+        constraints.push(Constraint::Length(3)); // Message banner
+    }
+    if has_error {
+        constraints.push(Constraint::Length(3)); // Error banner
+    }
+    constraints.push(Constraint::Min(0)); // Posts feed
+    
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(constraints)
+        .split(area);
 
     let mut chunk_idx = 0;
+
+    // Demo mode warning banner (if in web mode)
+    if let Some((warning, _)) = &app.demo_mode_warning {
+        let warning_text = format!("🚨 {} 🚨", warning);
+        let warning_banner = Paragraph::new(warning_text)
+            .style(Style::default()
+                .fg(Color::Yellow)
+                .bg(Color::Red)
+                .add_modifier(Modifier::BOLD | Modifier::SLOW_BLINK))
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .block(Block::default()
+                .borders(Borders::ALL)
+                .title("⚠️  IMPORTANT: DEMO MODE ACTIVE  ⚠️")
+                .title_style(Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD))
+                .border_style(Style::default()
+                    .fg(Color::Red)
+                    .add_modifier(Modifier::BOLD))
+                .style(Style::default().bg(Color::Red)));
+        frame.render_widget(warning_banner, chunks[chunk_idx]);
+        chunk_idx += 1;
+    }
 
     // Message banner (success messages - auto-clear after 3 seconds)
     if let Some((message, _)) = &app.posts_state.message {
@@ -1569,6 +1573,21 @@ pub fn render_settings_tab(frame: &mut Frame, app: &mut App, area: Rect) {
             Span::styled(max_posts_value, max_posts_style),
             Span::raw("  "),
             Span::styled("(←/→ or type number)", Style::default().fg(theme.text_dim)),
+        ]));
+
+        lines.push(Line::from(""));
+
+        // Server URL (read-only display)
+        let server_description = app.server_config_manager.get_server_description(&app.current_server_url);
+        lines.push(Line::from(vec![
+            Span::styled("  ", Style::default()),
+            Span::styled("Server URL: ", Style::default().fg(theme.primary)),
+            Span::styled(&app.current_server_url, Style::default().fg(theme.text)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("  ", Style::default()),
+            Span::styled("Server Type: ", Style::default().fg(theme.primary)),
+            Span::styled(server_description, Style::default().fg(theme.text_dim)),
         ]));
 
         lines.push(Line::from(""));

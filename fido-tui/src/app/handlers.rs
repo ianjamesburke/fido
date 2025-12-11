@@ -157,6 +157,15 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
             app.toggle_help();
             return Ok(());
         }
+        // Ctrl+R for refresh authentication (web mode)
+        KeyCode::Char('r') | KeyCode::Char('R')
+            if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                && app.input_mode == InputMode::Navigation =>
+        {
+            // This will be handled async in main.rs
+            app.auth_state.refresh_requested = true;
+            return Ok(());
+        }
         KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc
             if app.input_mode == InputMode::Navigation =>
         {

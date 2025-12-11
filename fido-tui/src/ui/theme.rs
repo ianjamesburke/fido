@@ -1,5 +1,11 @@
 use ratatui::style::Color;
 use crate::app::App;
+use ratatui::{
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Modifier, Style},
+    widgets::{Block, Borders, Paragraph, Wrap},
+    Frame,
+};
 
 pub struct ThemeColors {
     pub primary: Color,
@@ -85,5 +91,60 @@ pub fn get_theme_colors(app: &App) -> ThemeColors {
             error: Color::Rgb(220, 50, 47),      // Solarized red
             highlight_bg: Color::Rgb(7, 54, 66), // Solarized base02
         },
+    }
+}
+
+/// Render demo mode warning banner if needed
+/// Returns the number of chunks used (0 or 1)
+pub fn render_demo_warning_if_needed(frame: &mut Frame, app: &App, area: Rect) -> usize {
+    if let Some((warning, _)) = &app.demo_mode_warning {
+        // Create a more prominent warning with blinking effect
+        let warning_text = format!("🚨 {} 🚨", warning);
+        
+        let warning_banner = Paragraph::new(warning_text)
+            .style(Style::default()
+                .fg(Color::Yellow)
+                .bg(Color::Red)
+                .add_modifier(Modifier::BOLD | Modifier::SLOW_BLINK))
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .block(Block::default()
+                .borders(Borders::ALL)
+                .title("⚠️  IMPORTANT: DEMO MODE ACTIVE  ⚠️")
+                .title_style(Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD))
+                .border_style(Style::default()
+                    .fg(Color::Red)
+                    .add_modifier(Modifier::BOLD))
+                .style(Style::default().bg(Color::Red)));
+        
+        frame.render_widget(warning_banner, area);
+        1
+    } else {
+        0
+    }
+}
+
+/// Create layout with demo warning support
+/// Returns (chunks, demo_warning_used)
+pub fn create_layout_with_demo_warning(app: &App, area: Rect, main_constraints: Vec<Constraint>) -> (Vec<Rect>, bool) {
+    let has_demo_warning = app.should_show_demo_warning();
+    
+    if has_demo_warning {
+        let mut constraints = vec![Constraint::Length(3)]; // Demo warning
+        constraints.extend(main_constraints);
+        
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(constraints)
+            .split(area);
+        (chunks.to_vec(), true)
+    } else {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(main_constraints)
+            .split(area);
+        (chunks.to_vec(), false)
     }
 }

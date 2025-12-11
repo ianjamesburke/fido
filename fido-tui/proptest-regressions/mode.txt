@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 9f94c91c955adb481b07e60d08bd428b4af9c13961fc6567ff524757e59d10d8 # shrinks to env_var_value = None, other_env_vars = [("FIDO__", "\0")]
+cc 4035d2366b982884fc6ae24a751bc4bcb97efd501d252588dfd09d38cd0f1aa9 # shrinks to env_var_value = None, other_env_vars = [("O", "qPo71AE_S_-9-HW7qMZSN-_-Ec--H3jO-_-L3-_Mi_x_o_H"), ("_RB_YXP_FK_KR_J", "rD-CfqNPBc0t1Q_I_Q9G_J")]

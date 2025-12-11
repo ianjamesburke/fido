@@ -204,3 +204,10 @@ pub struct ErrorResponse {
     pub error: String,
     pub details: Option<String>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WebUserContextResponse {
+    pub user: Option<User>,
+    pub is_web_mode: bool,
+    pub isolation_active: bool,
+}

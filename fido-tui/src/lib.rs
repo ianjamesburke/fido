@@ -9,6 +9,7 @@ pub mod emoji;
 pub mod logging;
 
 pub mod mode;
+pub mod server_config;
 pub mod session;
 pub mod storage;
 pub mod text_wrapper;

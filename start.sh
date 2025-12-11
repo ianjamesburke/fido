@@ -28,19 +28,29 @@ check_port() {
     return 0
 }
 
-# Function to wait for service to be ready
+# Function to wait for service to be ready with health checks
 wait_for_service() {
     local port=$1
     local service_name=$2
+    local health_endpoint=$3
     local max_attempts=30
     local attempt=1
     
     echo "⏳ Waiting for $service_name to start on port $port..."
     
     while [ $attempt -le $max_attempts ]; do
+        # Try basic connection first
         if curl -s "http://localhost:$port" > /dev/null 2>&1; then
-            echo "✅ $service_name is ready on port $port"
-            return 0
+            # If health endpoint is provided, test it specifically
+            if [ -n "$health_endpoint" ]; then
+                if curl -s "http://localhost:$port$health_endpoint" | grep -q "OK\|healthy"; then
+                    echo "✅ $service_name is ready on port $port (health check passed)"
+                    return 0
+                fi
+            else
+                echo "✅ $service_name is ready on port $port"
+                return 0
+            fi
         fi
         
         if [ $((attempt % 5)) -eq 0 ]; then
@@ -53,6 +63,45 @@ wait_for_service() {
     
     echo "❌ $service_name failed to start within $max_attempts seconds"
     return 1
+}
+
+# Function to perform comprehensive health checks
+health_check_all_services() {
+    local all_healthy=true
+    
+    echo "🔍 Performing health checks..."
+    
+    # Check API server health
+    if curl -s "http://localhost:$API_PORT/health" | grep -q "OK"; then
+        echo "✅ API server health check passed"
+    else
+        echo "❌ API server health check failed"
+        all_healthy=false
+    fi
+    
+    # Check nginx health
+    if curl -s "http://localhost:$NGINX_PORT/health" | grep -q "healthy"; then
+        echo "✅ nginx health check passed"
+    else
+        echo "❌ nginx health check failed"
+        all_healthy=false
+    fi
+    
+    # Check ttyd health (basic connection test)
+    if curl -s "http://localhost:$TTYD_PORT" > /dev/null 2>&1; then
+        echo "✅ ttyd service health check passed"
+    else
+        echo "❌ ttyd service health check failed"
+        all_healthy=false
+    fi
+    
+    if [ "$all_healthy" = true ]; then
+        echo "✅ All services are healthy"
+        return 0
+    else
+        echo "⚠️  Some services failed health checks"
+        return 1
+    fi
 }
 
 # Function to cleanup processes on exit
@@ -124,15 +173,24 @@ API_PID=$!
 cd ..
 
 # Wait for API server to be ready
-wait_for_service $API_PORT "API server" || exit 1
+wait_for_service $API_PORT "API server" "/health" || exit 1
 
 # Start ttyd with Fido TUI in web mode
 echo "🚀 Starting ttyd terminal service on port $TTYD_PORT..."
-FIDO_WEB_MODE=true ttyd -p $TTYD_PORT -t fontSize=14 -t theme='{"background": "#0f0f0f", "foreground": "#f5f5f5"}' cargo run --bin fido &
+FIDO_WEB_MODE=true ttyd \
+    -p $TTYD_PORT \
+    -t fontSize=16 \
+    -t fontFamily="Consolas,Monaco,'Courier New',monospace" \
+    -t cursorBlink=true \
+    -t cursorStyle=block \
+    -t scrollback=1000 \
+    -t theme='{"background": "#0d1117", "foreground": "#f0f6fc", "cursor": "#f0f6fc", "cursorAccent": "#0d1117", "selection": "#264f78", "black": "#484f58", "red": "#ff7b72", "green": "#7ee787", "yellow": "#ffa657", "blue": "#79c0ff", "magenta": "#bc8cff", "cyan": "#39c5cf", "white": "#b1bac4", "brightBlack": "#6e7681", "brightRed": "#ffa198", "brightGreen": "#56d364", "brightYellow": "#ffdf5d", "brightBlue": "#a5b4fc", "brightMagenta": "#d2a8ff", "brightCyan": "#56d4dd", "brightWhite": "#f0f6fc"}' \
+    -W \
+    cargo run --bin fido &
 TTYD_PID=$!
 
 # Wait for ttyd to be ready
-wait_for_service $TTYD_PORT "ttyd terminal service" || exit 1
+wait_for_service $TTYD_PORT "ttyd terminal service" "" || exit 1
 
 # Start nginx
 echo "🚀 Starting nginx web server on port $NGINX_PORT..."
@@ -140,10 +198,14 @@ nginx -c "$(pwd)/nginx.conf" -p "$(pwd)" &
 NGINX_PID=$!
 
 # Wait for nginx to be ready
-wait_for_service $NGINX_PORT "nginx web server" || exit 1
+wait_for_service $NGINX_PORT "nginx web server" "/health" || exit 1
 
 echo ""
 echo "🎉 All services started successfully!"
+
+# Perform comprehensive health checks
+health_check_all_services
+
 echo ""
 echo "📱 Access the web interface at: http://localhost:$NGINX_PORT"
 echo "🖥️  Direct terminal access at: http://localhost:$TTYD_PORT"
@@ -151,9 +213,12 @@ echo "🔌 API server running at: http://localhost:$API_PORT"
 echo ""
 echo "Press Ctrl+C to stop all services"
 
-# Keep the script running and wait for signals
+# Keep the script running and monitor services
+health_check_interval=30
+last_health_check=0
+
 while true; do
-    sleep 1
+    sleep 5
     
     # Check if any service has died
     if ! kill -0 $API_PID 2>/dev/null; then
@@ -169,5 +234,14 @@ while true; do
     if ! kill -0 $NGINX_PID 2>/dev/null; then
         echo "❌ nginx service has stopped unexpectedly"
         cleanup
+    fi
+    
+    # Periodic health checks
+    current_time=$(date +%s)
+    if [ $((current_time - last_health_check)) -ge $health_check_interval ]; then
+        if ! health_check_all_services > /dev/null 2>&1; then
+            echo "⚠️  Health check failed - some services may be unhealthy"
+        fi
+        last_health_check=$current_time
     fi
 done

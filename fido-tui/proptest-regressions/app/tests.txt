@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d22e8305d8992efc580808203b00cf7bb84959b97ba112729150e236889197aa # shrinks to credentials = "-Gd-___aW-BhI8h_2_-__-XQ4JD4QeeRw--Y-_qKr21Ns_2fO-_5jq-C5CRIrM--j-tIT-_5i-hsU_93_-iHyg2-vNwg5D_26-Qb-AwcdG_-_b-_-S__LuXx-1-MDdcs-ecIv378C-1-sC3_0GhD-Cc-m", username = "Px-LY3E-0", user_id = "77d45b5b-ba8e-8dc2-04d8-a5f9907a90d3"
+cc 5e8b49ec74aa5a7cfdbb54871720d4e1813c8149756b48335da4f1cd1b980a09 # shrinks to mode_is_web = true, color_scheme = Default, sort_order = Newest, max_posts = 78, emoji_enabled = false
+cc 9d7b78faef90a21f68e2aa2165ccfd9b6a19d8b66957795ab4dc9cf718452f5f # shrinks to credentials = "_--l4Q-_I7-X3y--e_o_H6f-B3A-_-1-EIPU4E5p2sDO1_-__lOS_Kcd-Iyg-gSJQOy9S-4-I2_-yEz6TQFCj7w_W56__s-jzx_aC-yD6O_W-dVdXr24_Wme_y6-_5-U6f_lcD_p_vB9Ph9___-X2y-_---X_-_5_73", _username = "P7MM-ny4fJ_oMl5V_z_", _user_id = "b79844b2-2855-a8b0-4eff-48f5b4fd9bc3"
+cc 2770e92d65dcb8a50cb41350c5feb98a630b3e397b04a8d4963b703c6386225c # shrinks to mode_is_web = true, color_scheme = Solarized, sort_order = Controversial, max_posts = 44, emoji_enabled = true

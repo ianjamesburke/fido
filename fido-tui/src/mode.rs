@@ -12,7 +12,7 @@ pub enum AppMode {
 /// Mode detection system using environment variables
 #[derive(Debug, Clone)]
 pub struct ModeDetector {
-    mode: AppMode,
+    pub mode: AppMode,
 }
 
 impl ModeDetector {
@@ -56,6 +56,9 @@ mod tests {
 
     #[test]
     fn test_native_mode_when_no_env_var() {
+        // Store original environment state
+        let original_env = env::var("FIDO_WEB_MODE").ok();
+        
         // Ensure FIDO_WEB_MODE is not set
         env::remove_var("FIDO_WEB_MODE");
         
@@ -63,10 +66,19 @@ mod tests {
         assert_eq!(detector.mode(), &AppMode::Native);
         assert!(detector.is_native_mode());
         assert!(!detector.is_web_mode());
+        
+        // Restore original environment state
+        match original_env {
+            Some(value) => env::set_var("FIDO_WEB_MODE", value),
+            None => env::remove_var("FIDO_WEB_MODE"),
+        }
     }
 
     #[test]
     fn test_web_mode_when_env_var_set() {
+        // Store original environment state
+        let original_env = env::var("FIDO_WEB_MODE").ok();
+        
         // Set FIDO_WEB_MODE environment variable
         env::set_var("FIDO_WEB_MODE", "true");
         
@@ -75,15 +87,23 @@ mod tests {
         assert!(detector.is_web_mode());
         assert!(!detector.is_native_mode());
         
-        // Clean up
-        env::remove_var("FIDO_WEB_MODE");
+        // Restore original environment state
+        match original_env {
+            Some(value) => env::set_var("FIDO_WEB_MODE", value),
+            None => env::remove_var("FIDO_WEB_MODE"),
+        }
     }
 
     #[test]
     fn test_web_mode_with_any_value() {
+        // Store original environment state
+        let original_env = env::var("FIDO_WEB_MODE").ok();
+        
+        // Ensure clean state first
+        env::remove_var("FIDO_WEB_MODE");
+        
         // FIDO_WEB_MODE can have any value - just needs to exist
         env::set_var("FIDO_WEB_MODE", "false");
-        
         let detector = ModeDetector::new();
         assert_eq!(detector.mode(), &AppMode::Web);
         
@@ -95,8 +115,11 @@ mod tests {
         let detector = ModeDetector::new();
         assert_eq!(detector.mode(), &AppMode::Web);
         
-        // Clean up
-        env::remove_var("FIDO_WEB_MODE");
+        // Restore original environment state
+        match original_env {
+            Some(value) => env::set_var("FIDO_WEB_MODE", value),
+            None => env::remove_var("FIDO_WEB_MODE"),
+        }
     }
 
     // Property-based tests
@@ -116,9 +139,9 @@ mod tests {
             env::remove_var("FIDO_WEB_MODE");
             
             // Set up other environment variables (but not FIDO_WEB_MODE)
-            // Filter out FIDO_WEB_MODE to avoid conflicts
+            // Filter out any FIDO-related environment variables to avoid conflicts
             let safe_env_vars: Vec<_> = other_env_vars.iter()
-                .filter(|(key, _)| key != "FIDO_WEB_MODE")
+                .filter(|(key, _)| !key.starts_with("FIDO"))
                 .collect();
             
             for (key, value) in &safe_env_vars {

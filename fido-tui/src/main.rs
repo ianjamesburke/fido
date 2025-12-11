@@ -7,6 +7,7 @@ mod emoji;
 #[macro_use]
 mod logging;
 mod mode;
+mod server_config;
 mod session;
 mod storage;
 mod terminal;
@@ -18,6 +19,7 @@ use app::{App, FilterTab};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use std::time::Duration;
 use clap::Parser;
+use serde::{Deserialize, Serialize};
 
 /// Fido - A blazing-fast, keyboard-driven social platform for developers
 #[derive(Parser)]
@@ -32,6 +34,38 @@ struct Cli {
     /// Enable verbose logging
     #[arg(long, short)]
     verbose: bool,
+    
+    /// Session token for web authentication
+    #[arg(long, env = "FIDO_SESSION_TOKEN")]
+    session_token: Option<String>,
+}
+
+/// Web session data structure
+#[derive(Debug, Serialize, Deserialize)]
+struct WebSessionData {
+    session_token: String,
+    user: fido_types::User,
+    timestamp: String,
+}
+
+/// Load web session from temporary file
+async fn load_web_session_file() -> Result<WebSessionData> {
+    use std::path::Path;
+    use tokio::fs;
+    
+    let session_file = Path::new("temp/web_session.json");
+    
+    if !session_file.exists() {
+        return Err(anyhow::anyhow!("Web session file not found"));
+    }
+    
+    let content = fs::read_to_string(session_file).await?;
+    let session_data: WebSessionData = serde_json::from_str(&content)?;
+    
+    // Clean up the session file after reading
+    let _ = fs::remove_file(session_file).await;
+    
+    Ok(session_data)
 }
 
 // Load environment variables from .env file
@@ -133,12 +167,14 @@ async fn main() -> Result<()> {
     // Initialize terminal
     let mut tui = terminal::init()?;
 
-    // Create app with logging config and custom server URL if provided
-    let mut app = if let Some(server_url) = cli.server {
-        App::with_server_url(server_url)
-    } else {
-        App::new()
-    };
+    // Initialize server configuration manager
+    let server_config_manager = server_config::ServerConfigManager::new()?;
+    
+    // Determine server URL based on CLI args, env vars, config file, and defaults
+    let server_url = server_config_manager.determine_server_url(cli.server)?;
+    
+    // Create app with determined server URL and logging config
+    let mut app = App::with_server_url_and_config(server_url, server_config_manager);
     app.log_config = log_config;
 
     // Check if running in web mode (for web terminal interface)
@@ -147,13 +183,38 @@ async fn main() -> Result<()> {
     // Log the detected mode
     if is_web_mode {
         log::info!("Running in web mode - using browser storage");
-        app.auth_state.show_github_option = false;
     } else {
         log::info!("Running in native mode - using file storage");
     }
     
-    // Check for existing session on startup (skip in web mode)
-    if !is_web_mode {
+    // Check for session token from command line (for web mode)
+    if let Some(session_token) = cli.session_token {
+        log::info!("Using session token from command line for web authentication");
+        
+        // Set the session token in the API client
+        app.api_client.set_session_token(Some(session_token.clone()));
+        
+        // Validate the session with the server
+        match app.api_client.validate_session().await {
+            Ok(response) => {
+                log::info!("Successfully validated web session for user: {}", response.user.username);
+                app.auth_state.current_user = Some(response.user);
+                app.current_screen = app::Screen::Main;
+                
+                // Load initial data
+                let _ = app.load_settings().await;
+                app.load_filter_preference();
+                let _ = app.load_posts().await;
+            }
+            Err(e) => {
+                log::error!("Failed to validate web session: {}", e);
+                // Fall back to test users
+                let _ = app.load_test_users().await;
+            }
+        }
+    }
+    // Check for existing session on startup (skip in web mode without session token)
+    else if !is_web_mode {
         if let Ok(Some(user)) = app.check_existing_session().await {
             log::info!("Restored session for user: {}", user.username);
             app.auth_state.current_user = Some(user);
@@ -169,9 +230,26 @@ async fn main() -> Result<()> {
             let _ = app.load_test_users().await;
         }
     } else {
-        log::info!("Running in web mode, loading test users only");
-        // In web mode, always show test users (no GitHub OAuth)
-        let _ = app.load_test_users().await;
+        log::info!("Running in web mode without session token, checking for session file");
+        
+        // In web mode, check for session file written by web interface
+        if let Ok(session_data) = load_web_session_file().await {
+            log::info!("Found web session file for user: {}", session_data.user.username);
+            
+            // Set the session token in the API client
+            app.api_client.set_session_token(Some(session_data.session_token));
+            
+            app.auth_state.current_user = Some(session_data.user);
+            app.current_screen = app::Screen::Main;
+            
+            // Load initial data
+            let _ = app.load_settings().await;
+            app.load_filter_preference();
+            let _ = app.load_posts().await;
+        } else {
+            log::info!("No web session file found, loading test users");
+            let _ = app.load_test_users().await;
+        }
     }
     
     // Create auth flow for GitHub Device Flow (only used for GitHub OAuth)
@@ -629,6 +707,12 @@ async fn main() -> Result<()> {
                         _ => {
                             app.handle_key_event(key)?;
                         }
+                    }
+                    
+                    // Handle refresh authentication request (set by Ctrl+R)
+                    if app.auth_state.refresh_requested {
+                        app.auth_state.refresh_requested = false;
+                        app.refresh_authentication().await?;
                     }
                 }
             }

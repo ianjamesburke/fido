@@ -41,10 +41,106 @@
         </header>
 
         <section class="demo">
-            <h2>Web Interface Coming Soon</h2>
+            <h2>Try Fido in Your Browser</h2>
             <p class="demo-instructions">
-                The web interface is currently under development.
+                Experience the full Fido terminal interface right in your browser. Use <kbd>Tab</kbd> to navigate, <kbd>n</kbd> to create posts, and <kbd>?</kbd> for help.
             </p>
+            
+            <!-- Authentication UI -->
+            <div id="auth-container" class="auth-container">
+                <!-- Mode Selection Warning -->
+                <div class="mode-warning">
+                    <div class="warning-icon">⚠️</div>
+                    <div class="warning-content">
+                        <h3>Choose Your Experience</h3>
+                        <p>Select how you want to use Fido. This choice affects data persistence and functionality.</p>
+                    </div>
+                </div>
+
+                <div class="auth-options">
+                    <div class="auth-option">
+                        <button id="demo-btn" class="auth-button demo-button">
+                            <span class="button-icon">🚀</span>
+                            Try Demo (Test User)
+                        </button>
+                        <div class="option-details demo-details">
+                            <div class="warning-badge">🚨 ALL DATA WILL BE LOST</div>
+                            <ul>
+                                <li><strong>🔄 Everything is temporary</strong> - Posts, messages, votes, and settings are COMPLETELY ERASED when you refresh, close the page, or navigate away</li>
+                                <li><strong>🏝️ Completely isolated</strong> - Your actions are in a sandbox and won't affect real users or appear in real feeds</li>
+                                <li><strong>⏱️ No persistence</strong> - Nothing survives between sessions, no account history or profile building</li>
+                                <li><strong>🧪 Perfect for exploration</strong> - Try all features safely without consequences</li>
+                                <li><strong>❌ NOT for real use</strong> - Don't spend time creating content you want to keep</li>
+                            </ul>
+                            <div class="demo-warning-footer">
+                                <strong>⚠️ You will see multiple warnings to remind you about data loss</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="auth-option">
+                        <button id="github-btn" class="auth-button github-button">
+                            <span class="button-icon">
+                                <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                                </svg>
+                            </span>
+                            Login with GitHub
+                        </button>
+                        <div class="option-details github-details">
+                            <div class="success-badge">✅ PERMANENT ACCOUNT</div>
+                            <ul>
+                                <li><strong>💾 Everything is saved forever</strong> - Posts, messages, votes, settings, and profile persist across all sessions</li>
+                                <li><strong>🌐 Real community access</strong> - Interact with actual users, see all real content, build genuine relationships</li>
+                                <li><strong>📈 Build your reputation</strong> - Accumulate followers, upvotes, and establish your developer presence</li>
+                                <li><strong>🔐 Secure & simple</strong> - Uses GitHub OAuth, no passwords to remember, revoke access anytime</li>
+                                <li><strong>✅ Professional network</strong> - Connect with real developers in a spam-free environment</li>
+                            </ul>
+                            <div class="github-info-footer">
+                                <strong>💡 Recommended for anyone ready to join the community</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Account Creation Guidance -->
+                <div class="account-guidance">
+                    <h4>🎯 Choosing the Right Mode</h4>
+                    <div class="guidance-section">
+                        <h5>👋 First Time Here?</h5>
+                        <p>
+                            <strong>Recommended path:</strong> Start with <strong>Demo mode</strong> (5-15 minutes) to learn the interface and keyboard shortcuts, then switch to <strong>GitHub Login</strong> when you're ready to join the real community.
+                        </p>
+                    </div>
+                    <div class="guidance-section">
+                        <h5>🚨 Critical Reminder</h5>
+                        <p>
+                            <strong>Demo = Temporary:</strong> Everything you do will be lost when you refresh.<br>
+                            <strong>GitHub = Permanent:</strong> Everything you do is saved forever.
+                        </p>
+                    </div>
+                    <div class="guidance-section">
+                        <h5>📚 Need More Info?</h5>
+                        <p>
+                            Read the <a href="TEST_VS_REAL_USER_GUIDE.md" target="_blank">Complete Test vs Real User Guide</a> for detailed explanations of both modes.
+                        </p>
+                    </div>
+                    <p class="install-note">
+                        💡 <strong>Pro tip:</strong> Install the native terminal app with <code>cargo install fido</code> for the best experience!
+                    </p>
+                </div>
+            </div>
+
+            <!-- Terminal Container -->
+            <div class="terminal-container" id="terminal-container" style="display: none;">
+                <div class="terminal-header">
+                    <div class="terminal-button close"></div>
+                    <div class="terminal-button minimize"></div>
+                    <div class="terminal-button maximize"></div>
+                    <div class="terminal-title">Fido Terminal</div>
+                </div>
+                <iframe id="terminal" src="/terminal/" title="Fido Terminal Interface"></iframe>
+            </div>
         </section>
 
         <section class="features">
