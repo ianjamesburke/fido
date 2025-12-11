@@ -13,6 +13,7 @@ use axum::{
     routing::{delete, get, post, put},
     Router,
 };
+use tower_http::services::ServeDir;
 use rate_limit::RateLimiter;
 use state::AppState;
 use std::net::SocketAddr;
@@ -211,7 +212,9 @@ async fn main() {
         .with_state(state)
         .layer(middleware::from_fn(rate_limit::rate_limit_middleware))
         .layer(axum::Extension(rate_limiter))
-        .layer(cors);
+        .layer(cors)
+        // Serve static files from web directory (must be last)
+        .fallback_service(ServeDir::new("/web"));
 
     // Start server
     let addr_str = format!("{}:{}", settings.server.host, settings.server.port);

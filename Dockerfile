@@ -1,4 +1,4 @@
-# Incremental Dockerfile - API server + Web interface
+# Dockerfile - API server only
 FROM rust:1.83 as builder
 
 WORKDIR /app
@@ -8,38 +8,24 @@ COPY fido-server ./fido-server
 COPY fido-tui ./fido-tui
 COPY fido-migrate ./fido-migrate
 
-# Build the server and TUI
-RUN cargo build --release --bin fido-server --bin fido
+# Build the server
+RUN cargo build --release --bin fido-server
 
-# Runtime stage - add nginx for web interface
+# Runtime stage
 FROM debian:bookworm-slim
 
 # Install dependencies
 RUN apt-get update && \
-    apt-get install -y ca-certificates nginx wget && \
+    apt-get install -y ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Install ttyd for web terminal
-RUN wget -O /usr/local/bin/ttyd https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 && \
-    chmod +x /usr/local/bin/ttyd
-
-# Copy binaries
+# Copy binary and web assets
 COPY --from=builder /app/target/release/fido-server /usr/local/bin/fido-server
-COPY --from=builder /app/target/release/fido /usr/local/bin/fido
-
-# Copy web files
-COPY web /var/www/html
-
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
-
-# Copy startup script (we'll create a new one)
-COPY start-web.sh /usr/local/bin/start-web.sh
-RUN chmod +x /usr/local/bin/start-web.sh
+COPY web /web
 
 # Set environment variables
 ENV HOST=0.0.0.0
-ENV PORT=3000
+ENV PORT=8080
 ENV DATABASE_PATH=/data/fido.db
 ENV RUST_LOG=info
 ENV RUST_BACKTRACE=1
@@ -49,4 +35,4 @@ RUN mkdir -p /data && chmod 755 /data
 
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/local/bin/start-web.sh"]
+ENTRYPOINT ["/usr/local/bin/fido-server"]
