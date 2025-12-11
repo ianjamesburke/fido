@@ -1,5 +1,12 @@
 # Implementation Plan
 
+- [ ] 0. Open Source Contributor Setup: Clone repository and create feature branch
+  - Clone the Fido repository from GitHub: `git clone https://github.com/ianjamesburke/fido.git`
+  - Navigate to project directory: `cd fido`
+  - Create and checkout new feature branch: `git checkout -b feature/web-terminal-interface`
+  - Verify you're on the correct branch: `git branch --show-current`
+  - Set up any required environment variables from `.env.example`
+
 - [ ] 1. Set up local development environment and baseline
   - Review existing `web/` directory (already has index.html, style.css, script.js)
   - Install and configure nginx locally for development
@@ -239,10 +246,29 @@
   - **Performance**: Verify keyboard input has no noticeable lag compared to native
   - **Browser Compatibility**: Test in Chrome, Firefox, Safari (if available)
 
-- [ ] 15. Final checkpoint - Ensure all tests pass
-  - Ensure all tests pass, ask the user if questions arise.
+- [ ] 15. Implement server configuration management
+  - Add server URL configuration system to distinguish local vs production
+  - Create configuration file or environment variable for `FIDO_SERVER_URL`
+  - Set local development default to `http://localhost:3000`
+  - Set production/crates.io default to `https://fido-social.fly.dev`
+  - Add clear indication in TUI of which server is being used
+  - Make server configuration easily discoverable in documentation
+  - **Note**: Production server changes are outside scope - contributor cannot modify deployed server
 
-- [ ] 16. End-to-End Verification: Complete web terminal interface works
+- [ ] 15.1 Verification: Server configuration works correctly
+  - Test local development: Verify TUI connects to `http://localhost:3000` by default
+  - Test production mode: Set production URL to `https://fido-social.fly.dev` and verify TUI connects correctly
+  - Verify TUI clearly shows which server it's connected to
+  - Test configuration discovery: Ensure users can easily find and modify server settings
+  - Test local terminal connecting to local server: Run TUI and verify it communicates with local API
+  - **Note**: Only test production URL configuration - actual production server testing requires deployment access
+
+- [ ] 16. Final checkpoint - Ensure all tests pass
+  - Run all automated tests: `cargo test`
+  - Ensure all unit tests, integration tests, and property-based tests pass
+  - Fix any failing tests before proceeding to final verification
+
+- [ ] 17. End-to-End Verification: Complete web terminal interface works
   - Run `./start.sh` to start all services (API, nginx, ttyd)
   - Open browser to `http://localhost:8080` and verify web interface loads
   - **Critical: Verify terminal iframe captures keyboard input immediately on page load**
@@ -253,3 +279,31 @@
   - Test cross-mode consistency: Compare web terminal behavior with native TUI
   - Verify all port configurations are correct (API:3000, nginx:8080, ttyd:7681)
   - Confirm documentation and warnings are clear and helpful
+
+- [ ] 18. Comprehensive User Experience Testing
+  - **Digital Testing**: Verify all automated tests pass (`cargo test`)
+  - **Web App Navigation**: Navigate to local page (`http://localhost:8080`) and use web app as test user
+  - **GitHub Authentication**: Log in to web app using GitHub OAuth and verify functionality
+  - **Local Terminal Integration**: Run local terminal and verify it connects to local server
+  - **Cross-Platform Testing**: Test web terminal in multiple browsers (Chrome, Firefox, Safari)
+  - **Performance Testing**: Verify keyboard input responsiveness matches native TUI
+  - **Feature Parity**: Confirm all TUI features work identically in web terminal
+
+- [ ] 19. Pre-Pull Request Validation
+  - Run final test suite: `cargo test --all`
+  - Verify no compiler warnings: `cargo clippy`
+  - Check code formatting: `cargo fmt --check`
+  - Test complete user workflows in both native and web modes
+  - Verify all configuration documentation is accurate and discoverable
+  - Confirm all new files are properly committed to feature branch
+  - Review changes for any sensitive information (API keys, passwords)
+
+- [ ] 20. Submit Pull Request
+  - Commit all changes to feature branch: `git add . && git commit -m "Add web terminal interface"`
+  - Push feature branch to GitHub: `git push origin feature/web-terminal-interface`
+  - Create pull request on GitHub with detailed description of changes
+  - Include testing instructions and verification steps in PR description
+  - Add screenshots or demo links if applicable
+  - Request review from project maintainers
+  - Respond to any feedback and make requested changes
+  - Ensure CI/CD pipeline passes all checks before requesting merge
