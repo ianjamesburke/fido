@@ -15,6 +15,22 @@ use anyhow::Result;
 use app::{App, FilterTab};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use std::time::Duration;
+use clap::Parser;
+
+/// Fido - A blazing-fast, keyboard-driven social platform for developers
+#[derive(Parser)]
+#[command(name = "fido")]
+#[command(about = "A terminal-based social network for developers")]
+#[command(version)]
+struct Cli {
+    /// Server URL to connect to
+    #[arg(long, short, env = "FIDO_SERVER_URL")]
+    server: Option<String>,
+    
+    /// Enable verbose logging
+    #[arg(long, short)]
+    verbose: bool,
+}
 
 // Load environment variables from .env file
 // This allows FIDO_SERVER_URL and other config to be set without command-line args
@@ -98,19 +114,29 @@ impl ModalStateTracker {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Parse command-line arguments
+    let cli = Cli::parse();
+    
     // Load environment variables from .env file
     load_env();
     
     // Initialize logging system
-    // You can change this to LogConfig::disabled() or LogConfig::minimal() to reduce logging
-    let log_config = logging::LogConfig::default();
+    let log_config = if cli.verbose {
+        logging::LogConfig::verbose()
+    } else {
+        logging::LogConfig::default()
+    };
     logging::init_logging(&log_config)?;
     
     // Initialize terminal
     let mut tui = terminal::init()?;
 
-    // Create app with logging config
-    let mut app = App::new();
+    // Create app with logging config and custom server URL if provided
+    let mut app = if let Some(server_url) = cli.server {
+        App::with_server_url(server_url)
+    } else {
+        App::new()
+    };
     app.log_config = log_config;
 
     // Check if running in web mode (for web terminal interface)

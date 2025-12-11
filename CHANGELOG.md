@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.1.5] - 2024-12-11
+
+### Changed
+- Optimized Docker build caching for faster deployments
+- Improved deployment configuration
+
 ## [0.1.4] - 2024-12-10
 
 ### Added
