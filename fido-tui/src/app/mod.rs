@@ -22,23 +22,39 @@ impl App {
         // Clean up old sessions on startup
         let _ = config_manager.cleanup_old_sessions();
 
+        // Initialize mode detection and storage adapter
+        let mode_detector = crate::mode::ModeDetector::new();
+        let storage_adapter =
+            crate::storage::StorageAdapterFactory::create_adapter(mode_detector.mode())
+                .expect("Failed to create storage adapter");
+
+        // Initialize server configuration manager
+        let server_config_manager = crate::server_config::ServerConfigManager::new()
+            .expect("Failed to initialize server config manager");
+
+        // Determine server URL (no CLI override in this constructor)
+        let server_url = server_config_manager
+            .determine_server_url(None)
+            .expect("Failed to determine server URL");
+
         Self {
             running: true,
             current_screen: Screen::Auth,
-            api_client: ApiClient::default(),
+            api_client: ApiClient::new(&server_url),
             auth_state: AuthState {
                 test_users: Vec::new(),
                 selected_index: 0,
                 loading: false,
                 error: None,
                 current_user: None,
-                show_github_option: true,
+                show_github_option: true, // Enable GitHub OAuth in all modes
                 github_auth_in_progress: false,
                 github_device_code: None,
                 github_user_code: None,
                 github_verification_uri: None,
                 github_poll_interval: None,
                 github_auth_start_time: None,
+                refresh_requested: false,
             },
             current_tab: Tab::Posts,
             posts_state: PostsState {
@@ -161,11 +177,19 @@ impl App {
             },
             user_profile_view: None,
             log_config: crate::logging::LogConfig::default(),
+            mode_detector,
+            storage_adapter,
+            demo_mode_warning: None,
+            server_config_manager,
+            current_server_url: server_url,
         }
     }
 
-    /// Create a new App with a custom server URL
-    pub fn with_server_url(server_url: String) -> Self {
+    /// Create a new App with a custom server URL and server config manager
+    pub fn with_server_url_and_config(
+        server_url: String,
+        server_config_manager: crate::server_config::ServerConfigManager,
+    ) -> Self {
         let config_manager =
             crate::config::ConfigManager::new().expect("Failed to initialize config manager");
         let instance_id = crate::config::ConfigManager::generate_instance_id();
@@ -173,23 +197,30 @@ impl App {
         // Clean up old sessions on startup
         let _ = config_manager.cleanup_old_sessions();
 
+        // Initialize mode detection and storage adapter
+        let mode_detector = crate::mode::ModeDetector::new();
+        let storage_adapter =
+            crate::storage::StorageAdapterFactory::create_adapter(mode_detector.mode())
+                .expect("Failed to create storage adapter");
+
         Self {
             running: true,
             current_screen: Screen::Auth,
-            api_client: ApiClient::new(server_url),
+            api_client: ApiClient::new(&server_url),
             auth_state: AuthState {
                 test_users: Vec::new(),
                 selected_index: 0,
                 loading: false,
                 error: None,
                 current_user: None,
-                show_github_option: true,
+                show_github_option: true, // Enable GitHub OAuth in all modes
                 github_auth_in_progress: false,
                 github_device_code: None,
                 github_user_code: None,
                 github_verification_uri: None,
                 github_poll_interval: None,
                 github_auth_start_time: None,
+                refresh_requested: false,
             },
             current_tab: Tab::Posts,
             posts_state: PostsState {
@@ -312,7 +343,19 @@ impl App {
             },
             user_profile_view: None,
             log_config: crate::logging::LogConfig::default(),
+            mode_detector,
+            storage_adapter,
+            demo_mode_warning: None,
+            server_config_manager,
+            current_server_url: server_url,
         }
+    }
+
+    /// Create a new App with a custom server URL (deprecated - use with_server_url_and_config)
+    pub fn with_server_url(server_url: String) -> Self {
+        let server_config_manager = crate::server_config::ServerConfigManager::new()
+            .expect("Failed to initialize server config manager");
+        Self::with_server_url_and_config(server_url, server_config_manager)
     }
 
     /// Toggle help modal
@@ -358,6 +401,9 @@ impl App {
                 eprintln!("Warning: Failed to delete session: {}", e);
             }
 
+            // Show data reset notification if in demo mode
+            self.show_data_reset_notification();
+
             // Reset app state
             self.auth_state.current_user = None;
             self.current_screen = Screen::Auth;
@@ -394,6 +440,39 @@ impl App {
                 }
             }
         }
+
+        // Clear demo mode warning if expired (after 30 seconds)
+        if let Some((_, timestamp)) = &self.demo_mode_warning {
+            if now.duration_since(*timestamp) > std::time::Duration::from_secs(30) {
+                self.demo_mode_warning = None;
+            }
+        }
+    }
+
+    /// Show demo mode warning if in web mode
+    pub fn show_demo_mode_warning_if_needed(&mut self) {
+        if self.mode_detector.is_web_mode() && self.demo_mode_warning.is_none() {
+            let warning_message = "⚠️ DEMO MODE ACTIVE: All posts, messages, and settings are TEMPORARY and will be COMPLETELY RESET when you refresh or close this page. For permanent data, press 'Escape' and choose 'Login with GitHub'.".to_string();
+            self.demo_mode_warning = Some((warning_message, std::time::Instant::now()));
+        }
+    }
+
+    /// Clear demo mode warning
+    pub fn clear_demo_mode_warning(&mut self) {
+        self.demo_mode_warning = None;
+    }
+
+    /// Show data reset notification when leaving demo mode
+    pub fn show_data_reset_notification(&mut self) {
+        if self.mode_detector.is_web_mode() {
+            let reset_message = "🔄 DEMO DATA RESET: All test posts, messages, and settings have been cleared. This provides a clean experience for the next user. To keep your data permanently, use 'Login with GitHub'.".to_string();
+            self.posts_state.message = Some((reset_message, std::time::Instant::now()));
+        }
+    }
+
+    /// Check if demo mode warning should be shown
+    pub fn should_show_demo_warning(&self) -> bool {
+        self.mode_detector.is_web_mode() && self.demo_mode_warning.is_some()
     }
 
     /// Check if we need to load data when switching tabs
@@ -412,21 +491,22 @@ impl App {
 
         // Call server logout endpoint to invalidate session (best effort)
         // We don't fail if this errors since we'll clear local session anyway
-        if let Ok(session_store) = crate::session::SessionStore::new() {
-            if let Ok(Some(token)) = session_store.load() {
-                let _ = self.api_client.logout(token).await;
-            }
-            
-            // Delete local session file
-            if let Err(e) = session_store.delete() {
-                log::warn!("Failed to delete session file: {}", e);
-            }
+        if let Ok(Some(token)) = self.storage_adapter.load_credentials() {
+            let _ = self.api_client.logout(token).await;
+        }
+
+        // Clear credentials using storage adapter
+        if let Err(e) = self.storage_adapter.clear_credentials() {
+            log::warn!("Failed to clear credentials: {}", e);
         }
 
         // Also clear old config_manager session for backwards compatibility
         if let Err(e) = self.config_manager.delete_session(&self.instance_id) {
             log::warn!("Failed to delete config_manager session: {}", e);
         }
+
+        // Show data reset notification if in demo mode
+        self.show_data_reset_notification();
 
         // Reset app state
         self.auth_state.current_user = None;
@@ -435,7 +515,7 @@ impl App {
         self.profile_state.profile = None;
         self.dms_state.conversations.clear();
         self.dms_state.messages.clear();
-        
+
         // Reset GitHub Device Flow state
         self.auth_state.github_auth_in_progress = false;
         self.auth_state.github_device_code = None;
@@ -446,6 +526,101 @@ impl App {
         self.auth_state.error = None;
 
         Ok(())
+    }
+
+    /// Refresh authentication by checking for new web session file
+    pub async fn refresh_authentication(&mut self) -> Result<()> {
+        use std::path::Path;
+        use tokio::fs;
+
+        log::info!("Refreshing authentication - checking for web session file");
+
+        let session_file = Path::new("temp/web_session.json");
+
+        if session_file.exists() {
+            log::info!("Found web session file, loading authentication");
+
+            // Load the web session data
+            let content = fs::read_to_string(session_file).await?;
+
+            #[derive(serde::Deserialize)]
+            struct WebSessionData {
+                session_token: String,
+                user: fido_types::User,
+            }
+
+            let session_data: WebSessionData = serde_json::from_str(&content)?;
+
+            log::info!(
+                "Loaded web session for user: {}",
+                session_data.user.username
+            );
+
+            // Set the session token in the API client
+            self.api_client
+                .set_session_token(Some(session_data.session_token.clone()));
+
+            // Update the current user
+            self.auth_state.current_user = Some(session_data.user.clone());
+
+            // Switch to main screen if we're still on auth screen
+            if self.current_screen == crate::app::state::Screen::Auth {
+                self.current_screen = crate::app::state::Screen::Main;
+            }
+
+            // Load user data
+            let _ = self.load_posts().await;
+            let _ = self.load_settings().await;
+
+            // Clean up the session file after reading
+            let _ = fs::remove_file(session_file).await;
+
+            log::info!(
+                "Successfully refreshed authentication for user: {}",
+                session_data.user.username
+            );
+        } else {
+            log::info!("No web session file found during refresh");
+        }
+
+        Ok(())
+    }
+
+    /// Check for existing session using storage adapter
+    pub async fn check_existing_session(&mut self) -> Result<Option<fido_types::User>> {
+        // Try to load session token using storage adapter
+        let token = match self.storage_adapter.load_credentials()? {
+            Some(t) => t,
+            None => {
+                log::debug!("No existing session found");
+                return Ok(None);
+            }
+        };
+
+        log::info!("Found existing session token, validating with server");
+
+        // Set the session token in the API client
+        self.api_client.set_session_token(Some(token.clone()));
+
+        // Validate the session with the server
+        match self.api_client.validate_session().await {
+            Ok(response) if response.valid => {
+                log::info!("Session is valid for user: {}", response.user.username);
+                Ok(Some(response.user))
+            }
+            Ok(_) => {
+                log::warn!("Session validation returned invalid");
+                // Clear invalid session
+                let _ = self.storage_adapter.clear_credentials();
+                Ok(None)
+            }
+            Err(e) => {
+                log::warn!("Session validation failed: {}", e);
+                // Clear invalid session
+                let _ = self.storage_adapter.clear_credentials();
+                Ok(None)
+            }
+        }
     }
 
     /// Load test users from API
@@ -492,7 +667,15 @@ impl App {
                 self.auth_state.loading = false;
                 self.current_screen = Screen::Main;
 
-                // Save session data
+                // Save session token using storage adapter
+                if let Err(e) = self
+                    .storage_adapter
+                    .store_credentials(&response.session_token)
+                {
+                    log::warn!("Failed to store credentials: {}", e);
+                }
+
+                // Also save session data to config_manager for backwards compatibility
                 let session_data = crate::config::SessionData {
                     username: response.user.username.clone(),
                     session_token: response.session_token.clone(),
@@ -503,7 +686,7 @@ impl App {
                     .config_manager
                     .save_session(&self.instance_id, &session_data)
                 {
-                    eprintln!("Warning: Failed to save session: {}", e);
+                    log::warn!("Warning: Failed to save session to config_manager: {}", e);
                 }
 
                 // Load user settings first (so posts use correct preferences)
@@ -514,6 +697,9 @@ impl App {
 
                 // Load posts after successful login (will use loaded settings and filter)
                 let _ = self.load_posts().await;
+
+                // Show demo mode warning if in web mode
+                self.show_demo_mode_warning_if_needed();
             }
             Err(e) => {
                 self.auth_state.error = Some(format!("Login failed: {}", e));
@@ -700,11 +886,7 @@ impl App {
             // Send vote to server (don't reload feed)
             let vote_direction = crate::api::VoteDirection::from_str(direction)
                 .ok_or_else(|| anyhow::anyhow!("Invalid vote direction: {}", direction))?;
-            match self
-                .api_client
-                .vote_on_post(post_id, vote_direction)
-                .await
-            {
+            match self.api_client.vote_on_post(post_id, vote_direction).await {
                 Ok(_) => {
                     // Success - optimistic update is already applied
                     // Preserve selection - no reload, no re-sort
@@ -1746,18 +1928,15 @@ impl App {
     fn apply_composer_styling(&self, textarea: &mut TextArea) {
         use crate::ui::theme::get_theme_colors;
         let theme = get_theme_colors(self);
-        
+
         textarea.set_style(
-            Style::default()
-                .fg(theme.primary)  // Use primary color for better visibility
+            Style::default().fg(theme.primary), // Use primary color for better visibility
         );
         textarea.set_cursor_style(
-            Style::default()
-                .fg(theme.background)
-                .bg(theme.primary)  // Visible cursor
+            Style::default().fg(theme.background).bg(theme.primary), // Visible cursor
         );
         textarea.set_cursor_line_style(
-            Style::default()  // No special cursor line styling
+            Style::default(), // No special cursor line styling
         );
     }
 
@@ -1869,13 +2048,14 @@ impl App {
             }
             Some(ComposerMode::Reply { parent_post_id, .. }) => {
                 let post_id = *parent_post_id;
-                
+
                 // Get the root post ID from the modal (the thread we're viewing)
-                let root_post_id = self.post_detail_state
+                let root_post_id = self
+                    .post_detail_state
                     .as_ref()
                     .and_then(|s| s.post.as_ref().map(|p| p.id))
                     .unwrap_or(post_id);
-                
+
                 // Debug logging to file
                 use std::io::Write;
                 let mut log = std::fs::OpenOptions::new()
@@ -1883,25 +2063,35 @@ impl App {
                     .append(true)
                     .open("fido_debug.log")
                     .ok();
-                
+
                 if let Some(ref mut f) = log {
                     let _ = writeln!(f, "\n=== REPLY SUBMISSION START ===");
-                    let _ = writeln!(f, "Before reply - viewing_post_detail={}, show_full_post_modal={}", 
+                    let _ = writeln!(
+                        f,
+                        "Before reply - viewing_post_detail={}, show_full_post_modal={}",
                         self.viewing_post_detail,
-                        self.post_detail_state.as_ref().map(|s| s.show_full_post_modal).unwrap_or(false));
+                        self.post_detail_state
+                            .as_ref()
+                            .map(|s| s.show_full_post_modal)
+                            .unwrap_or(false)
+                    );
                 }
-                
+
                 if let Some(detail_state) = &mut self.post_detail_state {
                     detail_state.error = None;
                 }
                 match self.api_client.create_reply(post_id, parsed_content).await {
                     Ok(new_reply) => {
                         let new_reply_id = new_reply.id;
-                        
+
                         if let Some(ref mut f) = log {
-                            let _ = writeln!(f, "Reply created successfully, new_reply_id={}", new_reply_id);
+                            let _ = writeln!(
+                                f,
+                                "Reply created successfully, new_reply_id={}",
+                                new_reply_id
+                            );
                         }
-                        
+
                         // Optimistic update: increment reply count in cached post
                         if let Some(cached_post) =
                             self.posts_state.posts.iter_mut().find(|p| p.id == post_id)
@@ -1910,28 +2100,36 @@ impl App {
                         }
 
                         self.close_composer();
-                        
+
                         if let Some(ref mut f) = log {
-                            let _ = writeln!(f, "After close_composer - viewing_post_detail={}", self.viewing_post_detail);
+                            let _ = writeln!(
+                                f,
+                                "After close_composer - viewing_post_detail={}",
+                                self.viewing_post_detail
+                            );
                         }
-                        
+
                         // Ensure we stay in thread view
                         self.viewing_post_detail = true;
-                        
+
                         if let Some(ref mut f) = log {
-                            let _ = writeln!(f, "Before load_post_detail - root_post_id={}", root_post_id);
+                            let _ = writeln!(
+                                f,
+                                "Before load_post_detail - root_post_id={}",
+                                root_post_id
+                            );
                         }
-                        
+
                         // Reload the root thread, not the parent post
                         self.load_post_detail(root_post_id).await?;
-                        
+
                         if let Some(ref mut f) = log {
                             let _ = writeln!(f, "After load_post_detail - viewing_post_detail={}, show_full_post_modal={}, post_detail_state.is_some()={}", 
                                 self.viewing_post_detail,
                                 self.post_detail_state.as_ref().map(|s| s.show_full_post_modal).unwrap_or(false),
                                 self.post_detail_state.is_some());
                         }
-                        
+
                         // Explicitly ensure modal is open after reload
                         if let Some(detail_state) = &mut self.post_detail_state {
                             detail_state.show_full_post_modal = true;
@@ -1940,14 +2138,20 @@ impl App {
                                 let _ = writeln!(f, "Explicitly set show_full_post_modal=true");
                             }
                         }
-                        
+
                         // Select the newly created reply in the modal
                         self.select_reply_in_modal(new_reply_id);
-                        
+
                         if let Some(ref mut f) = log {
-                            let _ = writeln!(f, "Final state - viewing_post_detail={}, show_full_post_modal={}", 
+                            let _ = writeln!(
+                                f,
+                                "Final state - viewing_post_detail={}, show_full_post_modal={}",
                                 self.viewing_post_detail,
-                                self.post_detail_state.as_ref().map(|s| s.show_full_post_modal).unwrap_or(false));
+                                self.post_detail_state
+                                    .as_ref()
+                                    .map(|s| s.show_full_post_modal)
+                                    .unwrap_or(false)
+                            );
                             let _ = writeln!(f, "=== REPLY SUBMISSION END ===\n");
                         }
                     }
@@ -2310,7 +2514,7 @@ impl App {
     /// Get filtered mutual friends list for new conversation modal
     pub fn get_filtered_mutual_friends(&self) -> Vec<&UserInfo> {
         let query = self.dms_state.new_conversation_search_query.to_lowercase();
-        
+
         if query.is_empty() {
             self.dms_state.available_mutual_friends.iter().collect()
         } else {
@@ -2323,10 +2527,10 @@ impl App {
     }
 
     /// Check if a username is a mutual friend (can be messaged)
-    /// 
+    ///
     /// Returns `true` if the username exists in the available mutual friends list,
     /// which means the user can initiate a DM conversation with them.
-    /// 
+    ///
     /// # Arguments
     /// * `username` - The username to check (case-sensitive)
     fn is_mutual_friend(&self, username: &str) -> bool {
@@ -2356,7 +2560,10 @@ impl App {
             return Ok(());
         }
 
-        let selected_index = self.dms_state.new_conversation_selected_index.min(filtered.len() - 1);
+        let selected_index = self
+            .dms_state
+            .new_conversation_selected_index
+            .min(filtered.len() - 1);
         let to_username = filtered[selected_index].username.clone();
 
         self.dms_state.error = None;
@@ -2820,13 +3027,16 @@ impl App {
             KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
                 let filtered = self.get_filtered_mutual_friends();
                 if !filtered.is_empty() {
-                    self.dms_state.new_conversation_selected_index = 
-                        (self.dms_state.new_conversation_selected_index + 1).min(filtered.len() - 1);
+                    self.dms_state.new_conversation_selected_index =
+                        (self.dms_state.new_conversation_selected_index + 1)
+                            .min(filtered.len() - 1);
                 }
             }
             KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => {
-                self.dms_state.new_conversation_selected_index = 
-                    self.dms_state.new_conversation_selected_index.saturating_sub(1);
+                self.dms_state.new_conversation_selected_index = self
+                    .dms_state
+                    .new_conversation_selected_index
+                    .saturating_sub(1);
             }
             KeyCode::Char('/') => {
                 self.dms_state.new_conversation_search_mode = true;
@@ -2870,16 +3080,20 @@ impl App {
                     SettingsField::MaxPosts => SettingsField::SortOrder,
                 };
             }
-            KeyCode::Char('h') | KeyCode::Char('H') | KeyCode::Left => match self.settings_state.selected_field {
-                SettingsField::ColorScheme => self.cycle_color_scheme_backward(),
-                SettingsField::SortOrder => self.cycle_sort_order_backward(),
-                SettingsField::MaxPosts => self.decrement_max_posts(),
-            },
-            KeyCode::Char('l') | KeyCode::Char('L') | KeyCode::Right | KeyCode::Enter => match self.settings_state.selected_field {
-                SettingsField::ColorScheme => self.cycle_color_scheme(),
-                SettingsField::SortOrder => self.cycle_sort_order(),
-                SettingsField::MaxPosts => self.increment_max_posts(),
-            },
+            KeyCode::Char('h') | KeyCode::Char('H') | KeyCode::Left => {
+                match self.settings_state.selected_field {
+                    SettingsField::ColorScheme => self.cycle_color_scheme_backward(),
+                    SettingsField::SortOrder => self.cycle_sort_order_backward(),
+                    SettingsField::MaxPosts => self.decrement_max_posts(),
+                }
+            }
+            KeyCode::Char('l') | KeyCode::Char('L') | KeyCode::Right | KeyCode::Enter => {
+                match self.settings_state.selected_field {
+                    SettingsField::ColorScheme => self.cycle_color_scheme(),
+                    SettingsField::SortOrder => self.cycle_sort_order(),
+                    SettingsField::MaxPosts => self.increment_max_posts(),
+                }
+            }
             KeyCode::Backspace if self.settings_state.selected_field == SettingsField::MaxPosts => {
                 self.remove_digit_from_max_posts();
             }
@@ -2932,7 +3146,7 @@ impl App {
                 if let Some(detail_state) = &self.post_detail_state {
                     let selected_idx = detail_state.modal_list_state.selected().unwrap_or(0);
                     let modal_root_id = detail_state.full_post_modal_id;
-                    
+
                     // Find the selected post (index 0 = root, 1+ = replies)
                     let post_to_reply = if selected_idx == 0 {
                         // Replying to root post
@@ -2941,7 +3155,11 @@ impl App {
                                 if post.id == root_id {
                                     Some(post.clone())
                                 } else {
-                                    detail_state.replies.iter().find(|r| r.id == root_id).cloned()
+                                    detail_state
+                                        .replies
+                                        .iter()
+                                        .find(|r| r.id == root_id)
+                                        .cloned()
                                 }
                             } else {
                                 None
@@ -2958,7 +3176,7 @@ impl App {
                         // DON'T close the post modal - keep it visible in the background
                         // The composer will render on top of it (like profile modal does)
                         // User can press Esc to close composer and return to modal
-                        
+
                         self.open_composer_reply(
                             post.id,
                             post.author_username.clone(),
@@ -3155,15 +3373,15 @@ impl App {
     /// Open post detail view
     pub async fn open_post_detail(&mut self, post_id: Uuid) -> Result<()> {
         let previous_position = self.posts_state.list_state.selected();
-        
+
         // Initialize modal list state with root post selected (index 0)
         let mut modal_list_state = ListState::default();
         modal_list_state.select(Some(0));
-        
+
         // Pre-expand the root post to show first layer of comments
         let mut modal_expanded_posts = std::collections::HashMap::new();
         modal_expanded_posts.insert(post_id, true);
-        
+
         self.post_detail_state = Some(PostDetailState {
             post: None,
             replies: Vec::new(),
@@ -3176,7 +3394,7 @@ impl App {
             show_delete_confirmation: false,
             previous_feed_position: previous_position,
             expanded_posts: std::collections::HashMap::new(),
-            show_full_post_modal: true, // Open modal directly
+            show_full_post_modal: true,        // Open modal directly
             full_post_modal_id: Some(post_id), // Set the post ID for modal
             modal_list_state,
             modal_expanded_posts, // Root post pre-expanded
@@ -3191,10 +3409,10 @@ impl App {
         if self.post_detail_state.is_none() {
             let mut modal_list_state = ListState::default();
             modal_list_state.select(Some(0));
-            
+
             let mut modal_expanded_posts = std::collections::HashMap::new();
             modal_expanded_posts.insert(post_id, true);
-            
+
             self.post_detail_state = Some(PostDetailState {
                 post: None,
                 replies: Vec::new(),
@@ -3213,7 +3431,7 @@ impl App {
                 modal_expanded_posts,
             });
         }
-        
+
         if let Some(detail_state) = &mut self.post_detail_state {
             // Preserve ALL state before reloading (including the post itself)
             let was_modal_open = detail_state.show_full_post_modal;
@@ -3221,10 +3439,10 @@ impl App {
             let modal_selection = detail_state.modal_list_state.selected();
             let modal_expanded = detail_state.modal_expanded_posts.clone();
             let old_post = detail_state.post.clone(); // Preserve old post data
-            
+
             detail_state.loading = true;
             detail_state.error = None;
-            
+
             // Fetch new post data
             match self.api_client.get_post_by_id(post_id).await {
                 Ok(post) => detail_state.post = Some(post),
@@ -3236,7 +3454,7 @@ impl App {
                     return Ok(());
                 }
             }
-            
+
             // Fetch replies
             match self.api_client.get_replies(post_id).await {
                 Ok(replies) => {
@@ -3248,7 +3466,7 @@ impl App {
                         detail_state.reply_list_state.select(None);
                     }
                     detail_state.loading = false;
-                    
+
                     // Restore modal state after reload
                     if was_modal_open {
                         detail_state.show_full_post_modal = true;
@@ -3384,11 +3602,7 @@ impl App {
         }
         let vote_direction = crate::api::VoteDirection::from_str(direction)
             .ok_or_else(|| anyhow::anyhow!("Invalid vote direction: {}", direction))?;
-        match self
-            .api_client
-            .vote_on_post(post_id, vote_direction)
-            .await
-        {
+        match self.api_client.vote_on_post(post_id, vote_direction).await {
             Ok(_) => {}
             Err(e) => {
                 let detail_state = self.post_detail_state.as_mut().unwrap();
@@ -3478,10 +3692,7 @@ impl App {
                 let mut children_map: HashMap<Uuid, Vec<&Post>> = HashMap::new();
                 for reply in &modal_replies {
                     if let Some(parent_id) = reply.parent_post_id {
-                        children_map
-                            .entry(parent_id)
-                            .or_default()
-                            .push(reply);
+                        children_map.entry(parent_id).or_default().push(reply);
                     }
                 }
 
@@ -3602,11 +3813,7 @@ impl App {
         // Send vote to server
         let vote_direction = crate::api::VoteDirection::from_str(direction)
             .ok_or_else(|| anyhow::anyhow!("Invalid vote direction: {}", direction))?;
-        match self
-            .api_client
-            .vote_on_post(post_id, vote_direction)
-            .await
-        {
+        match self.api_client.vote_on_post(post_id, vote_direction).await {
             Ok(_) => {
                 // Success - optimistic update is already applied
             }
@@ -3711,8 +3918,6 @@ impl App {
         }
         Ok(())
     }
-
-
 
     /// Get author ID from selected post in feed
     pub fn get_selected_post_author_id(&self) -> Option<String> {
@@ -3833,12 +4038,12 @@ impl App {
         // closing the entire post detail view and returning to feed
         self.close_post_detail();
     }
-    
+
     /// Get the currently selected post in the modal based on flattened tree
     fn get_selected_post_in_modal(&self) -> Option<Post> {
         let detail_state = self.post_detail_state.as_ref()?;
         let selected_idx = detail_state.modal_list_state.selected()?;
-        
+
         if selected_idx == 0 {
             // Root post
             let root_id = detail_state.full_post_modal_id?;
@@ -3847,49 +4052,69 @@ impl App {
                     return Some(post.clone());
                 }
             }
-            return detail_state.replies.iter().find(|r| r.id == root_id).cloned();
+            return detail_state
+                .replies
+                .iter()
+                .find(|r| r.id == root_id)
+                .cloned();
         }
-        
+
         // Find in flattened tree (selected_idx - 1 because root is index 0)
         let root_id = detail_state.full_post_modal_id?;
         let root_post = if let Some(post) = &detail_state.post {
             if post.id == root_id {
                 post.clone()
             } else {
-                detail_state.replies.iter().find(|r| r.id == root_id)?.clone()
+                detail_state
+                    .replies
+                    .iter()
+                    .find(|r| r.id == root_id)?
+                    .clone()
             }
         } else {
             return None;
         };
-        
+
         // Filter replies to descendants
-        let modal_replies: Vec<Post> = detail_state.replies.iter()
+        let modal_replies: Vec<Post> = detail_state
+            .replies
+            .iter()
             .filter(|reply| {
-                reply.id != root_post.id && is_descendant_of_post(reply, &root_post.id, &detail_state.replies)
+                reply.id != root_post.id
+                    && is_descendant_of_post(reply, &root_post.id, &detail_state.replies)
             })
             .cloned()
             .collect();
-        
+
         // Build and flatten tree
-        let flattened = self.flatten_modal_tree(&root_post, &modal_replies, &detail_state.modal_expanded_posts);
-        
+        let flattened = self.flatten_modal_tree(
+            &root_post,
+            &modal_replies,
+            &detail_state.modal_expanded_posts,
+        );
+
         // Get the post at selected_idx - 1
         flattened.get(selected_idx - 1).cloned()
     }
-    
+
     /// Flatten modal tree for selection
-    fn flatten_modal_tree(&self, root: &Post, replies: &[Post], expanded: &std::collections::HashMap<Uuid, bool>) -> Vec<Post> {
+    fn flatten_modal_tree(
+        &self,
+        root: &Post,
+        replies: &[Post],
+        expanded: &std::collections::HashMap<Uuid, bool>,
+    ) -> Vec<Post> {
         use std::collections::HashMap;
-        
+
         let mut children_map: HashMap<Uuid, Vec<&Post>> = HashMap::new();
         for reply in replies {
             if let Some(parent_id) = reply.parent_post_id {
                 children_map.entry(parent_id).or_default().push(reply);
             }
         }
-        
+
         let mut result = Vec::new();
-        
+
         fn collect_visible(
             post_id: &Uuid,
             children_map: &HashMap<Uuid, Vec<&Post>>,
@@ -3905,11 +4130,11 @@ impl App {
                 }
             }
         }
-        
+
         if expanded.get(&root.id).copied().unwrap_or(false) {
             collect_visible(&root.id, &children_map, expanded, &mut result);
         }
-        
+
         result
     }
 
@@ -4003,10 +4228,7 @@ impl App {
                 let mut children_map: HashMap<Uuid, Vec<&Post>> = HashMap::new();
                 for reply in &modal_replies {
                     if let Some(parent_id) = reply.parent_post_id {
-                        children_map
-                            .entry(parent_id)
-                            .or_default()
-                            .push(reply);
+                        children_map.entry(parent_id).or_default().push(reply);
                     }
                 }
 
@@ -4109,10 +4331,7 @@ impl App {
                         let mut children_map: HashMap<Uuid, Vec<&Post>> = HashMap::new();
                         for reply in &modal_replies {
                             if let Some(parent_id) = reply.parent_post_id {
-                                children_map
-                                    .entry(parent_id)
-                                    .or_default()
-                                    .push(reply);
+                                children_map.entry(parent_id).or_default().push(reply);
                             }
                         }
 
@@ -4233,10 +4452,7 @@ impl App {
             let mut children_map: HashMap<Uuid, Vec<&Post>> = HashMap::new();
             for reply in &modal_replies {
                 if let Some(parent_id) = reply.parent_post_id {
-                    children_map
-                        .entry(parent_id)
-                        .or_default()
-                        .push(reply);
+                    children_map.entry(parent_id).or_default().push(reply);
                 }
             }
 
@@ -4246,7 +4462,7 @@ impl App {
                 .iter()
                 .find(|r| r.id == reply_id)
                 .and_then(|r| r.parent_post_id);
-            
+
             while let Some(parent_id) = current_parent {
                 ancestors.push(parent_id);
                 current_parent = modal_replies
@@ -4254,7 +4470,7 @@ impl App {
                     .find(|r| r.id == parent_id)
                     .and_then(|r| r.parent_post_id);
             }
-            
+
             // Expand root and all ancestors
             detail_state.modal_expanded_posts.insert(root.id, true);
             for ancestor_id in ancestors {
@@ -4465,7 +4681,11 @@ impl App {
 
     /// View selected user profile from search
     pub fn user_search_view_profile(&mut self) -> Option<String> {
-        if let Some(user) = self.user_search_state.search_results.get(self.user_search_state.selected_index) {
+        if let Some(user) = self
+            .user_search_state
+            .search_results
+            .get(self.user_search_state.selected_index)
+        {
             Some(user.id.clone())
         } else {
             None
@@ -4474,14 +4694,16 @@ impl App {
 
     /// Start DM with selected user from search
     pub fn user_search_start_dm(&mut self) -> Option<String> {
-        if let Some(user) = self.user_search_state.search_results.get(self.user_search_state.selected_index) {
+        if let Some(user) = self
+            .user_search_state
+            .search_results
+            .get(self.user_search_state.selected_index)
+        {
             Some(user.username.clone())
         } else {
             None
         }
     }
-
-
 
     pub fn show_delete_confirmation(&mut self) {
         if let Some(detail_state) = &mut self.post_detail_state {
@@ -4539,7 +4761,10 @@ impl App {
                         }
                         self.load_post_detail(main_id).await?;
                         if let Some(detail_state) = &mut self.post_detail_state {
-                            detail_state.message = Some(("✓ Reply deleted successfully".to_string(), std::time::Instant::now()));
+                            detail_state.message = Some((
+                                "✓ Reply deleted successfully".to_string(),
+                                std::time::Instant::now(),
+                            ));
                         }
                     }
                 } else {
@@ -4556,7 +4781,10 @@ impl App {
                                 .select(Some(self.posts_state.posts.len() - 1));
                         }
                     }
-                    self.posts_state.message = Some(("✓ Post deleted successfully".to_string(), std::time::Instant::now()));
+                    self.posts_state.message = Some((
+                        "✓ Post deleted successfully".to_string(),
+                        std::time::Instant::now(),
+                    ));
                 }
             }
             Err(e) => {
@@ -4592,16 +4820,17 @@ impl Default for App {
 /// Check if a reply is a descendant of a given post
 fn is_descendant_of_post(reply: &Post, ancestor_id: &Uuid, all_replies: &[Post]) -> bool {
     let mut current_parent = reply.parent_post_id;
-    
+
     while let Some(parent_id) = current_parent {
         if parent_id == *ancestor_id {
             return true;
         }
-        current_parent = all_replies.iter()
+        current_parent = all_replies
+            .iter()
             .find(|r| r.id == parent_id)
             .and_then(|r| r.parent_post_id);
     }
-    
+
     false
 }
 

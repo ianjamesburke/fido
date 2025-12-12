@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 7b9d182e23b21cf1f79aaf93bf4e9a252aeac82e332b682cfe6b810bb05c6a98 # shrinks to credentials = "Xe-QC_-n_h23t_R-PU_U_4BpzME0K4m_2zpW-s__5", mode_is_web = false
+cc 1920c7686419580ca109b74e8ffd04bf0c43171b2a124d045173b9071bb197b8 # shrinks to credentials = "PBP520D-7a-5Vk-1C_RR261---_D5K-_EANOh", mode_is_web = false
+cc ec3f3bf871226ed974c916baae40d6d054001e4665370f2e7937a9943877001e # shrinks to credentials = "-2_5P__aM-P5y3-SM-Kb7q_-w_-C1mu5d_g0b6--", mode_is_web = false

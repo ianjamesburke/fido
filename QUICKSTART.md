@@ -97,7 +97,14 @@ fido --server http://localhost:3000
 ```
 
 **Check current server:**
-- Switch to the Settings tab
+- Switch to the Settings tab in Fido TUI
+- The current server URL and type will be displayed in the settings
+
+**Configuration priority (highest to lowest):**
+1. CLI argument: `--server <URL>`
+2. Environment variable: `FIDO_SERVER_URL=<URL>`
+3. Saved configuration file: `~/.fido/server_config.json`
+4. Default: `https://fido-social.fly.dev` (production) or `http://127.0.0.1:3000` (web mode)
 - The current server URL is displayed at the top
 
 ---

@@ -6,9 +6,9 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::App;
 use super::super::theme::get_theme_colors;
 use super::utils::centered_rect;
+use crate::app::App;
 
 /// Render help modal
 pub fn render_help_modal(frame: &mut Frame, app: &mut App, area: Rect) {
@@ -49,7 +49,11 @@ pub fn render_help_modal(frame: &mut Frame, app: &mut App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+                .border_style(
+                    Style::default()
+                        .fg(theme.accent)
+                        .add_modifier(Modifier::BOLD),
+                )
                 .title(" Keyboard Shortcuts ")
                 .title_alignment(Alignment::Center)
                 .style(Style::default().bg(theme.background)),
@@ -85,24 +89,41 @@ pub fn render_save_confirmation_modal(frame: &mut Frame, app: &App, area: Rect) 
         Line::from("─".repeat(46)).style(Style::default().fg(theme.border)),
         Line::from(""),
         Line::from(vec![
-            Span::styled("Y", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Y",
+                Style::default()
+                    .fg(theme.success)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(": Save  ", Style::default().fg(theme.text)),
-            Span::styled("N", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "N",
+                Style::default()
+                    .fg(theme.error)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(": Discard  ", Style::default().fg(theme.text)),
-            Span::styled("Esc", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Esc",
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(": Cancel", Style::default().fg(theme.text)),
         ]),
     ];
 
-    let modal = Paragraph::new(content)
-        .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .title(" Unsaved Changes ")
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.warning).add_modifier(Modifier::BOLD))
-                .style(Style::default().bg(theme.background)),
-        );
+    let modal = Paragraph::new(content).alignment(Alignment::Center).block(
+        Block::default()
+            .title(" Unsaved Changes ")
+            .borders(Borders::ALL)
+            .border_style(
+                Style::default()
+                    .fg(theme.warning)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .style(Style::default().bg(theme.background)),
+    );
 
     frame.render_widget(modal, modal_area);
 }
@@ -216,10 +237,7 @@ pub fn add_post_detail_shortcuts(
         if let Some(post) = &detail_state.post {
             if let Some(user) = &app.auth_state.current_user {
                 if post.author_id == user.id {
-                    shortcuts.push((
-                        "Post Owner Actions",
-                        vec![("x", "Delete post")],
-                    ));
+                    shortcuts.push(("Post Owner Actions", vec![("x", "Delete post")]));
                 }
             }
         }
@@ -293,7 +311,9 @@ pub fn add_posts_feed_shortcuts(
 }
 
 /// Add DMs tab shortcuts
-pub fn add_dms_tab_shortcuts(shortcuts: &mut Vec<(&'static str, Vec<(&'static str, &'static str)>)>) {
+pub fn add_dms_tab_shortcuts(
+    shortcuts: &mut Vec<(&'static str, Vec<(&'static str, &'static str)>)>,
+) {
     shortcuts.push((
         "DMs Tab",
         vec![

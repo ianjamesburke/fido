@@ -3,28 +3,30 @@ mod config;
 mod db;
 mod hashtag;
 mod mention;
+mod middleware;
 mod oauth;
 mod rate_limit;
 mod session;
 mod state;
+mod test_user_service;
 
 use axum::{
-    middleware,
+    middleware as axum_middleware,
     routing::{delete, get, post, put},
     Router,
 };
-use tower_http::services::ServeDir;
 use rate_limit::RateLimiter;
 use state::AppState;
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
     // Load environment variables from .env file
     dotenv::dotenv().ok();
-    
+
     // Initialize tracing
     tracing_subscriber::registry()
         .with(
@@ -39,8 +41,12 @@ async fn main() {
     // Load settings with detailed error handling
     let settings = match config::Settings::new() {
         Ok(settings) => {
-            tracing::info!("Successfully loaded configuration: host={}, port={}, db_path={}", 
-                           settings.server.host, settings.server.port, settings.database.path);
+            tracing::info!(
+                "Successfully loaded configuration: host={}, port={}, db_path={}",
+                settings.server.host,
+                settings.server.port,
+                settings.database.path
+            );
             settings
         }
         Err(e) => {
@@ -63,14 +69,21 @@ async fn main() {
         tracing::info!("Checking database directory: {}", parent.display());
         match std::fs::metadata(parent) {
             Ok(metadata) => {
-                tracing::info!("Database directory exists, permissions: {:?}", metadata.permissions());
+                tracing::info!(
+                    "Database directory exists, permissions: {:?}",
+                    metadata.permissions()
+                );
             }
             Err(e) => {
                 tracing::warn!("Database directory check failed: {}", e);
                 // Try to create the directory
                 if let Err(create_err) = std::fs::create_dir_all(parent) {
                     tracing::error!("Failed to create database directory: {}", create_err);
-                    eprintln!("FATAL: Failed to create database directory {}: {}", parent.display(), create_err);
+                    eprintln!(
+                        "FATAL: Failed to create database directory {}: {}",
+                        parent.display(),
+                        create_err
+                    );
                     std::process::exit(1);
                 } else {
                     tracing::info!("Created database directory: {}", parent.display());
@@ -92,7 +105,7 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    
+
     tracing::info!("Initializing database schema...");
     if let Err(e) = db.initialize() {
         tracing::error!("Failed to initialize database schema: {}", e);
@@ -100,7 +113,7 @@ async fn main() {
         std::process::exit(1);
     }
     tracing::info!("Database schema initialized successfully");
-    
+
     // Always seed test data for development
     tracing::info!("Seeding test data...");
     if let Err(e) = db.seed_test_data() {
@@ -170,7 +183,10 @@ async fn main() {
         .route("/auth/cleanup-sessions", post(api::auth::cleanup_sessions))
         // GitHub Device Flow routes
         .route("/auth/github/device", post(api::auth::github_device_flow))
-        .route("/auth/github/device/poll", post(api::auth::github_device_poll))
+        .route(
+            "/auth/github/device/poll",
+            post(api::auth::github_device_poll),
+        )
         .route("/auth/validate", get(api::auth::validate_session))
         // Post routes
         .route("/posts", get(api::posts::get_posts))
@@ -188,29 +204,66 @@ async fn main() {
         .route("/users/:id/hashtags", get(api::profile::get_user_hashtags))
         // DM routes
         .route("/dms/conversations", get(api::dms::get_conversations))
-        .route("/dms/conversations/:user_id", get(api::dms::get_conversation))
-        .route("/dms/conversations/:user_id", delete(api::dms::delete_conversation))
-        .route("/dms/mark-read/:user_id", post(api::dms::mark_messages_read))
+        .route(
+            "/dms/conversations/:user_id",
+            get(api::dms::get_conversation),
+        )
+        .route(
+            "/dms/conversations/:user_id",
+            delete(api::dms::delete_conversation),
+        )
+        .route(
+            "/dms/mark-read/:user_id",
+            post(api::dms::mark_messages_read),
+        )
         .route("/dms", post(api::dms::send_message))
         // Config routes
         .route("/config", get(api::config::get_config))
         .route("/config", put(api::config::update_config))
         // Hashtag routes
-        .route("/hashtags/followed", get(api::hashtags::get_followed_hashtags))
+        .route(
+            "/hashtags/followed",
+            get(api::hashtags::get_followed_hashtags),
+        )
         .route("/hashtags/follow", post(api::hashtags::follow_hashtag))
-        .route("/hashtags/follow/:name", delete(api::hashtags::unfollow_hashtag))
+        .route(
+            "/hashtags/follow/:name",
+            delete(api::hashtags::unfollow_hashtag),
+        )
         .route("/hashtags/search", get(api::hashtags::search_hashtags))
         .route("/hashtags/active", get(api::hashtags::get_active_hashtags))
         // User routes
         .route("/users/search", get(api::friends::search_users))
-        .route("/users/:id/profile-view", get(api::friends::get_user_profile))
-        .route("/users/:id/follow", post(api::friends::follow_user).delete(api::friends::unfollow_user))
+        .route(
+            "/users/:id/profile-view",
+            get(api::friends::get_user_profile),
+        )
+        .route(
+            "/users/:id/follow",
+            post(api::friends::follow_user).delete(api::friends::unfollow_user),
+        )
         // Social routes
         .route("/social/following", get(api::friends::get_following_list))
         .route("/social/followers", get(api::friends::get_followers_list))
         .route("/social/mutual", get(api::friends::get_mutual_friends_list))
-        .with_state(state)
-        .layer(middleware::from_fn(rate_limit::rate_limit_middleware))
+        // Web session management routes
+        .route("/web/session", post(api::web_session::create_web_session))
+        .route("/web/context", get(api::web_session::get_user_context))
+        .route(
+            "/web/reset-test-data",
+            post(api::web_session::reset_test_data),
+        )
+        .route("/web/mode", get(api::web_session::get_mode_info))
+        .route(
+            "/web/write-session",
+            post(api::web_session::write_session_file),
+        )
+        .with_state(state.clone())
+        .layer(axum_middleware::from_fn_with_state(
+            state,
+            middleware::user_context_middleware,
+        ))
+        .layer(axum_middleware::from_fn(rate_limit::rate_limit_middleware))
         .layer(axum::Extension(rate_limiter))
         .layer(cors)
         // Serve static files from web directory (must be last)
@@ -222,11 +275,14 @@ async fn main() {
         Ok(addr) => addr,
         Err(e) => {
             tracing::error!("Failed to parse server address '{}': {}", addr_str, e);
-            eprintln!("FATAL: Failed to parse server address '{}': {}", addr_str, e);
+            eprintln!(
+                "FATAL: Failed to parse server address '{}': {}",
+                addr_str, e
+            );
             std::process::exit(1);
         }
     };
-    
+
     tracing::info!("Binding to address: {}", addr);
 
     let listener = match tokio::net::TcpListener::bind(addr).await {
@@ -242,7 +298,7 @@ async fn main() {
     };
 
     tracing::info!("Server starting successfully on {}", addr);
-    
+
     if let Err(e) = axum::serve(listener, app).await {
         tracing::error!("Server error: {}", e);
         eprintln!("FATAL: Server error: {}", e);

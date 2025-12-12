@@ -84,12 +84,14 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
 
     // Priority: DM error message (not modal, just error text in DMs tab)
     // Note: Unlike modal errors, this allows normal navigation but clears on Esc
-    if app.current_tab == Tab::DMs && app.dms_state.error.is_some()
-        && matches!(key.code, KeyCode::Esc) {
-            app.clear_dm_error();
-            return Ok(());
-        }
-        // Allow other keys to pass through for normal DM interaction
+    if app.current_tab == Tab::DMs
+        && app.dms_state.error.is_some()
+        && matches!(key.code, KeyCode::Esc)
+    {
+        app.clear_dm_error();
+        return Ok(());
+    }
+    // Allow other keys to pass through for normal DM interaction
 
     // Priority: Friends modal
     if app.friends_state.show_friends_modal {
@@ -157,6 +159,17 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
             app.toggle_help();
             return Ok(());
         }
+        // Ctrl+R for refresh authentication (web mode)
+        KeyCode::Char('r') | KeyCode::Char('R')
+            if key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL)
+                && app.input_mode == InputMode::Navigation =>
+        {
+            // This will be handled async in main.rs
+            app.auth_state.refresh_requested = true;
+            return Ok(());
+        }
         KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc
             if app.input_mode == InputMode::Navigation =>
         {
@@ -194,10 +207,18 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
 
 pub fn handle_main_keys(app: &mut App, key: KeyEvent) -> Result<()> {
     // Debug logging for h/H/l/L keys
-    if matches!(key.code, KeyCode::Char('h') | KeyCode::Char('H') | KeyCode::Char('l') | KeyCode::Char('L')) {
-        log_key_event!(app.log_config, "handle_main_keys received key: {:?}, current_tab: {:?}", key.code, app.current_tab);
+    if matches!(
+        key.code,
+        KeyCode::Char('h') | KeyCode::Char('H') | KeyCode::Char('l') | KeyCode::Char('L')
+    ) {
+        log_key_event!(
+            app.log_config,
+            "handle_main_keys received key: {:?}, current_tab: {:?}",
+            key.code,
+            app.current_tab
+        );
     }
-    
+
     match key.code {
         KeyCode::Tab => {
             app.next_tab();
@@ -213,7 +234,7 @@ pub fn handle_main_keys(app: &mut App, key: KeyEvent) -> Result<()> {
             Tab::Settings => {
                 log_settings!(app.log_config, "Calling handle_settings_keys");
                 app.handle_settings_keys(key)?;
-            },
+            }
         },
     }
     Ok(())
@@ -284,48 +305,52 @@ pub fn handle_dms_keys(app: &mut App, key: KeyEvent) -> Result<()> {
 
     match app.input_mode {
         InputMode::Navigation => match key.code {
-            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => match app.dms_state.selected_conversation_index {
-                None => {
-                    // If there's a pending conversation, clear it and move to "New Conversation" button
-                    if app.dms_state.pending_conversation_username.is_some() {
-                        app.dms_state.pending_conversation_username = None;
-                        app.dms_state.message_input.clear();
-                    }
-                    app.dms_state.selected_conversation_index = Some(usize::MAX);
-                }
-                Some(usize::MAX) => {
-                    if !app.dms_state.conversations.is_empty() {
-                        app.dms_state.selected_conversation_index = Some(0);
-                    }
-                }
-                Some(index) => {
-                    if index < app.dms_state.conversations.len().saturating_sub(1) {
-                        app.dms_state.selected_conversation_index = Some(index + 1);
-                    }
-                }
-            },
-            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => match app.dms_state.selected_conversation_index {
-                None => {
-                    // If there's a pending conversation, clear it and navigate
-                    if app.dms_state.pending_conversation_username.is_some() {
-                        app.dms_state.pending_conversation_username = None;
-                        app.dms_state.message_input.clear();
-                    }
-                    if !app.dms_state.conversations.is_empty() {
-                        app.dms_state.selected_conversation_index =
-                            Some(app.dms_state.conversations.len() - 1);
-                    } else {
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
+                match app.dms_state.selected_conversation_index {
+                    None => {
+                        // If there's a pending conversation, clear it and move to "New Conversation" button
+                        if app.dms_state.pending_conversation_username.is_some() {
+                            app.dms_state.pending_conversation_username = None;
+                            app.dms_state.message_input.clear();
+                        }
                         app.dms_state.selected_conversation_index = Some(usize::MAX);
                     }
+                    Some(usize::MAX) => {
+                        if !app.dms_state.conversations.is_empty() {
+                            app.dms_state.selected_conversation_index = Some(0);
+                        }
+                    }
+                    Some(index) => {
+                        if index < app.dms_state.conversations.len().saturating_sub(1) {
+                            app.dms_state.selected_conversation_index = Some(index + 1);
+                        }
+                    }
                 }
-                Some(0) => {
-                    app.dms_state.selected_conversation_index = Some(usize::MAX);
+            }
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => {
+                match app.dms_state.selected_conversation_index {
+                    None => {
+                        // If there's a pending conversation, clear it and navigate
+                        if app.dms_state.pending_conversation_username.is_some() {
+                            app.dms_state.pending_conversation_username = None;
+                            app.dms_state.message_input.clear();
+                        }
+                        if !app.dms_state.conversations.is_empty() {
+                            app.dms_state.selected_conversation_index =
+                                Some(app.dms_state.conversations.len() - 1);
+                        } else {
+                            app.dms_state.selected_conversation_index = Some(usize::MAX);
+                        }
+                    }
+                    Some(0) => {
+                        app.dms_state.selected_conversation_index = Some(usize::MAX);
+                    }
+                    Some(usize::MAX) => {}
+                    Some(index) => {
+                        app.dms_state.selected_conversation_index = Some(index - 1);
+                    }
                 }
-                Some(usize::MAX) => {}
-                Some(index) => {
-                    app.dms_state.selected_conversation_index = Some(index - 1);
-                }
-            },
+            }
             KeyCode::Enter => {
                 if app.dms_state.selected_conversation_index == Some(usize::MAX) {
                     app.dms_state.show_new_conversation_modal = true;
@@ -360,8 +385,12 @@ pub fn handle_dms_keys(app: &mut App, key: KeyEvent) -> Result<()> {
 
 pub fn handle_settings_keys(app: &mut App, key: KeyEvent) -> Result<()> {
     // Debug logging - log ALL keys
-    log_settings!(app.log_config, "handle_settings_keys START: key={:?}", key.code);
-    
+    log_settings!(
+        app.log_config,
+        "handle_settings_keys START: key={:?}",
+        key.code
+    );
+
     if app.settings_state.show_save_confirmation {
         log_settings!(app.log_config, "In save confirmation mode");
 
@@ -391,18 +420,24 @@ pub fn handle_settings_keys(app: &mut App, key: KeyEvent) -> Result<()> {
             };
         }
         KeyCode::Char('h') | KeyCode::Char('H') | KeyCode::Left => {
-            log_settings!(app.log_config, "Matched h/H/Left pattern, field: {:?}", app.settings_state.selected_field);
+            log_settings!(
+                app.log_config,
+                "Matched h/H/Left pattern, field: {:?}",
+                app.settings_state.selected_field
+            );
             match app.settings_state.selected_field {
                 SettingsField::ColorScheme => app.cycle_color_scheme_backward(),
                 SettingsField::SortOrder => app.cycle_sort_order_backward(),
                 SettingsField::MaxPosts => app.decrement_max_posts(),
             }
-        },
-        KeyCode::Char('l') | KeyCode::Char('L') | KeyCode::Right | KeyCode::Enter => match app.settings_state.selected_field {
-            SettingsField::ColorScheme => app.cycle_color_scheme(),
-            SettingsField::SortOrder => app.cycle_sort_order(),
-            SettingsField::MaxPosts => app.increment_max_posts(),
-        },
+        }
+        KeyCode::Char('l') | KeyCode::Char('L') | KeyCode::Right | KeyCode::Enter => {
+            match app.settings_state.selected_field {
+                SettingsField::ColorScheme => app.cycle_color_scheme(),
+                SettingsField::SortOrder => app.cycle_sort_order(),
+                SettingsField::MaxPosts => app.increment_max_posts(),
+            }
+        }
         KeyCode::Backspace if app.settings_state.selected_field == SettingsField::MaxPosts => {
             app.remove_digit_from_max_posts();
         }
@@ -490,7 +525,7 @@ pub fn handle_filter_modal_keys(app: &mut App, key: KeyEvent) -> Result<()> {
             {
                 app.posts_state.filter_modal_state.show_add_hashtag_input = true;
                 app.posts_state.filter_modal_state.add_hashtag_input.clear();
-            } 
+            }
         }
         _ => {}
     }

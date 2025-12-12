@@ -41,10 +41,37 @@
         </header>
 
         <section class="demo">
-            <h2>Web Interface Coming Soon</h2>
+            <h2>Try Fido in Your Browser</h2>
             <p class="demo-instructions">
-                The web interface is currently under development.
+                Experience the full Fido terminal interface right in your browser. Use <kbd>Tab</kbd> to navigate, <kbd>n</kbd> to create posts, and <kbd>?</kbd> for help.
             </p>
+            
+            <!-- Terminal loads directly - no separate login page -->
+            <div class="terminal-info">
+                <p class="terminal-instructions">
+                    The Fido terminal interface will load below. Use the same login options as the native terminal:
+                </p>
+                <ul class="terminal-features">
+                    <li><kbd>Tab</kbd> to navigate between sections</li>
+                    <li><kbd>j</kbd>/<kbd>k</kbd> or arrow keys to move up/down</li>
+                    <li><kbd>n</kbd> to create new posts</li>
+                    <li><kbd>?</kbd> for help and all keyboard shortcuts</li>
+                </ul>
+                <p class="terminal-note">
+                    💡 <strong>Login options:</strong> Choose test users for temporary data or GitHub for permanent account - same as native Fido!
+                </p>
+            </div>
+
+            <!-- Terminal Container - Always Visible -->
+            <div class="terminal-container" id="terminal-container">
+                <div class="terminal-header">
+                    <div class="terminal-button close"></div>
+                    <div class="terminal-button minimize"></div>
+                    <div class="terminal-button maximize"></div>
+                    <div class="terminal-title">Fido Terminal</div>
+                </div>
+                <iframe id="terminal" src="/terminal/" title="Fido Terminal Interface"></iframe>
+            </div>
         </section>
 
         <section class="features">

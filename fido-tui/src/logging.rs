@@ -108,11 +108,7 @@ impl LogConfig {
 pub fn init_logging(config: &LogConfig) -> anyhow::Result<()> {
     if !config.enabled {
         // Initialize with no-op logger
-        let _ = WriteLogger::init(
-            LevelFilter::Off,
-            Config::default(),
-            std::io::sink(),
-        );
+        let _ = WriteLogger::init(LevelFilter::Off, Config::default(), std::io::sink());
         return Ok(());
     }
 
@@ -137,7 +133,11 @@ pub fn init_logging(config: &LogConfig) -> anyhow::Result<()> {
     // Initialize logger
     WriteLogger::init(config.level, log_config, log_file)?;
 
-    log::info!("Logging initialized: file={}, level={:?}", config.log_file.display(), config.level);
+    log::info!(
+        "Logging initialized: file={}, level={:?}",
+        config.log_file.display(),
+        config.level
+    );
     log::debug!("Log features: {:?}", config.features);
 
     Ok(())

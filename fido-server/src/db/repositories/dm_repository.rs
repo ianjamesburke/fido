@@ -44,29 +44,30 @@ impl DirectMessageRepository {
              ORDER BY created_at ASC"
         )?;
 
-        let messages = stmt.query_map(
-            (
-                user1_id.to_string(),
-                user2_id.to_string(),
-                user2_id.to_string(),
-                user1_id.to_string(),
-                user1_id.to_string(),
-                user1_id.to_string(),
-            ),
-            |row| {
-                Ok(DirectMessage {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    from_user_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                    to_user_id: Uuid::parse_str(&row.get::<_, String>(2)?).unwrap(),
-                    from_username: String::new(), // Will be populated by API layer
-                    to_username: String::new(),   // Will be populated by API layer
-                    content: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                    is_read: row.get::<_, i32>(5)? == 1,
-                })
-            }
-        )?
-        .collect::<Result<Vec<_>, _>>()?;
+        let messages = stmt
+            .query_map(
+                (
+                    user1_id.to_string(),
+                    user2_id.to_string(),
+                    user2_id.to_string(),
+                    user1_id.to_string(),
+                    user1_id.to_string(),
+                    user1_id.to_string(),
+                ),
+                |row| {
+                    Ok(DirectMessage {
+                        id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                        from_user_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                        to_user_id: Uuid::parse_str(&row.get::<_, String>(2)?).unwrap(),
+                        from_username: String::new(), // Will be populated by API layer
+                        to_username: String::new(),   // Will be populated by API layer
+                        content: row.get(3)?,
+                        created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
+                        is_read: row.get::<_, i32>(5)? == 1,
+                    })
+                },
+            )?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(messages)
     }
@@ -89,20 +90,21 @@ impl DirectMessageRepository {
                          OR (dm2.to_user_id = ? AND dm2.from_user_id = other_user_id AND dm2.deleted_by_to_user = 0))) DESC"
         )?;
 
-        let user_ids = stmt.query_map(
-            (
-                user_id.to_string(),
-                user_id.to_string(),
-                user_id.to_string(),
-                user_id.to_string(),
-                user_id.to_string(),
-            ),
-            |row| {
-                let id_str: String = row.get(0)?;
-                Ok(Uuid::parse_str(&id_str).unwrap())
-            }
-        )?
-        .collect::<Result<Vec<_>, _>>()?;
+        let user_ids = stmt
+            .query_map(
+                (
+                    user_id.to_string(),
+                    user_id.to_string(),
+                    user_id.to_string(),
+                    user_id.to_string(),
+                    user_id.to_string(),
+                ),
+                |row| {
+                    let id_str: String = row.get(0)?;
+                    Ok(Uuid::parse_str(&id_str).unwrap())
+                },
+            )?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(user_ids)
     }
@@ -115,7 +117,8 @@ impl DirectMessageRepository {
              SET is_read = 1 
              WHERE to_user_id = ? AND from_user_id = ? AND deleted_by_to_user = 0",
             (user_id.to_string(), other_user_id.to_string()),
-        ).context("Failed to mark messages as read")?;
+        )
+        .context("Failed to mark messages as read")?;
         Ok(())
     }
 
@@ -135,7 +138,7 @@ impl DirectMessageRepository {
     /// Delete conversation for a specific user (soft delete - hides from their view only)
     pub fn delete_conversation(&self, user_id: &Uuid, other_user_id: &Uuid) -> Result<()> {
         let conn = self.pool.get()?;
-        
+
         // Mark messages as deleted for this user only
         // For messages where user is the sender: set deleted_by_from_user = 1
         conn.execute(
@@ -143,16 +146,18 @@ impl DirectMessageRepository {
              SET deleted_by_from_user = 1
              WHERE from_user_id = ? AND to_user_id = ?",
             (user_id.to_string(), other_user_id.to_string()),
-        ).context("Failed to mark sent messages as deleted")?;
-        
+        )
+        .context("Failed to mark sent messages as deleted")?;
+
         // For messages where user is the receiver: set deleted_by_to_user = 1
         conn.execute(
             "UPDATE direct_messages 
              SET deleted_by_to_user = 1
              WHERE to_user_id = ? AND from_user_id = ?",
             (user_id.to_string(), other_user_id.to_string()),
-        ).context("Failed to mark received messages as deleted")?;
-        
+        )
+        .context("Failed to mark received messages as deleted")?;
+
         Ok(())
     }
 
@@ -160,22 +165,24 @@ impl DirectMessageRepository {
     #[allow(dead_code)]
     pub fn undelete_conversation(&self, user_id: &Uuid, other_user_id: &Uuid) -> Result<()> {
         let conn = self.pool.get()?;
-        
+
         // Unmark messages as deleted for this user
         conn.execute(
             "UPDATE direct_messages 
              SET deleted_by_from_user = 0
              WHERE from_user_id = ? AND to_user_id = ?",
             (user_id.to_string(), other_user_id.to_string()),
-        ).context("Failed to unmark sent messages as deleted")?;
-        
+        )
+        .context("Failed to unmark sent messages as deleted")?;
+
         conn.execute(
             "UPDATE direct_messages 
              SET deleted_by_to_user = 0
              WHERE from_user_id = ? AND to_user_id = ?",
             (other_user_id.to_string(), user_id.to_string()),
-        ).context("Failed to unmark received messages as deleted")?;
-        
+        )
+        .context("Failed to unmark received messages as deleted")?;
+
         Ok(())
     }
 }

@@ -3,13 +3,13 @@
 pub fn parse_emoji_shortcodes(text: &str) -> String {
     let mut result = String::new();
     let mut chars = text.chars().peekable();
-    
+
     while let Some(ch) = chars.next() {
         if ch == ':' {
             // Try to find the closing colon
             let mut shortcode = String::new();
             let mut found_closing = false;
-            
+
             // Collect characters until we find another colon or reach max length
             while let Some(&next_ch) = chars.peek() {
                 if next_ch == ':' {
@@ -24,7 +24,7 @@ pub fn parse_emoji_shortcodes(text: &str) -> String {
                     chars.next();
                 }
             }
-            
+
             if found_closing && !shortcode.is_empty() {
                 // Try to find the emoji by shortcode
                 if let Some(emoji) = emojis::get_by_shortcode(&shortcode) {
@@ -44,7 +44,7 @@ pub fn parse_emoji_shortcodes(text: &str) -> String {
             result.push(ch);
         }
     }
-    
+
     result
 }
 

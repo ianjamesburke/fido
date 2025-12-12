@@ -12,8 +12,8 @@ use fido_types::{ColorScheme, SortOrder, UpdateConfigRequest, UserConfig};
 pub async fn get_config(State(state): State<AppState>) -> ApiResult<Json<UserConfig>> {
     // For MVP, we'll use a hardcoded user ID (alice)
     // In production, this would come from the authenticated session
-    let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001")
-        .expect("Invalid hardcoded UUID");
+    let user_id =
+        Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").expect("Invalid hardcoded UUID");
 
     let pool = state.db.pool.clone();
     let config_repo = ConfigRepository::new(pool);
@@ -33,8 +33,8 @@ pub async fn update_config(
 ) -> ApiResult<Json<UserConfig>> {
     // For MVP, we'll use a hardcoded user ID (alice)
     // In production, this would come from the authenticated session
-    let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001")
-        .expect("Invalid hardcoded UUID");
+    let user_id =
+        Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").expect("Invalid hardcoded UUID");
 
     let pool = state.db.pool.clone();
     let config_repo = ConfigRepository::new(pool);

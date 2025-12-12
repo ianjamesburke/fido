@@ -12,8 +12,24 @@ Built for the Kiroween 2025.
 
 Fido is a social network that lives in your terminal. Think Twitter, but keyboard-driven and without the noise. Post updates, chat with other developers, upvote good content, downvote lame content.
 
-## Live Demo Here
-https://fido-social.fly.dev/
+## 🌐 Try Fido Online
+**Web Terminal Interface:** https://fido-social.fly.dev/
+
+Experience Fido directly in your browser! Choose between:
+- **Demo Mode:** Try all features with temporary test data (resets on page refresh)
+- **GitHub Login:** Access your real account with persistent data
+
+⚠️ **Demo Mode Warning:** All demo data is temporary and will be lost when you refresh or close the page. Use GitHub login for permanent participation.
+
+## 📚 Documentation
+
+**New to Fido?** Read these guides to get started safely:
+
+- **[Web Terminal User Guide](WEB_TERMINAL_USER_GUIDE.md)** - Complete guide to using Fido in your browser
+- **[Test vs Real User Guide](TEST_VS_REAL_USER_GUIDE.md)** - **CRITICAL:** Understand the difference between demo and real accounts
+- **[Web Terminal Setup](WEB_TERMINAL_SETUP.md)** - Technical setup for developers
+
+**⚠️ Important:** Please read the Test vs Real User Guide before using Fido to avoid losing data or having wrong expectations about demo mode.
 
 
 ## Installation

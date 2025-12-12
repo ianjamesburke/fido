@@ -34,8 +34,6 @@ impl VoteDirection {
     }
 }
 
-
-
 /// API client for communicating with the Fido server
 #[derive(Clone)]
 pub struct ApiClient {
@@ -52,7 +50,7 @@ impl ApiClient {
             .connect_timeout(std::time::Duration::from_secs(10))
             .build()
             .expect("Failed to create HTTP client");
-            
+
         Self {
             client,
             base_url: base_url.into(),
@@ -95,30 +93,43 @@ impl ApiClient {
     }
 
     /// Helper to handle API responses
-    async fn handle_response<T: DeserializeOwned>(&self, response: reqwest::Response) -> ApiResult<T> {
+    async fn handle_response<T: DeserializeOwned>(
+        &self,
+        response: reqwest::Response,
+    ) -> ApiResult<T> {
         let status = response.status();
-        
+
         if status.is_success() {
             response.json().await.map_err(ApiError::from)
         } else {
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+
             // Clean up HTML error messages (e.g., from nginx 404 pages)
             let clean_error = if error_text.contains("<html>") || error_text.contains("<!DOCTYPE") {
-                format!("Server returned {} error. Please check the server URL.", status.as_u16())
+                format!(
+                    "Server returned {} error. Please check the server URL.",
+                    status.as_u16()
+                )
             } else {
                 error_text
             };
-            
+
             let api_error = match status.as_u16() {
                 404 => ApiError::NotFound(clean_error),
                 401 => ApiError::Unauthorized(clean_error),
                 400 => ApiError::BadRequest(clean_error),
                 403 => ApiError::Unauthorized(clean_error), // Add forbidden handling
-                500..=599 => ApiError::Api(format!("Server error ({}): {}", status.as_u16(), clean_error)),
+                500..=599 => ApiError::Api(format!(
+                    "Server error ({}): {}",
+                    status.as_u16(),
+                    clean_error
+                )),
                 _ => ApiError::Api(clean_error),
             };
-            
+
             Err(api_error)
         }
     }
@@ -138,19 +149,25 @@ impl ApiClient {
         let request = LoginRequest { username };
         let response = self.client.post(&url).json(&request).send().await?;
         let login_response: LoginResponse = self.handle_response(response).await?;
-        
+
         // Store session token
         self.session_token = Some(login_response.session_token.clone());
-        
+
         Ok(login_response)
     }
 
     // Post endpoints
 
     /// Get posts with optional limit, sort order, and filters
-    pub async fn get_posts(&self, limit: Option<i32>, sort: Option<String>, hashtag: Option<String>, username: Option<String>) -> ApiResult<Vec<Post>> {
+    pub async fn get_posts(
+        &self,
+        limit: Option<i32>,
+        sort: Option<String>,
+        hashtag: Option<String>,
+        username: Option<String>,
+    ) -> ApiResult<Vec<Post>> {
         let mut params = Vec::new();
-        
+
         if let Some(l) = limit {
             params.push(("limit", l.to_string()));
         }
@@ -163,10 +180,10 @@ impl ApiClient {
         if let Some(u) = username {
             params.push(("username", u));
         }
-        
+
         let params_ref: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
         let url = self.build_url_with_params("/posts", &params_ref);
-        
+
         let req = self.add_auth_header(self.client.get(&url));
         let response = req.send().await?;
         self.handle_response(response).await
@@ -182,10 +199,14 @@ impl ApiClient {
     }
 
     /// Vote on a post
-    pub async fn vote_on_post(&self, post_id: Uuid, direction: VoteDirection) -> ApiResult<serde_json::Value> {
+    pub async fn vote_on_post(
+        &self,
+        post_id: Uuid,
+        direction: VoteDirection,
+    ) -> ApiResult<serde_json::Value> {
         let url = self.build_url(&format!("/posts/{}/vote", post_id));
-        let request = VoteRequest { 
-            direction: direction.to_string()
+        let request = VoteRequest {
+            direction: direction.to_string(),
         };
         let req = self.add_auth_header(self.client.post(&url).json(&request));
         let response = req.send().await?;
@@ -245,7 +266,10 @@ impl ApiClient {
     }
 
     /// Get user profile view (for viewing any user's profile with relationship status)
-    pub async fn get_user_profile_view(&self, user_id: String) -> ApiResult<fido_types::UserProfileView> {
+    pub async fn get_user_profile_view(
+        &self,
+        user_id: String,
+    ) -> ApiResult<fido_types::UserProfileView> {
         let url = format!("{}/users/{}/profile-view", self.base_url, user_id);
         let req = self.add_auth_header(self.client.get(&url));
         let response = req.send().await?;
@@ -280,9 +304,16 @@ impl ApiClient {
     }
 
     /// Send a direct message
-    pub async fn send_message(&self, to_username: String, content: String) -> ApiResult<DirectMessage> {
+    pub async fn send_message(
+        &self,
+        to_username: String,
+        content: String,
+    ) -> ApiResult<DirectMessage> {
         let url = format!("{}/dms", self.base_url);
-        let request_body = SendMessageRequest { to_username, content };
+        let request_body = SendMessageRequest {
+            to_username,
+            content,
+        };
         let req = self.add_auth_header(self.client.post(&url).json(&request_body));
         let response = req.send().await?;
         self.handle_response(response).await
@@ -321,7 +352,10 @@ impl ApiClient {
         let req = self.add_auth_header(self.client.get(&url));
         let response = req.send().await?;
         let hashtags: Vec<serde_json::Value> = self.handle_response(response).await?;
-        Ok(hashtags.into_iter().filter_map(|h| h.get("name").and_then(|n| n.as_str()).map(String::from)).collect())
+        Ok(hashtags
+            .into_iter()
+            .filter_map(|h| h.get("name").and_then(|n| n.as_str()).map(String::from))
+            .collect())
     }
 
     /// Follow a hashtag
@@ -345,11 +379,18 @@ impl ApiClient {
 
     /// Search hashtags
     pub async fn search_hashtags(&self, query: String) -> ApiResult<Vec<String>> {
-        let url = format!("{}/hashtags/search?q={}", self.base_url, urlencoding::encode(&query));
+        let url = format!(
+            "{}/hashtags/search?q={}",
+            self.base_url,
+            urlencoding::encode(&query)
+        );
         let req = self.client.get(&url);
         let response = req.send().await?;
         let hashtags: Vec<serde_json::Value> = self.handle_response(response).await?;
-        Ok(hashtags.into_iter().filter_map(|h| h.get("name").and_then(|n| n.as_str()).map(String::from)).collect())
+        Ok(hashtags
+            .into_iter()
+            .filter_map(|h| h.get("name").and_then(|n| n.as_str()).map(String::from))
+            .collect())
     }
 
     // Social endpoints
@@ -398,7 +439,11 @@ impl ApiClient {
 
     /// Search users by username
     pub async fn search_users(&self, query: String) -> ApiResult<Vec<UserSearchResult>> {
-        let url = format!("{}/users/search?q={}", self.base_url, urlencoding::encode(&query));
+        let url = format!(
+            "{}/users/search?q={}",
+            self.base_url,
+            urlencoding::encode(&query)
+        );
         let req = self.add_auth_header(self.client.get(&url));
         let response = req.send().await?;
         self.handle_response(response).await
@@ -438,6 +483,13 @@ impl ApiClient {
         let response = self.client.post(&url).json(&session_token).send().await?;
         response.error_for_status()?;
         Ok(())
+    }
+
+    /// Get web user context (for web terminal interface)
+    pub async fn get_web_user_context(&self) -> ApiResult<WebUserContextResponse> {
+        let url = format!("{}/web/context?mode=web", self.base_url);
+        let req = self.client.get(&url);
+        self.handle_response(req.send().await?).await
     }
 
     // Placeholder for future WebSocket integration

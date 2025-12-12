@@ -251,19 +251,20 @@ pub async fn get_following_list(
     headers: HeaderMap,
 ) -> ApiResult<Json<Vec<SocialUserResponse>>> {
     let user_id = get_user_from_headers(&state, &headers)?;
-    
+
     let friend_repo = FriendRepository::new(state.db.pool.clone());
     let user_repo = UserRepository::new(state.db.pool.clone());
-    
-    let following_ids = friend_repo.get_following(&user_id)
+
+    let following_ids = friend_repo
+        .get_following(&user_id)
         .map_err(|e| ApiError::InternalError(format!("Failed to get following: {}", e)))?;
-    
+
     let mut users = Vec::new();
     for user_id in following_ids {
         if let Ok(Some(user)) = user_repo.find_by_id(&user_id) {
             let follower_count = friend_repo.get_follower_count(&user_id).unwrap_or(0);
             let following_count = friend_repo.get_following_count(&user_id).unwrap_or(0);
-            
+
             users.push(SocialUserResponse {
                 id: user.id.to_string(),
                 username: user.username,
@@ -272,7 +273,7 @@ pub async fn get_following_list(
             });
         }
     }
-    
+
     Ok(Json(users))
 }
 
@@ -282,19 +283,20 @@ pub async fn get_followers_list(
     headers: HeaderMap,
 ) -> ApiResult<Json<Vec<SocialUserResponse>>> {
     let user_id = get_user_from_headers(&state, &headers)?;
-    
+
     let friend_repo = FriendRepository::new(state.db.pool.clone());
     let user_repo = UserRepository::new(state.db.pool.clone());
-    
-    let follower_ids = friend_repo.get_followers(&user_id)
+
+    let follower_ids = friend_repo
+        .get_followers(&user_id)
         .map_err(|e| ApiError::InternalError(format!("Failed to get followers: {}", e)))?;
-    
+
     let mut users = Vec::new();
     for user_id in follower_ids {
         if let Ok(Some(user)) = user_repo.find_by_id(&user_id) {
             let follower_count = friend_repo.get_follower_count(&user_id).unwrap_or(0);
             let following_count = friend_repo.get_following_count(&user_id).unwrap_or(0);
-            
+
             users.push(SocialUserResponse {
                 id: user.id.to_string(),
                 username: user.username,
@@ -303,7 +305,7 @@ pub async fn get_followers_list(
             });
         }
     }
-    
+
     Ok(Json(users))
 }
 
@@ -313,19 +315,20 @@ pub async fn get_mutual_friends_list(
     headers: HeaderMap,
 ) -> ApiResult<Json<Vec<SocialUserResponse>>> {
     let user_id = get_user_from_headers(&state, &headers)?;
-    
+
     let friend_repo = FriendRepository::new(state.db.pool.clone());
     let user_repo = UserRepository::new(state.db.pool.clone());
-    
-    let friend_ids = friend_repo.get_mutual_friends(&user_id)
+
+    let friend_ids = friend_repo
+        .get_mutual_friends(&user_id)
         .map_err(|e| ApiError::InternalError(format!("Failed to get mutual friends: {}", e)))?;
-    
+
     let mut users = Vec::new();
     for user_id in friend_ids {
         if let Ok(Some(user)) = user_repo.find_by_id(&user_id) {
             let follower_count = friend_repo.get_follower_count(&user_id).unwrap_or(0);
             let following_count = friend_repo.get_following_count(&user_id).unwrap_or(0);
-            
+
             users.push(SocialUserResponse {
                 id: user.id.to_string(),
                 username: user.username,
@@ -334,7 +337,7 @@ pub async fn get_mutual_friends_list(
             });
         }
     }
-    
+
     Ok(Json(users))
 }
 
@@ -371,5 +374,4 @@ mod tests {
         headers.insert("X-Session-Token", HeaderValue::from_str(token).unwrap());
         headers
     }
-
 }

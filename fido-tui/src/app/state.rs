@@ -162,6 +162,11 @@ pub struct App {
     pub user_search_state: UserSearchState,
     pub user_profile_view: Option<UserProfileViewState>,
     pub log_config: crate::logging::LogConfig,
+    pub mode_detector: crate::mode::ModeDetector,
+    pub storage_adapter: Box<dyn crate::storage::StorageAdapter>,
+    pub demo_mode_warning: Option<(String, Instant)>, // Demo mode warning message with timestamp
+    pub server_config_manager: crate::server_config::ServerConfigManager,
+    pub current_server_url: String,
 }
 
 /// Settings tab state
@@ -509,10 +514,7 @@ impl PostDetailState {
         let mut children_map: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
         for reply in &self.replies {
             if let Some(parent_id) = reply.parent_post_id {
-                children_map
-                    .entry(parent_id)
-                    .or_default()
-                    .push(reply.id);
+                children_map.entry(parent_id).or_default().push(reply.id);
             }
         }
 
@@ -550,6 +552,7 @@ pub struct AuthState {
     pub github_verification_uri: Option<String>,
     pub github_poll_interval: Option<i64>,
     pub github_auth_start_time: Option<std::time::Instant>,
+    pub refresh_requested: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]

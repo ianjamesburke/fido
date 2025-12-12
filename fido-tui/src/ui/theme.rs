@@ -1,5 +1,11 @@
-use ratatui::style::Color;
 use crate::app::App;
+use ratatui::style::Color;
+use ratatui::{
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Modifier, Style},
+    widgets::{Block, Borders, Paragraph, Wrap},
+    Frame,
+};
 
 pub struct ThemeColors {
     pub primary: Color,
@@ -28,49 +34,49 @@ pub fn get_theme_colors(app: &App) -> ThemeColors {
     match scheme {
         // Terminal Green - Classic hacker aesthetic
         fido_types::ColorScheme::Default => ThemeColors {
-            primary: Color::Rgb(0, 255, 0),      // Bright green
-            secondary: Color::Rgb(0, 200, 0),    // Medium green
-            accent: Color::Rgb(0, 255, 100),     // Cyan-green
-            text: Color::Rgb(0, 255, 0),         // Bright green text
-            text_dim: Color::Rgb(0, 150, 0),     // Dim green
+            primary: Color::Rgb(0, 255, 0),   // Bright green
+            secondary: Color::Rgb(0, 200, 0), // Medium green
+            accent: Color::Rgb(0, 255, 100),  // Cyan-green
+            text: Color::Rgb(0, 255, 0),      // Bright green text
+            text_dim: Color::Rgb(0, 150, 0),  // Dim green
             background: Color::Black,
             border: Color::Rgb(0, 200, 0),
             success: Color::Rgb(0, 255, 0),
             warning: Color::Rgb(255, 255, 0),
             error: Color::Rgb(255, 0, 0),
-            highlight_bg: Color::Rgb(0, 50, 0),  // Very dark green
+            highlight_bg: Color::Rgb(0, 50, 0), // Very dark green
         },
-        
+
         // Dark Mode - Modern dark theme with blue accents
         fido_types::ColorScheme::Dark => ThemeColors {
-            primary: Color::Rgb(100, 200, 255),  // Light blue
+            primary: Color::Rgb(100, 200, 255),   // Light blue
             secondary: Color::Rgb(150, 150, 255), // Purple-blue
-            accent: Color::Rgb(255, 100, 200),   // Pink
-            text: Color::Rgb(220, 220, 220),     // Light gray
-            text_dim: Color::Rgb(120, 120, 120), // Medium gray
-            background: Color::Rgb(20, 20, 25),  // Very dark blue-gray
-            border: Color::Rgb(60, 60, 70),      // Dark gray-blue
-            success: Color::Rgb(100, 255, 150),  // Bright green
-            warning: Color::Rgb(255, 200, 100),  // Orange
-            error: Color::Rgb(255, 100, 100),    // Bright red
+            accent: Color::Rgb(255, 100, 200),    // Pink
+            text: Color::Rgb(220, 220, 220),      // Light gray
+            text_dim: Color::Rgb(120, 120, 120),  // Medium gray
+            background: Color::Rgb(20, 20, 25),   // Very dark blue-gray
+            border: Color::Rgb(60, 60, 70),       // Dark gray-blue
+            success: Color::Rgb(100, 255, 150),   // Bright green
+            warning: Color::Rgb(255, 200, 100),   // Orange
+            error: Color::Rgb(255, 100, 100),     // Bright red
             highlight_bg: Color::Rgb(40, 40, 50), // Slightly lighter than bg
         },
-        
+
         // Light Mode - True light theme with dark text
         fido_types::ColorScheme::Light => ThemeColors {
-            primary: Color::Rgb(0, 100, 200),    // Dark blue
-            secondary: Color::Rgb(100, 50, 200), // Purple
-            accent: Color::Rgb(200, 0, 100),     // Magenta
-            text: Color::Rgb(30, 30, 30),        // Almost black
-            text_dim: Color::Rgb(100, 100, 100), // Medium gray
-            background: Color::Rgb(250, 250, 250), // Off-white
-            border: Color::Rgb(180, 180, 180),   // Light gray
-            success: Color::Rgb(0, 150, 50),     // Dark green
-            warning: Color::Rgb(200, 150, 0),    // Dark yellow
-            error: Color::Rgb(200, 0, 0),        // Dark red
+            primary: Color::Rgb(0, 100, 200),        // Dark blue
+            secondary: Color::Rgb(100, 50, 200),     // Purple
+            accent: Color::Rgb(200, 0, 100),         // Magenta
+            text: Color::Rgb(30, 30, 30),            // Almost black
+            text_dim: Color::Rgb(100, 100, 100),     // Medium gray
+            background: Color::Rgb(250, 250, 250),   // Off-white
+            border: Color::Rgb(180, 180, 180),       // Light gray
+            success: Color::Rgb(0, 150, 50),         // Dark green
+            warning: Color::Rgb(200, 150, 0),        // Dark yellow
+            error: Color::Rgb(200, 0, 0),            // Dark red
             highlight_bg: Color::Rgb(230, 240, 255), // Light blue tint
         },
-        
+
         // Solarized Dark - Authentic Solarized colors
         fido_types::ColorScheme::Solarized => ThemeColors {
             primary: Color::Rgb(38, 139, 210),   // Solarized blue
@@ -85,5 +91,68 @@ pub fn get_theme_colors(app: &App) -> ThemeColors {
             error: Color::Rgb(220, 50, 47),      // Solarized red
             highlight_bg: Color::Rgb(7, 54, 66), // Solarized base02
         },
+    }
+}
+
+/// Render demo mode warning banner if needed
+/// Returns the number of chunks used (0 or 1)
+pub fn render_demo_warning_if_needed(frame: &mut Frame, app: &App, area: Rect) -> usize {
+    if let Some((warning, _)) = &app.demo_mode_warning {
+        // Create a more prominent warning with blinking effect
+        let warning_text = format!("🚨 {} 🚨", warning);
+
+        let warning_banner = Paragraph::new(warning_text)
+            .style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .bg(Color::Red)
+                    .add_modifier(Modifier::BOLD | Modifier::SLOW_BLINK),
+            )
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("⚠️  IMPORTANT: DEMO MODE ACTIVE  ⚠️")
+                    .title_style(
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    )
+                    .border_style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
+                    .style(Style::default().bg(Color::Red)),
+            );
+
+        frame.render_widget(warning_banner, area);
+        1
+    } else {
+        0
+    }
+}
+
+/// Create layout with demo warning support
+/// Returns (chunks, demo_warning_used)
+pub fn create_layout_with_demo_warning(
+    app: &App,
+    area: Rect,
+    main_constraints: Vec<Constraint>,
+) -> (Vec<Rect>, bool) {
+    let has_demo_warning = app.should_show_demo_warning();
+
+    if has_demo_warning {
+        let mut constraints = vec![Constraint::Length(3)]; // Demo warning
+        constraints.extend(main_constraints);
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(constraints)
+            .split(area);
+        (chunks.to_vec(), true)
+    } else {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(main_constraints)
+            .split(area);
+        (chunks.to_vec(), false)
     }
 }

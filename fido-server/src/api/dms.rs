@@ -19,7 +19,7 @@ fn get_user_from_headers(state: &AppState, headers: &HeaderMap) -> Result<Uuid, 
         .get("X-Session-Token")
         .and_then(|v| v.to_str().ok())
         .ok_or_else(|| ApiError::Unauthorized("Missing session token".to_string()))?;
-    
+
     state
         .get_authenticated_user_id_from_token(token)
         .ok_or_else(|| ApiError::Unauthorized("Invalid session token".to_string()))
@@ -121,12 +121,12 @@ pub async fn get_conversation(
             .get_by_id(&msg.from_user_id)
             .map_err(|e| ApiError::InternalError(e.to_string()))?
             .ok_or_else(|| ApiError::NotFound("Sender not found".to_string()))?;
-        
+
         let to_user = user_repo
             .get_by_id(&msg.to_user_id)
             .map_err(|e| ApiError::InternalError(e.to_string()))?
             .ok_or_else(|| ApiError::NotFound("Recipient not found".to_string()))?;
-        
+
         msg.from_username = from_user.username;
         msg.to_username = to_user.username;
     }
@@ -174,7 +174,9 @@ pub async fn send_message(
 ) -> ApiResult<Json<DirectMessage>> {
     // Validate content
     if payload.content.is_empty() {
-        return Err(ApiError::BadRequest("Message content cannot be empty".to_string()));
+        return Err(ApiError::BadRequest(
+            "Message content cannot be empty".to_string(),
+        ));
     }
 
     // Get authenticated user from session token
@@ -188,9 +190,7 @@ pub async fn send_message(
     let to_user = user_repo
         .get_by_username(&payload.to_username)
         .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| {
-            ApiError::NotFound(format!("User '{}' not found", payload.to_username))
-        })?;
+        .ok_or_else(|| ApiError::NotFound(format!("User '{}' not found", payload.to_username)))?;
 
     // Validate sender authentication (already done via from_user_id)
     // Cannot send message to yourself

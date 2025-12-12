@@ -34,6 +34,10 @@ pub struct User {
     #[serde(with = "datetime_format")]
     pub join_date: DateTime<Utc>,
     pub is_test_user: bool,
+    #[serde(default)]
+    pub github_id: Option<i64>,
+    #[serde(default)]
+    pub github_login: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -199,4 +203,11 @@ pub struct LoginResponse {
 pub struct ErrorResponse {
     pub error: String,
     pub details: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WebUserContextResponse {
+    pub user: Option<User>,
+    pub is_web_mode: bool,
+    pub isolation_active: bool,
 }
