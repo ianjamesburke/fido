@@ -18,7 +18,7 @@ fn get_user_from_headers(state: &AppState, headers: &HeaderMap) -> Result<Uuid, 
         .get("X-Session-Token")
         .and_then(|v| v.to_str().ok())
         .ok_or_else(|| ApiError::Unauthorized("Missing session token".to_string()))?;
-    
+
     state
         .get_authenticated_user_id_from_token(token)
         .ok_or_else(|| ApiError::Unauthorized("Invalid session token".to_string()))
@@ -59,9 +59,10 @@ pub async fn get_profile(
     let active_hashtags = hashtag_repo
         .get_active_by_user(&user_id, 5)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
-    
+
     // Extract just the hashtag names for the profile
-    let recent_hashtags: Vec<String> = active_hashtags.into_iter()
+    let recent_hashtags: Vec<String> = active_hashtags
+        .into_iter()
         .map(|(name, _count)| name)
         .collect();
 
@@ -135,9 +136,10 @@ pub async fn get_user_hashtags(
     let active_hashtags = hashtag_repo
         .get_active_by_user(&user_id, 10)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
-    
+
     // Extract just the hashtag names
-    let hashtags: Vec<String> = active_hashtags.into_iter()
+    let hashtags: Vec<String> = active_hashtags
+        .into_iter()
         .map(|(name, _count)| name)
         .collect();
 

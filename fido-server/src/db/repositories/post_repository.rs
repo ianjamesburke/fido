@@ -39,11 +39,13 @@ impl PostRepository {
     /// Get posts with sorting and limit
     pub fn get_posts(&self, sort_order: SortOrder, limit: i32) -> Result<Vec<Post>> {
         let conn = self.pool.get()?;
-        
+
         let order_clause = match sort_order {
             SortOrder::Newest => "ORDER BY p.created_at DESC",
             SortOrder::Popular => "ORDER BY p.upvotes DESC, p.created_at DESC",
-            SortOrder::Controversial => "ORDER BY ABS(p.upvotes - p.downvotes) ASC, p.created_at DESC",
+            SortOrder::Controversial => {
+                "ORDER BY ABS(p.upvotes - p.downvotes) ASC, p.created_at DESC"
+            }
         };
 
         let query = format!(
@@ -61,26 +63,27 @@ impl PostRepository {
 
         let mut stmt = conn.prepare(&query)?;
 
-        let posts = stmt.query_map([limit], |row| {
-            let parent_post_id_str: Option<String> = row.get(7)?;
-            let reply_to_user_id_str: Option<String> = row.get(9)?;
-            Ok(Post {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                author_username: row.get(2)?,
-                content: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                upvotes: row.get(5)?,
-                downvotes: row.get(6)?,
-                hashtags: Vec::new(), // Will be populated separately
-                user_vote: None, // Will be populated by API layer if user is authenticated
-                parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_count: row.get(8)?,
-                reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_to_username: row.get(10)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+        let posts = stmt
+            .query_map([limit], |row| {
+                let parent_post_id_str: Option<String> = row.get(7)?;
+                let reply_to_user_id_str: Option<String> = row.get(9)?;
+                Ok(Post {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                    author_username: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
+                    upvotes: row.get(5)?,
+                    downvotes: row.get(6)?,
+                    hashtags: Vec::new(), // Will be populated separately
+                    user_vote: None,      // Will be populated by API layer if user is authenticated
+                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_count: row.get(8)?,
+                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_to_username: row.get(10)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(posts)
     }
@@ -100,26 +103,27 @@ impl PostRepository {
              ORDER BY p.created_at DESC"
         )?;
 
-        let posts = stmt.query_map([user_id.to_string()], |row| {
-            let parent_post_id_str: Option<String> = row.get(7)?;
-            let reply_to_user_id_str: Option<String> = row.get(9)?;
-            Ok(Post {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                author_username: row.get(2)?,
-                content: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                upvotes: row.get(5)?,
-                downvotes: row.get(6)?,
-                hashtags: Vec::new(),
-                user_vote: None, // Will be populated by API layer if user is authenticated
-                parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_count: row.get(8)?,
-                reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_to_username: row.get(10)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+        let posts = stmt
+            .query_map([user_id.to_string()], |row| {
+                let parent_post_id_str: Option<String> = row.get(7)?;
+                let reply_to_user_id_str: Option<String> = row.get(9)?;
+                Ok(Post {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                    author_username: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
+                    upvotes: row.get(5)?,
+                    downvotes: row.get(6)?,
+                    hashtags: Vec::new(),
+                    user_vote: None, // Will be populated by API layer if user is authenticated
+                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_count: row.get(8)?,
+                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_to_username: row.get(10)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(posts)
     }
@@ -137,25 +141,27 @@ impl PostRepository {
              WHERE p.id = ?"
         )?;
 
-        let post = stmt.query_row([post_id.to_string()], |row| {
-            let parent_post_id_str: Option<String> = row.get(7)?;
-            let reply_to_user_id_str: Option<String> = row.get(9)?;
-            Ok(Post {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                author_username: row.get(2)?,
-                content: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                upvotes: row.get(5)?,
-                downvotes: row.get(6)?,
-                hashtags: Vec::new(),
-                user_vote: None, // Will be populated by API layer if user is authenticated
-                parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_count: row.get(8)?,
-                reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_to_username: row.get(10)?,
+        let post = stmt
+            .query_row([post_id.to_string()], |row| {
+                let parent_post_id_str: Option<String> = row.get(7)?;
+                let reply_to_user_id_str: Option<String> = row.get(9)?;
+                Ok(Post {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                    author_username: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
+                    upvotes: row.get(5)?,
+                    downvotes: row.get(6)?,
+                    hashtags: Vec::new(),
+                    user_vote: None, // Will be populated by API layer if user is authenticated
+                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_count: row.get(8)?,
+                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_to_username: row.get(10)?,
+                })
             })
-        }).optional()?;
+            .optional()?;
 
         Ok(post)
     }
@@ -163,16 +169,21 @@ impl PostRepository {
     /// Update vote counts for a post
     pub fn update_vote_counts(&self, post_id: &Uuid) -> Result<()> {
         let conn = self.pool.get()?;
-        
+
         // Recalculate vote counts from votes table
         conn.execute(
             "UPDATE posts 
              SET upvotes = (SELECT COUNT(*) FROM votes WHERE post_id = ? AND direction = 'up'),
                  downvotes = (SELECT COUNT(*) FROM votes WHERE post_id = ? AND direction = 'down')
              WHERE id = ?",
-            (post_id.to_string(), post_id.to_string(), post_id.to_string()),
-        ).context("Failed to update vote counts")?;
-        
+            (
+                post_id.to_string(),
+                post_id.to_string(),
+                post_id.to_string(),
+            ),
+        )
+        .context("Failed to update vote counts")?;
+
         Ok(())
     }
 
@@ -203,12 +214,10 @@ impl PostRepository {
         hashtags
     }
 
-
-
     /// Fetch all replies for a given post_id (recursively, maintaining tree structure)
     pub fn get_replies(&self, parent_post_id: &Uuid) -> Result<Vec<Post>> {
         let conn = self.pool.get()?;
-        
+
         // Use recursive CTE to fetch entire reply tree
         let mut stmt = conn.prepare(
             "WITH RECURSIVE reply_tree AS (
@@ -233,29 +242,30 @@ impl PostRepository {
             FROM reply_tree rt
             JOIN users u ON rt.author_id = u.id
             LEFT JOIN users u2 ON rt.reply_to_user_id = u2.id
-            ORDER BY rt.depth ASC, rt.created_at ASC"
+            ORDER BY rt.depth ASC, rt.created_at ASC",
         )?;
 
-        let replies = stmt.query_map([parent_post_id.to_string()], |row| {
-            let parent_post_id_str: Option<String> = row.get(7)?;
-            let reply_to_user_id_str: Option<String> = row.get(9)?;
-            Ok(Post {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                author_username: row.get(2)?,
-                content: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                upvotes: row.get(5)?,
-                downvotes: row.get(6)?,
-                hashtags: Vec::new(),
-                user_vote: None,
-                parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_count: row.get(8)?,
-                reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_to_username: row.get(10)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+        let replies = stmt
+            .query_map([parent_post_id.to_string()], |row| {
+                let parent_post_id_str: Option<String> = row.get(7)?;
+                let reply_to_user_id_str: Option<String> = row.get(9)?;
+                Ok(Post {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                    author_username: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
+                    upvotes: row.get(5)?,
+                    downvotes: row.get(6)?,
+                    hashtags: Vec::new(),
+                    user_vote: None,
+                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_count: row.get(8)?,
+                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_to_username: row.get(10)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(replies)
     }
@@ -273,13 +283,20 @@ impl PostRepository {
     }
 
     /// Get posts filtered by hashtag
-    pub fn get_posts_by_hashtag(&self, hashtag_name: &str, sort_order: SortOrder, limit: i32) -> Result<Vec<Post>> {
+    pub fn get_posts_by_hashtag(
+        &self,
+        hashtag_name: &str,
+        sort_order: SortOrder,
+        limit: i32,
+    ) -> Result<Vec<Post>> {
         let conn = self.pool.get()?;
-        
+
         let order_clause = match sort_order {
             SortOrder::Newest => "ORDER BY p.created_at DESC",
             SortOrder::Popular => "ORDER BY p.upvotes DESC, p.created_at DESC",
-            SortOrder::Controversial => "ORDER BY ABS(p.upvotes - p.downvotes) ASC, p.created_at DESC",
+            SortOrder::Controversial => {
+                "ORDER BY ABS(p.upvotes - p.downvotes) ASC, p.created_at DESC"
+            }
         };
 
         let query = format!(
@@ -299,38 +316,46 @@ impl PostRepository {
 
         let mut stmt = conn.prepare(&query)?;
 
-        let posts = stmt.query_map([hashtag_name, &limit.to_string()], |row| {
-            let parent_post_id_str: Option<String> = row.get(7)?;
-            let reply_to_user_id_str: Option<String> = row.get(9)?;
-            Ok(Post {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                author_username: row.get(2)?,
-                content: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                upvotes: row.get(5)?,
-                downvotes: row.get(6)?,
-                hashtags: Vec::new(), // Will be populated separately
-                user_vote: None, // Will be populated by API layer if user is authenticated
-                parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_count: row.get(8)?,
-                reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_to_username: row.get(10)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+        let posts = stmt
+            .query_map([hashtag_name, &limit.to_string()], |row| {
+                let parent_post_id_str: Option<String> = row.get(7)?;
+                let reply_to_user_id_str: Option<String> = row.get(9)?;
+                Ok(Post {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                    author_username: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
+                    upvotes: row.get(5)?,
+                    downvotes: row.get(6)?,
+                    hashtags: Vec::new(), // Will be populated separately
+                    user_vote: None,      // Will be populated by API layer if user is authenticated
+                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_count: row.get(8)?,
+                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_to_username: row.get(10)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(posts)
     }
 
     /// Get posts filtered by username
-    pub fn get_posts_by_username(&self, username: &str, sort_order: SortOrder, limit: i32) -> Result<Vec<Post>> {
+    pub fn get_posts_by_username(
+        &self,
+        username: &str,
+        sort_order: SortOrder,
+        limit: i32,
+    ) -> Result<Vec<Post>> {
         let conn = self.pool.get()?;
-        
+
         let order_clause = match sort_order {
             SortOrder::Newest => "ORDER BY p.created_at DESC",
             SortOrder::Popular => "ORDER BY p.upvotes DESC, p.created_at DESC",
-            SortOrder::Controversial => "ORDER BY ABS(p.upvotes - p.downvotes) ASC, p.created_at DESC",
+            SortOrder::Controversial => {
+                "ORDER BY ABS(p.upvotes - p.downvotes) ASC, p.created_at DESC"
+            }
         };
 
         let query = format!(
@@ -348,38 +373,47 @@ impl PostRepository {
 
         let mut stmt = conn.prepare(&query)?;
 
-        let posts = stmt.query_map([username, &limit.to_string()], |row| {
-            let parent_post_id_str: Option<String> = row.get(7)?;
-            let reply_to_user_id_str: Option<String> = row.get(9)?;
-            Ok(Post {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                author_username: row.get(2)?,
-                content: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                upvotes: row.get(5)?,
-                downvotes: row.get(6)?,
-                hashtags: Vec::new(), // Will be populated separately
-                user_vote: None, // Will be populated by API layer if user is authenticated
-                parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_count: row.get(8)?,
-                reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_to_username: row.get(10)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+        let posts = stmt
+            .query_map([username, &limit.to_string()], |row| {
+                let parent_post_id_str: Option<String> = row.get(7)?;
+                let reply_to_user_id_str: Option<String> = row.get(9)?;
+                Ok(Post {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                    author_username: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
+                    upvotes: row.get(5)?,
+                    downvotes: row.get(6)?,
+                    hashtags: Vec::new(), // Will be populated separately
+                    user_vote: None,      // Will be populated by API layer if user is authenticated
+                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_count: row.get(8)?,
+                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_to_username: row.get(10)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(posts)
     }
 
     /// Get posts filtered by both hashtag and username
-    pub fn get_posts_by_hashtag_and_username(&self, hashtag_name: &str, username: &str, sort_order: SortOrder, limit: i32) -> Result<Vec<Post>> {
+    pub fn get_posts_by_hashtag_and_username(
+        &self,
+        hashtag_name: &str,
+        username: &str,
+        sort_order: SortOrder,
+        limit: i32,
+    ) -> Result<Vec<Post>> {
         let conn = self.pool.get()?;
-        
+
         let order_clause = match sort_order {
             SortOrder::Newest => "ORDER BY p.created_at DESC",
             SortOrder::Popular => "ORDER BY p.upvotes DESC, p.created_at DESC",
-            SortOrder::Controversial => "ORDER BY ABS(p.upvotes - p.downvotes) ASC, p.created_at DESC",
+            SortOrder::Controversial => {
+                "ORDER BY ABS(p.upvotes - p.downvotes) ASC, p.created_at DESC"
+            }
         };
 
         let query = format!(
@@ -399,26 +433,27 @@ impl PostRepository {
 
         let mut stmt = conn.prepare(&query)?;
 
-        let posts = stmt.query_map([hashtag_name, username, &limit.to_string()], |row| {
-            let parent_post_id_str: Option<String> = row.get(7)?;
-            let reply_to_user_id_str: Option<String> = row.get(9)?;
-            Ok(Post {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                author_username: row.get(2)?,
-                content: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                upvotes: row.get(5)?,
-                downvotes: row.get(6)?,
-                hashtags: Vec::new(), // Will be populated separately
-                user_vote: None, // Will be populated by API layer if user is authenticated
-                parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_count: row.get(8)?,
-                reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                reply_to_username: row.get(10)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+        let posts = stmt
+            .query_map([hashtag_name, username, &limit.to_string()], |row| {
+                let parent_post_id_str: Option<String> = row.get(7)?;
+                let reply_to_user_id_str: Option<String> = row.get(9)?;
+                Ok(Post {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                    author_username: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
+                    upvotes: row.get(5)?,
+                    downvotes: row.get(6)?,
+                    hashtags: Vec::new(), // Will be populated separately
+                    user_vote: None,      // Will be populated by API layer if user is authenticated
+                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_count: row.get(8)?,
+                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
+                    reply_to_username: row.get(10)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(posts)
     }

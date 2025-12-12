@@ -1,16 +1,16 @@
 use axum::{
-    extract::{State, Query},
-    Json,
+    extract::{Query, State},
     http::HeaderMap,
+    Json,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use fido_types::{User, UserContext};
+use super::{ApiError, ApiResult};
 use crate::db::repositories::UserRepository;
 use crate::state::AppState;
 use crate::test_user_service::TestUserService;
-use super::{ApiError, ApiResult};
+use fido_types::{User, UserContext};
 
 /// Request to create a web session
 #[derive(Deserialize)]
@@ -42,7 +42,7 @@ pub struct UserContextResponse {
 }
 
 /// POST /web/session - Create a web session with user context
-/// 
+///
 /// Creates a session for either a test user or real user in web mode.
 /// This endpoint handles the web-specific authentication flow.
 pub async fn create_web_session(
@@ -50,27 +50,32 @@ pub async fn create_web_session(
     Json(payload): Json<CreateWebSessionRequest>,
 ) -> ApiResult<Json<WebSessionResponse>> {
     let repo = UserRepository::new(state.db.pool.clone());
-    
+
     match payload.user_type.as_str() {
         "test" => {
             // Handle test user session
-            let user = repo.get_by_username(&payload.user_id)
+            let user = repo
+                .get_by_username(&payload.user_id)
                 .map_err(|e| ApiError::InternalError(e.to_string()))?
-                .ok_or_else(|| ApiError::NotFound(format!("Test user '{}' not found", payload.user_id)))?;
-            
+                .ok_or_else(|| {
+                    ApiError::NotFound(format!("Test user '{}' not found", payload.user_id))
+                })?;
+
             if !user.is_test_user {
                 return Err(ApiError::BadRequest("User is not a test user".to_string()));
             }
-            
+
             // Create session
-            let session_token = state.session_manager.create_session(user.id)
+            let session_token = state
+                .session_manager
+                .create_session(user.id)
                 .map_err(|e| ApiError::InternalError(e.to_string()))?;
-            
+
             // Create test user context
             let user_context = UserContext::test_user(user.username.clone());
-            
+
             tracing::info!("Created web session for test user: {}", user.username);
-            
+
             Ok(Json(WebSessionResponse {
                 session_token,
                 user,
@@ -81,38 +86,46 @@ pub async fn create_web_session(
             // Handle real user session (GitHub authenticated)
             let user_uuid = Uuid::parse_str(&payload.user_id)
                 .map_err(|_| ApiError::BadRequest("Invalid user ID format".to_string()))?;
-            
-            let user = repo.get_by_id(&user_uuid)
+
+            let user = repo
+                .get_by_id(&user_uuid)
                 .map_err(|e| ApiError::InternalError(e.to_string()))?
                 .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
-            
+
             if user.is_test_user {
-                return Err(ApiError::BadRequest("Cannot create real user session for test user".to_string()));
+                return Err(ApiError::BadRequest(
+                    "Cannot create real user session for test user".to_string(),
+                ));
             }
-            
+
             // Create session
-            let session_token = state.session_manager.create_session(user.id)
+            let session_token = state
+                .session_manager
+                .create_session(user.id)
                 .map_err(|e| ApiError::InternalError(e.to_string()))?;
-            
+
             // Create real user context
-            let github_login = user.github_login.clone()
-                .ok_or_else(|| ApiError::InternalError("Real user missing GitHub login".to_string()))?;
+            let github_login = user.github_login.clone().ok_or_else(|| {
+                ApiError::InternalError("Real user missing GitHub login".to_string())
+            })?;
             let user_context = UserContext::real_user(github_login);
-            
+
             tracing::info!("Created web session for real user: {}", user.username);
-            
+
             Ok(Json(WebSessionResponse {
                 session_token,
                 user,
                 user_context,
             }))
         }
-        _ => Err(ApiError::BadRequest("Invalid user type. Must be 'test' or 'real'".to_string()))
+        _ => Err(ApiError::BadRequest(
+            "Invalid user type. Must be 'test' or 'real'".to_string(),
+        )),
     }
 }
 
 /// GET /web/context - Get user context information
-/// 
+///
 /// Returns the user context for the current session, including whether
 /// web mode is active and if data isolation is in effect.
 pub async fn get_user_context(
@@ -125,32 +138,36 @@ pub async fn get_user_context(
         .get("X-Session-Token")
         .and_then(|v| v.to_str().ok())
         .ok_or_else(|| ApiError::Unauthorized("Missing session token".to_string()))?;
-    
+
     // Validate session and get user
-    let user_id = state.session_manager.validate_session(token)
+    let user_id = state
+        .session_manager
+        .validate_session(token)
         .map_err(|_| ApiError::Unauthorized("Invalid or expired session".to_string()))?;
-    
+
     let repo = UserRepository::new(state.db.pool.clone());
-    let user = repo.get_by_id(&user_id)
+    let user = repo
+        .get_by_id(&user_id)
         .map_err(|e| ApiError::InternalError(format!("Failed to get user: {}", e)))?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
-    
+
     // Determine user context based on user type
     let user_context = if user.is_test_user {
         UserContext::test_user(user.username.clone())
     } else {
-        let github_login = user.github_login
+        let github_login = user
+            .github_login
             .ok_or_else(|| ApiError::InternalError("Real user missing GitHub login".to_string()))?;
         UserContext::real_user(github_login)
     };
-    
+
     // Check if web mode is active
-    let is_web_mode = params.mode.as_deref() == Some("web") || 
-                      std::env::var("FIDO_WEB_MODE").is_ok();
-    
+    let is_web_mode =
+        params.mode.as_deref() == Some("web") || std::env::var("FIDO_WEB_MODE").is_ok();
+
     // Isolation is active for test users
     let isolation_active = user_context.is_test_user();
-    
+
     Ok(Json(UserContextResponse {
         user_context,
         is_web_mode,
@@ -159,22 +176,22 @@ pub async fn get_user_context(
 }
 
 /// POST /web/reset-test-data - Reset test user data
-/// 
+///
 /// Resets all test user data to clean state. This endpoint is typically
 /// called when the web interface loads to ensure a clean demo environment.
-pub async fn reset_test_data(
-    State(state): State<AppState>,
-) -> ApiResult<Json<serde_json::Value>> {
+pub async fn reset_test_data(State(state): State<AppState>) -> ApiResult<Json<serde_json::Value>> {
     let test_service = TestUserService::new(state.db.pool.clone());
-    
-    test_service.reset_all_test_data()
+
+    test_service
+        .reset_all_test_data()
         .map_err(|e| ApiError::InternalError(format!("Failed to reset test data: {}", e)))?;
-    
-    test_service.initialize_test_data()
+
+    test_service
+        .initialize_test_data()
         .map_err(|e| ApiError::InternalError(format!("Failed to initialize test data: {}", e)))?;
-    
+
     tracing::info!("Test user data reset and reinitialized");
-    
+
     Ok(Json(serde_json::json!({
         "message": "Test user data reset successfully",
         "timestamp": chrono::Utc::now().to_rfc3339()
@@ -182,13 +199,13 @@ pub async fn reset_test_data(
 }
 
 /// GET /web/mode - Get current mode information
-/// 
+///
 /// Returns information about the current operating mode (web vs native)
 /// and any relevant configuration.
 pub async fn get_mode_info() -> ApiResult<Json<serde_json::Value>> {
     let is_web_mode = std::env::var("FIDO_WEB_MODE").is_ok();
     let web_mode_value = std::env::var("FIDO_WEB_MODE").unwrap_or_default();
-    
+
     Ok(Json(serde_json::json!({
         "is_web_mode": is_web_mode,
         "web_mode_value": web_mode_value,
@@ -205,7 +222,7 @@ pub struct WriteSessionRequest {
 }
 
 /// POST /web/write-session - Write session info to temporary file
-/// 
+///
 /// Writes session information to a temporary file that the terminal can read.
 /// This enables the web interface to pass authentication to the terminal.
 pub async fn write_session_file(
@@ -213,30 +230,31 @@ pub async fn write_session_file(
 ) -> ApiResult<Json<serde_json::Value>> {
     use std::fs;
     use std::path::Path;
-    
+
     // Create temp directory if it doesn't exist
     let temp_dir = Path::new("temp");
     if !temp_dir.exists() {
-        fs::create_dir_all(temp_dir)
-            .map_err(|e| ApiError::InternalError(format!("Failed to create temp directory: {}", e)))?;
+        fs::create_dir_all(temp_dir).map_err(|e| {
+            ApiError::InternalError(format!("Failed to create temp directory: {}", e))
+        })?;
     }
-    
+
     // Write session info to temporary file
     let session_info = serde_json::json!({
         "session_token": payload.session_token,
         "user": payload.user,
         "timestamp": chrono::Utc::now().to_rfc3339()
     });
-    
+
     let session_file = temp_dir.join("web_session.json");
     let json_content = serde_json::to_string_pretty(&session_info)
         .map_err(|e| ApiError::InternalError(format!("Failed to serialize session data: {}", e)))?;
-    
+
     fs::write(&session_file, json_content)
         .map_err(|e| ApiError::InternalError(format!("Failed to write session file: {}", e)))?;
-    
+
     tracing::info!("Wrote web session file for user: {}", payload.user.username);
-    
+
     Ok(Json(serde_json::json!({
         "message": "Session file written successfully",
         "timestamp": chrono::Utc::now().to_rfc3339()
@@ -246,19 +264,19 @@ pub async fn write_session_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::repositories::{ConfigRepository, DirectMessageRepository, PostRepository};
     use crate::db::Database;
-    use crate::db::repositories::{PostRepository, DirectMessageRepository, ConfigRepository};
     use crate::session::SessionManager;
-    use fido_types::{Post, DirectMessage, UserConfig};
-    use uuid::Uuid;
+    use fido_types::{DirectMessage, Post, UserConfig};
     use proptest::prelude::*;
+    use uuid::Uuid;
 
     #[test]
     fn test_user_context_creation() {
         let test_context = UserContext::test_user("alice".to_string());
         assert!(test_context.is_test_user());
         assert_eq!(test_context.isolation_key(), Some("test_alice"));
-        
+
         let real_context = UserContext::real_user("github123".to_string());
         assert!(real_context.is_real_user());
         assert_eq!(real_context.isolation_key(), None);
@@ -269,18 +287,18 @@ mod tests {
         // Test environment variable detection
         std::env::remove_var("FIDO_WEB_MODE");
         assert!(!std::env::var("FIDO_WEB_MODE").is_ok());
-        
+
         std::env::set_var("FIDO_WEB_MODE", "true");
         assert!(std::env::var("FIDO_WEB_MODE").is_ok());
-        
+
         std::env::remove_var("FIDO_WEB_MODE");
     }
 
     // Property-based tests
-    
+
     // **Feature: web-terminal-interface, Property 3: Authenticated User Data Access**
     // **Validates: Requirements 2.2**
-    // For any successfully authenticated user, the system should provide access to their 
+    // For any successfully authenticated user, the system should provide access to their
     // complete set of posts, messages, and configuration data.
     proptest! {
         #[test]
@@ -293,9 +311,9 @@ mod tests {
             // Create in-memory database for testing
             let db = Database::new(":memory:").expect("Failed to create test database");
             db.initialize().expect("Failed to initialize test database");
-            
+
             let session_manager = SessionManager::new(db.clone());
-            
+
             // Create a real user (not test user)
             let user_repo = crate::db::repositories::UserRepository::new(db.pool.clone());
             let user_id = Uuid::new_v4();
@@ -308,18 +326,18 @@ mod tests {
                 github_id: Some(12345),
                 github_login: Some(github_login.clone()),
             };
-            
+
             user_repo.create(&user).expect("Failed to create test user");
-            
+
             // Create session for the user
             let session_token = session_manager.create_session(user_id)
                 .expect("Failed to create session");
-            
+
             // Create some data for the user
             let post_repo = PostRepository::new(db.pool.clone());
             let dm_repo = DirectMessageRepository::new(db.pool.clone());
             let config_repo = ConfigRepository::new(db.pool.clone());
-            
+
             // Create a post
             let post = Post {
                 id: Uuid::new_v4(),
@@ -337,7 +355,7 @@ mod tests {
                 reply_to_username: None,
             };
             post_repo.create(&post).expect("Failed to create test post");
-            
+
             // Create another user for DM testing
             let other_user_id = Uuid::new_v4();
             let other_user = fido_types::User {
@@ -350,7 +368,7 @@ mod tests {
                 github_login: Some(format!("other_{}", github_login)),
             };
             user_repo.create(&other_user).expect("Failed to create other user");
-            
+
             // Create a DM
             let dm = DirectMessage {
                 id: Uuid::new_v4(),
@@ -363,7 +381,7 @@ mod tests {
                 is_read: false,
             };
             dm_repo.create(&dm).expect("Failed to create test DM");
-            
+
             // Create user config
             let config = UserConfig {
                 user_id,
@@ -373,37 +391,37 @@ mod tests {
                 emoji_enabled: true,
             };
             config_repo.update(&config).expect("Failed to create test config");
-            
+
             // Validate session and verify data access
             let validated_user_id = session_manager.validate_session(&session_token)
                 .expect("Session validation should succeed");
-            
+
             assert_eq!(validated_user_id, user_id, "Session should validate to correct user");
-            
+
             // Verify access to posts
             let user_posts = post_repo.get_by_user(&user_id)
                 .expect("Should be able to access user posts");
             assert!(!user_posts.is_empty(), "User should have access to their posts");
             assert_eq!(user_posts[0].content, post_content, "Post content should match");
             assert_eq!(user_posts[0].author_id, user_id, "Post should belong to user");
-            
+
             // Verify access to DMs
             let user_dms = dm_repo.get_conversation(&user_id, &other_user_id)
                 .expect("Should be able to access user DMs");
             assert!(!user_dms.is_empty(), "User should have access to their DMs");
             assert_eq!(user_dms[0].content, dm_content, "DM content should match");
             assert_eq!(user_dms[0].from_user_id, user_id, "DM should be from user");
-            
+
             // Verify access to configuration
             let user_config = config_repo.get(&user_id)
                 .expect("Should be able to access user config");
             assert_eq!(user_config.user_id, user_id, "Config should belong to user");
-            
+
             // Verify user can only access their own data
             let other_posts = post_repo.get_by_user(&other_user_id)
                 .expect("Should be able to query other user posts");
             assert!(other_posts.is_empty(), "User should not see other user's posts in their feed");
-            
+
             // Verify other user has default config (not the same as our user's config)
             let other_config = config_repo.get(&other_user_id)
                 .expect("Should be able to query other user config");
@@ -423,15 +441,15 @@ mod tests {
             // This property test validates that our API routes don't use "/api" prefix
             // We test this by ensuring that any valid route path we might define
             // should not start with "/api"
-            
+
             // Test that the route path doesn't start with "/api"
-            assert!(!route_path.starts_with("/api"), 
+            assert!(!route_path.starts_with("/api"),
                 "API route '{}' should not start with '/api' prefix", route_path);
-            
+
             // Additionally, test some known routes from our actual server
             let known_routes = vec![
                 "/health",
-                "/users/test", 
+                "/users/test",
                 "/auth/login",
                 "/auth/logout",
                 "/posts",
@@ -443,12 +461,12 @@ mod tests {
                 "/web/reset-test-data",
                 "/web/mode",
             ];
-            
+
             for route in known_routes {
-                assert!(!route.starts_with("/api"), 
+                assert!(!route.starts_with("/api"),
                     "Known API route '{}' should not start with '/api' prefix", route);
             }
-            
+
             // Test that if we were to accidentally add "/api" prefix, it would be detected
             if route_path.starts_with("/api") {
                 panic!("Route '{}' incorrectly uses '/api' prefix", route_path);
@@ -467,26 +485,26 @@ mod tests {
         ) {
             // This property test validates that nginx preserves request paths when proxying to the API server
             // We simulate what nginx should do: forward requests without modifying the path
-            
+
             // Construct a test API path
             let api_path = format!("/{}", path_segment);
             let full_path = match &query_param {
                 Some(query) if !query.is_empty() => format!("{}?{}", api_path, query),
                 _ => api_path.clone(),
             };
-            
+
             // Test that the path preservation logic works correctly
             // This simulates what nginx should do: preserve the original path
             let preserved_path = preserve_request_path(&full_path);
-            
+
             // The preserved path should be identical to the original path
-            assert_eq!(preserved_path, full_path, 
+            assert_eq!(preserved_path, full_path,
                 "Nginx should preserve request path '{}' without modification", full_path);
-            
+
             // Test specific known API routes that nginx should preserve
             let known_api_routes = vec![
                 "/posts",
-                "/dms", 
+                "/dms",
                 "/config",
                 "/auth/login",
                 "/auth/logout",
@@ -496,13 +514,13 @@ mod tests {
                 "/web/reset-test-data",
                 "/health",
             ];
-            
+
             for route in known_api_routes {
                 let preserved = preserve_request_path(route);
-                assert_eq!(preserved, route, 
+                assert_eq!(preserved, route,
                     "Known API route '{}' should be preserved without modification", route);
             }
-            
+
             // Test that paths with query parameters are preserved
             if let Some(ref query) = query_param {
                 if !query.is_empty() {

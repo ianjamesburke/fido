@@ -22,7 +22,7 @@ pub fn extract_mentions(content: &str) -> Vec<String> {
     let re = mention_regex();
     let mut mentions = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    
+
     for cap in re.captures_iter(content) {
         if let Some(username) = cap.get(1) {
             let username_str = username.as_str().to_lowercase();
@@ -31,7 +31,7 @@ pub fn extract_mentions(content: &str) -> Vec<String> {
             }
         }
     }
-    
+
     mentions
 }
 
@@ -55,23 +55,17 @@ mod tests {
             extract_mentions("Hey @alice, what do you think?"),
             vec!["alice"]
         );
-        
+
         assert_eq!(
             extract_mentions("@bob and @charlie are both right"),
             vec!["bob", "charlie"]
         );
-        
-        assert_eq!(
-            extract_mentions("No mentions here"),
-            Vec::<String>::new()
-        );
-        
+
+        assert_eq!(extract_mentions("No mentions here"), Vec::<String>::new());
+
         // Duplicate mentions should only appear once
-        assert_eq!(
-            extract_mentions("@alice @bob @alice"),
-            vec!["alice", "bob"]
-        );
-        
+        assert_eq!(extract_mentions("@alice @bob @alice"), vec!["alice", "bob"]);
+
         // Should not match email addresses
         assert_eq!(
             extract_mentions("Email me at test@example.com"),
@@ -85,15 +79,12 @@ mod tests {
             extract_first_mention("Hey @alice, what do you think?"),
             Some("alice".to_string())
         );
-        
+
         assert_eq!(
             extract_first_mention("@bob and @charlie are both right"),
             Some("bob".to_string())
         );
-        
-        assert_eq!(
-            extract_first_mention("No mentions here"),
-            None
-        );
+
+        assert_eq!(extract_first_mention("No mentions here"), None);
     }
 }

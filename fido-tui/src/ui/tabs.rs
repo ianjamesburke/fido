@@ -6,11 +6,11 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::App;
-use crate::{log_modal_state, log_rendering};
-use super::theme::{ThemeColors, get_theme_colors};
 use super::formatting::*;
 use super::modals::*;
+use super::theme::{get_theme_colors, ThemeColors};
+use crate::app::App;
+use crate::{log_modal_state, log_rendering};
 
 pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
@@ -38,7 +38,7 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
 
     // Main content - ASCII logo
     let mut lines = vec![Line::from("")];
-    
+
     // Fido ASCII art logo with theme colors
     const LOGO_LINES: &[&str] = &[
         "  _____ _     _       ",
@@ -47,14 +47,16 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
         " |  _| | | (_| | (_) |",
         " |_|   |_|\\__,_|\\___/ ",
     ];
-    
+
     for logo_line in LOGO_LINES {
         lines.push(Line::from(Span::styled(
             *logo_line,
-            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme.primary)
+                .add_modifier(Modifier::BOLD),
         )));
     }
-    
+
     lines.push(Line::from(""));
     lines.push(Line::from(""));
 
@@ -62,10 +64,12 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
         // Show GitHub Device Flow in progress
         lines.push(Line::from(Span::styled(
             "GitHub Device Authorization",
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
         )));
         lines.push(Line::from(""));
-        
+
         if let Some(user_code) = &app.auth_state.github_user_code {
             lines.push(Line::from(Span::styled(
                 "Enter this code on GitHub:",
@@ -81,7 +85,7 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
             )));
             lines.push(Line::from(""));
         }
-        
+
         if let Some(uri) = &app.auth_state.github_verification_uri {
             lines.push(Line::from(Span::styled(
                 "If the browser didn't open, visit:",
@@ -93,7 +97,7 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
             )));
             lines.push(Line::from(""));
         }
-        
+
         lines.push(Line::from(Span::styled(
             "Waiting for authorization...",
             Style::default().fg(Color::White),
@@ -124,15 +128,17 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
             Style::default().fg(Color::White),
         )));
         lines.push(Line::from(""));
-        
+
         if app.auth_state.show_github_option {
             lines.push(Line::from(Span::styled(
                 "Press 'g' to login with GitHub",
-                Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
             )));
             lines.push(Line::from(""));
         }
-        
+
         lines.push(Line::from(Span::styled(
             "Press 'l' to load test users (development only)",
             Style::default().fg(Color::White),
@@ -171,7 +177,7 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
             "Press Enter to login with test user",
             Style::default().fg(Color::White),
         )));
-        
+
         if app.auth_state.show_github_option {
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
@@ -255,11 +261,11 @@ pub fn render_main_screen(frame: &mut Frame, app: &mut App) {
     render_global_footer(frame, app, chunks[3]);
 
     // Render modals (in priority order - LAST rendered = TOP of stack)
-    
+
     // ============================================================================
     // MODAL RENDERING PATTERN - CRITICAL FOR CORRECT LAYERING
     // ============================================================================
-    // 
+    //
     // This section implements the correct modal layering pattern that ensures:
     // 1. Background modals remain visible when foreground modals open on top
     // 2. Keyboard input is only handled by the topmost modal
@@ -304,10 +310,14 @@ pub fn render_main_screen(frame: &mut Frame, app: &mut App) {
     } else {
         "None".to_string()
     };
-    log_modal_state!(app.log_config, 
+    log_modal_state!(
+        app.log_config,
         "viewing_post_detail={}, show_full_post_modal={}, composer_open={}, composer_mode={}",
         app.viewing_post_detail,
-        app.post_detail_state.as_ref().map(|s| s.show_full_post_modal).unwrap_or(false),
+        app.post_detail_state
+            .as_ref()
+            .map(|s| s.show_full_post_modal)
+            .unwrap_or(false),
         app.composer_state.is_open(),
         composer_mode
     );
@@ -323,7 +333,7 @@ pub fn render_main_screen(frame: &mut Frame, app: &mut App) {
         .as_ref()
         .map(|s| s.show_full_post_modal)
         .unwrap_or(false);
-    
+
     if show_full_post_modal {
         log_rendering!(app.log_config, "Rendering thread modal (full post modal)");
         render_full_post_modal(frame, app, area);
@@ -349,7 +359,11 @@ pub fn render_main_screen(frame: &mut Frame, app: &mut App) {
     // Renders AFTER thread modal to appear on top, allowing users to see
     // the thread context while composing a reply.
     if app.composer_state.is_open() {
-        log_rendering!(app.log_config, "Rendering composer modal (mode: {})", composer_mode);
+        log_rendering!(
+            app.log_config,
+            "Rendering composer modal (mode: {})",
+            composer_mode
+        );
         render_unified_composer_modal(frame, app, area);
     }
 
@@ -442,19 +456,21 @@ pub fn get_action_bar_text(app: &App) -> &'static str {
             }
         }
     }
-    
+
     match app.current_tab {
         crate::app::Tab::Posts => {
             "u/d: Vote | n: Post | f: Filter | s: Search | Space: View | p: Profile"
         }
         crate::app::Tab::DMs => {
             // Check if user can compose (active conversation or pending draft)
-            let has_active_conversation = app.dms_state.selected_conversation_index
+            let has_active_conversation = app
+                .dms_state
+                .selected_conversation_index
                 .filter(|&idx| idx != usize::MAX)
                 .is_some();
             let has_pending_draft = app.dms_state.pending_conversation_username.is_some();
             let can_compose = has_active_conversation || has_pending_draft;
-            
+
             if app.dms_state.selected_conversation_index == Some(usize::MAX) {
                 "Enter: Start New Conversation | ↑/↓/j/k: Navigate | Esc: Back"
             } else if can_compose {
@@ -475,7 +491,7 @@ pub fn render_page_actions(frame: &mut Frame, app: &mut App, area: Rect) {
     // Clear the area first to prevent text bleeding from previous renders.
     // This is especially important when terminal is resized or content changes.
     frame.render_widget(Clear, area);
-    
+
     // Fill with background color to ensure complete clearing
     let background = Block::default().style(Style::default().bg(theme.background));
     frame.render_widget(background, area);
@@ -491,10 +507,10 @@ pub fn render_page_actions(frame: &mut Frame, app: &mut App, area: Rect) {
 /// Render global footer with global shortcuts only
 pub fn render_global_footer(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
-    
+
     // Clear the area first to prevent text bleeding
     frame.render_widget(Clear, area);
-    
+
     let footer =
         Paragraph::new("Tab: Next | Shift+Tab: Previous | Shift+L: Logout | ?: Help | q/Esc: Quit | ↑/↓/j/k: Navigate")
             .style(Style::default().fg(theme.text_dim).bg(theme.background))
@@ -511,9 +527,9 @@ pub fn render_global_footer(frame: &mut Frame, app: &mut App, area: Rect) {
 pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) {
     // Log at start of render
     log_rendering!(app.log_config, "render_posts_tab_with_data: START");
-    
+
     let theme = get_theme_colors(app);
-    
+
     // Check if we need to show message, error, or demo warning banners
     let has_message = app.posts_state.message.is_some();
     let has_error = app.posts_state.error.is_some();
@@ -521,7 +537,7 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
 
     // Layout: Demo warning (if present), Message banner (if present), Error banner (if present), posts feed
     let mut constraints = Vec::new();
-    
+
     if has_demo_warning {
         constraints.push(Constraint::Length(3)); // Demo warning banner
     }
@@ -532,7 +548,7 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
         constraints.push(Constraint::Length(3)); // Error banner
     }
     constraints.push(Constraint::Min(0)); // Posts feed
-    
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(constraints)
@@ -544,22 +560,26 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
     if let Some((warning, _)) = &app.demo_mode_warning {
         let warning_text = format!("🚨 {} 🚨", warning);
         let warning_banner = Paragraph::new(warning_text)
-            .style(Style::default()
-                .fg(Color::Yellow)
-                .bg(Color::Red)
-                .add_modifier(Modifier::BOLD | Modifier::SLOW_BLINK))
+            .style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .bg(Color::Red)
+                    .add_modifier(Modifier::BOLD | Modifier::SLOW_BLINK),
+            )
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true })
-            .block(Block::default()
-                .borders(Borders::ALL)
-                .title("⚠️  IMPORTANT: DEMO MODE ACTIVE  ⚠️")
-                .title_style(Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD))
-                .border_style(Style::default()
-                    .fg(Color::Red)
-                    .add_modifier(Modifier::BOLD))
-                .style(Style::default().bg(Color::Red)));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("⚠️  IMPORTANT: DEMO MODE ACTIVE  ⚠️")
+                    .title_style(
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    )
+                    .border_style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
+                    .style(Style::default().bg(Color::Red)),
+            );
         frame.render_widget(warning_banner, chunks[chunk_idx]);
         chunk_idx += 1;
     }
@@ -567,9 +587,19 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
     // Message banner (success messages - auto-clear after 3 seconds)
     if let Some((message, _)) = &app.posts_state.message {
         let message_banner = Paragraph::new(message.clone())
-            .style(Style::default().fg(theme.success).add_modifier(Modifier::BOLD))
+            .style(
+                Style::default()
+                    .fg(theme.success)
+                    .add_modifier(Modifier::BOLD),
+            )
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).title("Message").border_style(Style::default().fg(theme.border)).style(Style::default().bg(theme.background)));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Message")
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.background)),
+            );
         frame.render_widget(message_banner, chunks[chunk_idx]);
         chunk_idx += 1;
     }
@@ -577,9 +607,19 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
     // Error banner (if present)
     if let Some(error) = &app.posts_state.error {
         let error_banner = Paragraph::new(error.clone())
-            .style(Style::default().fg(theme.error).add_modifier(Modifier::BOLD))
+            .style(
+                Style::default()
+                    .fg(theme.error)
+                    .add_modifier(Modifier::BOLD),
+            )
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).title("Error").border_style(Style::default().fg(theme.border)).style(Style::default().bg(theme.background)));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Error")
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.background)),
+            );
         frame.render_widget(error_banner, chunks[chunk_idx]);
         chunk_idx += 1;
     }
@@ -593,7 +633,7 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
             .alignment(Alignment::Center)
             .block(Block::default().borders(Borders::ALL).title("Global Feed"));
         frame.render_widget(loading, posts_area);
-        
+
         // Render filter modal if open (even when loading)
         if app.posts_state.show_filter_modal {
             render_filter_modal(frame, app, area);
@@ -620,7 +660,7 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).title("Global Feed"));
         frame.render_widget(empty, posts_area);
-        
+
         // Render filter modal if open (even when no posts)
         if app.posts_state.show_filter_modal {
             render_filter_modal(frame, app, area);
@@ -648,7 +688,10 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
     let post_width = (posts_area.width as usize).saturating_sub(4);
 
     // Get the currently selected post index (if any)
-    let selected_post_index = app.posts_state.list_state.selected()
+    let selected_post_index = app
+        .posts_state
+        .list_state
+        .selected()
         .and_then(|list_idx| app.posts_state.list_index_to_post_index(list_idx));
 
     // Add posts
@@ -767,21 +810,27 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
 }
 
 /// Create a formatted error message display with optional help text
-/// 
+///
 /// # Arguments
 /// * `error_message` - The error message to display
 /// * `help_text` - Optional help text (e.g., "Press Esc to go back")
 /// * `theme` - The theme colors to use
-fn create_error_display(error_message: &str, help_text: Option<&str>, theme: &ThemeColors) -> Vec<Line<'static>> {
+fn create_error_display(
+    error_message: &str,
+    help_text: Option<&str>,
+    theme: &ThemeColors,
+) -> Vec<Line<'static>> {
     let mut lines = vec![
         Line::from(""),
         Line::from(Span::styled(
             error_message.to_string(),
-            Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme.error)
+                .add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
     ];
-    
+
     if let Some(help) = help_text {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
@@ -789,12 +838,12 @@ fn create_error_display(error_message: &str, help_text: Option<&str>, theme: &Th
             Style::default().fg(theme.text_dim),
         )));
     }
-    
+
     lines
 }
 
 /// Create a formatted loading state display
-/// 
+///
 /// # Arguments
 /// * `message` - The loading message (e.g., "Loading posts...")
 /// * `theme` - The theme colors to use
@@ -816,12 +865,16 @@ fn create_loading_display(message: &str, theme: &ThemeColors) -> Vec<Line<'stati
 }
 
 /// Create a centered indicator item for the feed
-/// 
+///
 /// # Arguments
 /// * `text` - The text to display
 /// * `style` - The style to apply to the text
 /// * `available_width` - The available width for centering
-fn create_centered_indicator(text: &str, style: Style, available_width: usize) -> Vec<Line<'static>> {
+fn create_centered_indicator(
+    text: &str,
+    style: Style,
+    available_width: usize,
+) -> Vec<Line<'static>> {
     let padding = (available_width.saturating_sub(text.len())) / 2;
     vec![
         Line::from(""),
@@ -832,8 +885,6 @@ fn create_centered_indicator(text: &str, style: Style, available_width: usize) -
         Line::from(""),
     ]
 }
-
-
 
 /// Format timestamp for display
 fn format_timestamp(timestamp: &chrono::DateTime<chrono::Utc>) -> String {
@@ -858,12 +909,9 @@ pub fn render_dms_tab(frame: &mut Frame, app: &mut App, area: Rect) {
     }
 
     if let Some(error) = &app.dms_state.error {
-        let error_lines = create_error_display(
-            error,
-            Some("Press Esc to go back to conversations"),
-            &theme,
-        );
-        
+        let error_lines =
+            create_error_display(error, Some("Press Esc to go back to conversations"), &theme);
+
         let error_msg = Paragraph::new(error_lines)
             .alignment(Alignment::Center)
             .block(
@@ -934,7 +982,7 @@ pub fn render_conversations_list(frame: &mut Frame, app: &App, area: Rect) {
     // Show pending conversation at the top of the list if it exists
     if let Some(pending_username) = &app.dms_state.pending_conversation_username {
         let is_selected = app.dms_state.selected_conversation_index.is_none();
-        
+
         let style = if is_selected {
             Style::default()
                 .fg(theme.success)
@@ -961,7 +1009,9 @@ pub fn render_conversations_list(frame: &mut Frame, app: &App, area: Rect) {
         // Draft message preview
         lines.push(Line::from(Span::styled(
             "  Type your first message...",
-            Style::default().fg(theme.text_dim).add_modifier(Modifier::ITALIC),
+            Style::default()
+                .fg(theme.text_dim)
+                .add_modifier(Modifier::ITALIC),
         )));
 
         lines.push(Line::from(""));
@@ -1200,24 +1250,19 @@ pub fn render_message_input(frame: &mut Frame, app: &mut App, area: Rect) {
 
     // Apply theme styling to textarea - use primary color for text to ensure visibility
     app.dms_state.message_textarea.set_style(
-        Style::default()
-            .fg(theme.primary)  // Use primary color for better visibility
+        Style::default().fg(theme.primary), // Use primary color for better visibility
     );
     app.dms_state.message_textarea.set_cursor_style(
-        Style::default()
-            .fg(theme.background)
-            .bg(theme.primary)  // Visible cursor
+        Style::default().fg(theme.background).bg(theme.primary), // Visible cursor
     );
     app.dms_state.message_textarea.set_cursor_line_style(
-        Style::default()  // No special cursor line styling
+        Style::default(), // No special cursor line styling
     );
-    
+
     // Use default border style (no theme.border) to match other boxes
-    app.dms_state.message_textarea.set_block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(title),
-    );
+    app.dms_state
+        .message_textarea
+        .set_block(Block::default().borders(Borders::ALL).title(title));
 
     // Render TextArea widget
     frame.render_widget(&app.dms_state.message_textarea, area);
@@ -1226,7 +1271,7 @@ pub fn render_message_input(frame: &mut Frame, app: &mut App, area: Rect) {
 /// Render Profile tab
 pub fn render_profile_tab(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
-    
+
     if app.profile_state.loading {
         let loading = Paragraph::new(vec![
             Line::from(""),
@@ -1243,7 +1288,13 @@ pub fn render_profile_tab(frame: &mut Frame, app: &mut App, area: Rect) {
             )),
         ])
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).title("Profile").border_style(Style::default().fg(theme.border)).style(Style::default().bg(theme.background)));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Profile")
+                .border_style(Style::default().fg(theme.border))
+                .style(Style::default().bg(theme.background)),
+        );
         frame.render_widget(loading, area);
         return;
     }
@@ -1360,12 +1411,18 @@ pub fn render_profile_stats(
 pub fn render_user_posts(frame: &mut Frame, app: &mut App, area: Rect) {
     // Get theme colors
     let theme = get_theme_colors(app);
-    
+
     if app.profile_state.user_posts.is_empty() {
         let empty = Paragraph::new("No posts yet")
             .style(Style::default().fg(theme.text_dim))
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).title("Your Posts").border_style(Style::default().fg(theme.border)).style(Style::default().bg(theme.background)));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Your Posts")
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.background)),
+            );
         frame.render_widget(empty, area);
         return;
     }
@@ -1578,7 +1635,9 @@ pub fn render_settings_tab(frame: &mut Frame, app: &mut App, area: Rect) {
         lines.push(Line::from(""));
 
         // Server URL (read-only display)
-        let server_description = app.server_config_manager.get_server_description(&app.current_server_url);
+        let server_description = app
+            .server_config_manager
+            .get_server_description(&app.current_server_url);
         lines.push(Line::from(vec![
             Span::styled("  ", Style::default()),
             Span::styled("Server URL: ", Style::default().fg(theme.primary)),

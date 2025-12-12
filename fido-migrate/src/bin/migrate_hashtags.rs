@@ -1,8 +1,8 @@
 /// Migration script to extract and store hashtags from existing posts
-/// 
+///
 /// This script scans all posts in the database, extracts hashtags from their content,
 /// and populates the hashtags and post_hashtags tables.
-/// 
+///
 /// Run with: cargo run --bin migrate-hashtags [--db-path <path>]
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -38,17 +38,17 @@ struct MigrationStats {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    
+
     println!("🔍 Starting hashtag migration...");
     if args.dry_run {
         println!("⚠️  DRY RUN MODE - No changes will be written");
     }
-    
+
     // Connect to the database
     let mut conn = Connection::open(&args.db_path)
         .context(format!("Failed to open database: {}", args.db_path))?;
     println!("✅ Connected to database: {}", args.db_path);
-    
+
     // Check if migration is needed
     if !needs_migration(&conn)? {
         println!("ℹ️  Migration appears to have already been run.");
@@ -56,21 +56,20 @@ fn main() -> Result<()> {
         println!("   Use --force to run anyway (not implemented).");
         return Ok(());
     }
-    
+
     // Run migration in a transaction
     let stats = if args.dry_run {
         analyze_migration(&conn, args.progress_interval)?
     } else {
-        let tx = conn.transaction()
-            .context("Failed to start transaction")?;
+        let tx = conn.transaction().context("Failed to start transaction")?;
         let stats = run_migration(&tx, args.progress_interval)?;
         tx.commit().context("Failed to commit transaction")?;
         stats
     };
-    
+
     // Print results
     print_results(&stats, &conn)?;
-    
+
     Ok(())
 }
 
@@ -80,9 +79,9 @@ fn needs_migration(conn: &Connection) -> Result<bool> {
         "SELECT COUNT(*) FROM posts WHERE content LIKE '%#%' 
          AND id NOT IN (SELECT DISTINCT post_id FROM post_hashtags)",
         [],
-        |row| row.get(0)
+        |row| row.get(0),
     )?;
-    
+
     Ok(count > 0)
 }
 
@@ -93,25 +92,29 @@ fn analyze_migration(conn: &Connection, progress_interval: usize) -> Result<Migr
         total_posts: posts.len(),
         ..Default::default()
     };
-    
+
     println!("📊 Analyzing {} posts...", posts.len());
-    
+
     for (i, (post_id, content)) in posts.iter().enumerate() {
         if (i + 1) % progress_interval == 0 {
             println!("   Progress: {}/{} posts analyzed", i + 1, posts.len());
         }
-        
+
         let hashtags = fido_server::hashtag::extract_hashtags(content);
-        
+
         if !hashtags.is_empty() {
             stats.posts_with_hashtags += 1;
             stats.hashtag_links_added += hashtags.len();
-            
-            println!("  📝 Post {}: would add {} hashtags: {:?}", 
-                     &post_id[..8], hashtags.len(), hashtags);
+
+            println!(
+                "  📝 Post {}: would add {} hashtags: {:?}",
+                &post_id[..8],
+                hashtags.len(),
+                hashtags
+            );
         }
     }
-    
+
     Ok(stats)
 }
 
@@ -122,34 +125,38 @@ fn run_migration(tx: &Transaction, progress_interval: usize) -> Result<Migration
         total_posts: posts.len(),
         ..Default::default()
     };
-    
+
     println!("📊 Processing {} posts...", posts.len());
-    
+
     for (i, (post_id, content)) in posts.iter().enumerate() {
         if (i + 1) % progress_interval == 0 {
             println!("   Progress: {}/{} posts processed", i + 1, posts.len());
         }
-        
+
         let hashtags = fido_server::hashtag::extract_hashtags(content);
-        
+
         if hashtags.is_empty() {
             continue;
         }
-        
+
         stats.posts_with_hashtags += 1;
-        println!("  📝 Post {}: found {} hashtags: {:?}", 
-                 &post_id[..8], hashtags.len(), hashtags);
-        
+        println!(
+            "  📝 Post {}: found {} hashtags: {:?}",
+            &post_id[..8],
+            hashtags.len(),
+            hashtags
+        );
+
         for hashtag in &hashtags {
             // Create hashtag if it doesn't exist
             let created = create_hashtag_if_not_exists(tx, hashtag)?;
             if created {
                 stats.hashtags_created += 1;
             }
-            
+
             // Get the hashtag ID
             let hashtag_id = get_hashtag_id(tx, hashtag)?;
-            
+
             // Link post to hashtag (skip if already linked)
             let linked = link_post_to_hashtag(tx, post_id, &hashtag_id)?;
             if linked {
@@ -157,37 +164,35 @@ fn run_migration(tx: &Transaction, progress_interval: usize) -> Result<Migration
             }
         }
     }
-    
+
     Ok(stats)
 }
 
 /// Fetch all posts from the database
 fn fetch_posts(conn: &Connection) -> Result<Vec<(String, String)>> {
-    let mut stmt = conn.prepare("SELECT id, content FROM posts")
+    let mut stmt = conn
+        .prepare("SELECT id, content FROM posts")
         .context("Failed to prepare posts query")?;
-    
+
     let posts = stmt
-        .query_map([], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
         .collect::<Result<Vec<_>, _>>()
         .context("Failed to fetch posts")?;
-    
+
     Ok(posts)
 }
 
 /// Fetch all posts from a transaction
 fn fetch_posts_from_tx(tx: &Transaction) -> Result<Vec<(String, String)>> {
-    let mut stmt = tx.prepare("SELECT id, content FROM posts")
+    let mut stmt = tx
+        .prepare("SELECT id, content FROM posts")
         .context("Failed to prepare posts query")?;
-    
+
     let posts = stmt
-        .query_map([], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
         .collect::<Result<Vec<_>, _>>()
         .context("Failed to fetch posts")?;
-    
+
     Ok(posts)
 }
 
@@ -199,32 +204,35 @@ fn create_hashtag_if_not_exists(tx: &Transaction, name: &str) -> Result<bool> {
         .duration_since(std::time::UNIX_EPOCH)
         .context("Failed to get current time")?
         .as_secs() as i64;
-    
-    let rows_affected = tx.execute(
-        "INSERT OR IGNORE INTO hashtags (id, name, created_at) VALUES (?, ?, ?)",
-        (hashtag_id, name, now),
-    ).context("Failed to insert hashtag")?;
-    
+
+    let rows_affected = tx
+        .execute(
+            "INSERT OR IGNORE INTO hashtags (id, name, created_at) VALUES (?, ?, ?)",
+            (hashtag_id, name, now),
+        )
+        .context("Failed to insert hashtag")?;
+
     Ok(rows_affected > 0)
 }
 
 /// Get the ID of a hashtag by name
 fn get_hashtag_id(tx: &Transaction, name: &str) -> Result<String> {
-    tx.query_row(
-        "SELECT id FROM hashtags WHERE name = ?",
-        [name],
-        |row| row.get(0)
-    ).context(format!("Failed to get hashtag ID for: {}", name))
+    tx.query_row("SELECT id FROM hashtags WHERE name = ?", [name], |row| {
+        row.get(0)
+    })
+    .context(format!("Failed to get hashtag ID for: {}", name))
 }
 
 /// Link a post to a hashtag
 /// Returns true if linked, false if already linked
 fn link_post_to_hashtag(tx: &Transaction, post_id: &str, hashtag_id: &str) -> Result<bool> {
-    let rows_affected = tx.execute(
-        "INSERT OR IGNORE INTO post_hashtags (post_id, hashtag_id) VALUES (?, ?)",
-        (post_id, hashtag_id),
-    ).context("Failed to link post to hashtag")?;
-    
+    let rows_affected = tx
+        .execute(
+            "INSERT OR IGNORE INTO post_hashtags (post_id, hashtag_id) VALUES (?, ?)",
+            (post_id, hashtag_id),
+        )
+        .context("Failed to link post to hashtag")?;
+
     Ok(rows_affected > 0)
 }
 
@@ -235,26 +243,28 @@ fn print_results(stats: &MigrationStats, conn: &Connection) -> Result<()> {
     println!("   Posts with hashtags: {}", stats.posts_with_hashtags);
     println!("   Hashtags created: {}", stats.hashtags_created);
     println!("   Hashtag links added: {}", stats.hashtag_links_added);
-    
+
     // Show summary of top hashtags
-    let mut stmt = conn.prepare(
-        "SELECT h.name, COUNT(ph.post_id) as post_count 
+    let mut stmt = conn
+        .prepare(
+            "SELECT h.name, COUNT(ph.post_id) as post_count 
          FROM hashtags h
          LEFT JOIN post_hashtags ph ON h.id = ph.hashtag_id
          GROUP BY h.name
          ORDER BY post_count DESC
-         LIMIT 20"
-    ).context("Failed to prepare hashtag stats query")?;
-    
+         LIMIT 20",
+        )
+        .context("Failed to prepare hashtag stats query")?;
+
     println!("\n📈 Top hashtags:");
     let hashtag_stats = stmt.query_map([], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?))
     })?;
-    
+
     for (i, result) in hashtag_stats.enumerate() {
         let (name, count) = result?;
         println!("   {}. #{}: {} posts", i + 1, name, count);
     }
-    
+
     Ok(())
 }

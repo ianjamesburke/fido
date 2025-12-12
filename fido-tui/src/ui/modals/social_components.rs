@@ -1,13 +1,13 @@
 //! Shared components for social modals to reduce code duplication
-//! 
+//!
 //! This module provides reusable UI components for rendering social-related modals
 //! in the Fido TUI application. It follows the project's principles of:
 //! - Speed First: Optimized rendering with minimal allocations
 //! - Keyboard-Driven: Consistent navigation patterns
 //! - Developer-Centric: Clean, composable API
-//! 
+//!
 //! # Example Usage
-//! 
+//!
 //! This module provides reusable components for social modals including
 //! modal containers, search bars, user lists, and tab navigation.
 use ratatui::{
@@ -46,7 +46,7 @@ impl<'a> SocialModalConfig<'a> {
             ..Default::default()
         }
     }
-    
+
     pub fn with_size(mut self, width_percent: u16, height_percent: u16) -> Self {
         self.width_percent = width_percent;
         self.height_percent = height_percent;
@@ -62,18 +62,22 @@ pub fn create_modal_container(
     theme: &ThemeColors,
 ) -> Rect {
     let modal_area = centered_rect(config.width_percent, config.height_percent, area);
-    
+
     frame.render_widget(ratatui::widgets::Clear, modal_area);
-    
+
     let block = Block::default()
         .title(config.title)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+        .border_style(
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )
         .style(Style::default().bg(theme.background));
-    
+
     let inner = block.inner(modal_area);
     frame.render_widget(block, modal_area);
-    
+
     inner
 }
 
@@ -108,19 +112,22 @@ pub fn render_search_bar(
     };
 
     let search_bar = Paragraph::new(search_text)
-        .style(Style::default().fg(if config.is_active { theme.accent } else { theme.text_dim }))
-        .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.border)));
-    
+        .style(Style::default().fg(if config.is_active {
+            theme.accent
+        } else {
+            theme.text_dim
+        }))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border)),
+        );
+
     frame.render_widget(search_bar, area);
 }
 
 /// Render an empty state message
-pub fn render_empty_state(
-    frame: &mut Frame,
-    area: Rect,
-    message: &str,
-    theme: &ThemeColors,
-) {
+pub fn render_empty_state(frame: &mut Frame, area: Rect, message: &str, theme: &ThemeColors) {
     let empty = Paragraph::new(message)
         .alignment(Alignment::Center)
         .style(Style::default().fg(theme.text_dim));
@@ -142,9 +149,13 @@ pub struct TabBarConfig<'a> {
 /// User info for rendering in lists
 pub trait UserListItem {
     fn username(&self) -> &str;
-    fn follower_count(&self) -> Option<usize> { None }
-    fn following_count(&self) -> Option<usize> { None }
-    
+    fn follower_count(&self) -> Option<usize> {
+        None
+    }
+    fn following_count(&self) -> Option<usize> {
+        None
+    }
+
     /// Optional display name override
     fn display_name(&self) -> String {
         format!("@{}", self.username())
@@ -186,13 +197,20 @@ pub fn render_user_list<T: UserListItem>(
     if users.is_empty() {
         return;
     }
-    
+
     let items: Vec<ListItem> = users
         .iter()
         .map(|user| {
             let content = if config.show_stats {
-                if let (Some(followers), Some(following)) = (user.follower_count(), user.following_count()) {
-                    format!("@{}  {} followers | {} following", user.username(), followers, following)
+                if let (Some(followers), Some(following)) =
+                    (user.follower_count(), user.following_count())
+                {
+                    format!(
+                        "@{}  {} followers | {} following",
+                        user.username(),
+                        followers,
+                        following
+                    )
                 } else {
                     format!("@{}", user.username())
                 }
@@ -221,47 +239,43 @@ pub fn render_user_list<T: UserListItem>(
 }
 
 /// Render a tab bar with consistent styling
-pub fn render_tab_bar(
-    frame: &mut Frame,
-    area: Rect,
-    config: &TabBarConfig,
-    theme: &ThemeColors,
-) {
+pub fn render_tab_bar(frame: &mut Frame, area: Rect, config: &TabBarConfig, theme: &ThemeColors) {
     use ratatui::text::{Line, Span};
-    
+
     let mut tab_spans = Vec::new();
-    
+
     for (i, &tab_name) in config.tabs.iter().enumerate() {
         if i > 0 {
             tab_spans.push(Span::raw(" | "));
         }
-        
+
         if i == config.selected_index {
             tab_spans.push(Span::styled(
                 format!(" [{}] ", tab_name),
-                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD),
             ));
         } else {
             tab_spans.push(Span::styled(
                 format!("  {}  ", tab_name),
-                Style::default().fg(theme.text_dim)
+                Style::default().fg(theme.text_dim),
             ));
         }
     }
-    
+
     let tab_bar = Paragraph::new(Line::from(tab_spans))
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.border)));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border)),
+        );
     frame.render_widget(tab_bar, area);
 }
 
 /// Render a footer with shortcuts
-pub fn render_modal_footer(
-    frame: &mut Frame,
-    area: Rect,
-    shortcuts: &str,
-    theme: &ThemeColors,
-) {
+pub fn render_modal_footer(frame: &mut Frame, area: Rect, shortcuts: &str, theme: &ThemeColors) {
     let footer = Paragraph::new(shortcuts)
         .alignment(Alignment::Center)
         .style(Style::default().fg(theme.text))

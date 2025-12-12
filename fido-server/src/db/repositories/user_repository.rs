@@ -23,21 +23,22 @@ impl UserRepository {
             "SELECT id, username, bio, join_date, is_test_user, github_id, github_login
              FROM users 
              WHERE is_test_user = 1
-             ORDER BY username"
+             ORDER BY username",
         )?;
 
-        let users = stmt.query_map([], |row| {
-            Ok(User {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                username: row.get(1)?,
-                bio: row.get(2)?,
-                join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
-                is_test_user: row.get::<_, i32>(4)? == 1,
-                github_id: row.get(5)?,
-                github_login: row.get(6)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+        let users = stmt
+            .query_map([], |row| {
+                Ok(User {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    username: row.get(1)?,
+                    bio: row.get(2)?,
+                    join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
+                    is_test_user: row.get::<_, i32>(4)? == 1,
+                    github_id: row.get(5)?,
+                    github_login: row.get(6)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(users)
     }
@@ -48,20 +49,22 @@ impl UserRepository {
         let mut stmt = conn.prepare(
             "SELECT id, username, bio, join_date, is_test_user, github_id, github_login
              FROM users 
-             WHERE id = ?"
+             WHERE id = ?",
         )?;
 
-        let user = stmt.query_row([user_id.to_string()], |row| {
-            Ok(User {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                username: row.get(1)?,
-                bio: row.get(2)?,
-                join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
-                is_test_user: row.get::<_, i32>(4)? == 1,
-                github_id: row.get(5)?,
-                github_login: row.get(6)?,
+        let user = stmt
+            .query_row([user_id.to_string()], |row| {
+                Ok(User {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    username: row.get(1)?,
+                    bio: row.get(2)?,
+                    join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
+                    is_test_user: row.get::<_, i32>(4)? == 1,
+                    github_id: row.get(5)?,
+                    github_login: row.get(6)?,
+                })
             })
-        }).optional()?;
+            .optional()?;
 
         Ok(user)
     }
@@ -72,20 +75,22 @@ impl UserRepository {
         let mut stmt = conn.prepare(
             "SELECT id, username, bio, join_date, is_test_user, github_id, github_login
              FROM users 
-             WHERE username = ?"
+             WHERE username = ?",
         )?;
 
-        let user = stmt.query_row([username], |row| {
-            Ok(User {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                username: row.get(1)?,
-                bio: row.get(2)?,
-                join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
-                is_test_user: row.get::<_, i32>(4)? == 1,
-                github_id: row.get(5)?,
-                github_login: row.get(6)?,
+        let user = stmt
+            .query_row([username], |row| {
+                Ok(User {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    username: row.get(1)?,
+                    bio: row.get(2)?,
+                    join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
+                    is_test_user: row.get::<_, i32>(4)? == 1,
+                    github_id: row.get(5)?,
+                    github_login: row.get(6)?,
+                })
             })
-        }).optional()?;
+            .optional()?;
 
         Ok(user)
     }
@@ -96,7 +101,8 @@ impl UserRepository {
         conn.execute(
             "UPDATE users SET bio = ? WHERE id = ?",
             [bio, &user_id.to_string()],
-        ).context("Failed to update user bio")?;
+        )
+        .context("Failed to update user bio")?;
         Ok(())
     }
 
@@ -126,21 +132,22 @@ impl UserRepository {
         let mut stmt = conn.prepare(
             "SELECT id, username, bio, join_date, is_test_user, github_id, github_login
              FROM users 
-             ORDER BY username"
+             ORDER BY username",
         )?;
 
-        let users = stmt.query_map([], |row| {
-            Ok(User {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                username: row.get(1)?,
-                bio: row.get(2)?,
-                join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
-                is_test_user: row.get::<_, i32>(4)? == 1,
-                github_id: row.get(5)?,
-                github_login: row.get(6)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+        let users = stmt
+            .query_map([], |row| {
+                Ok(User {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    username: row.get(1)?,
+                    bio: row.get(2)?,
+                    join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
+                    is_test_user: row.get::<_, i32>(4)? == 1,
+                    github_id: row.get(5)?,
+                    github_login: row.get(6)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(users)
     }
@@ -162,44 +169,52 @@ impl UserRepository {
         let mut stmt = conn.prepare(
             "SELECT id, username, bio, join_date, is_test_user, github_id, github_login
              FROM users 
-             WHERE github_id = ?"
+             WHERE github_id = ?",
         )?;
 
-        let user = stmt.query_row([github_id], |row| {
-            Ok(User {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                username: row.get(1)?,
-                bio: row.get(2)?,
-                join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
-                is_test_user: row.get::<_, i32>(4)? == 1,
-                github_id: row.get(5)?,
-                github_login: row.get(6)?,
+        let user = stmt
+            .query_row([github_id], |row| {
+                Ok(User {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    username: row.get(1)?,
+                    bio: row.get(2)?,
+                    join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
+                    is_test_user: row.get::<_, i32>(4)? == 1,
+                    github_id: row.get(5)?,
+                    github_login: row.get(6)?,
+                })
             })
-        }).optional()?;
+            .optional()?;
 
         Ok(user)
     }
 
     /// Create or update user from GitHub OAuth
-    pub fn create_or_update_from_github(&self, github_id: i64, github_login: &str, name: Option<&str>) -> Result<User> {
+    pub fn create_or_update_from_github(
+        &self,
+        github_id: i64,
+        github_login: &str,
+        name: Option<&str>,
+    ) -> Result<User> {
         let conn = self.pool.get()?;
-        
+
         // Check if user already exists
         if let Some(existing_user) = self.get_by_github_id(github_id)? {
             // Update github_login if it changed
             conn.execute(
                 "UPDATE users SET github_login = ? WHERE id = ?",
                 [github_login, &existing_user.id.to_string()],
-            ).context("Failed to update user GitHub login")?;
-            
+            )
+            .context("Failed to update user GitHub login")?;
+
             return Ok(existing_user);
         }
-        
+
         // Create new user
         let user_id = Uuid::new_v4();
         let join_date = Utc::now();
         let bio = name.map(|s| s.to_string());
-        
+
         conn.execute(
             "INSERT INTO users (id, username, bio, join_date, is_test_user, github_id, github_login) 
              VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -213,7 +228,7 @@ impl UserRepository {
                 github_login,
             ),
         ).context("Failed to create user from GitHub")?;
-        
+
         Ok(User {
             id: user_id,
             username: github_login.to_string(),

@@ -13,7 +13,7 @@ pub type Tui = Terminal<CrosstermBackend<Stdout>>;
 pub fn init() -> Result<Tui> {
     enable_raw_mode()?;
     execute!(io::stdout(), EnterAlternateScreen)?;
-    
+
     // Explicitly disable mouse tracking with ANSI escape sequences
     // This prevents the terminal from sending mouse events entirely
     print!("\x1b[?1000l"); // Disable X11 mouse reporting
@@ -21,11 +21,11 @@ pub fn init() -> Result<Tui> {
     print!("\x1b[?1003l"); // Disable all motion mouse tracking
     print!("\x1b[?1006l"); // Disable SGR extended mouse mode
     io::stdout().flush()?;
-    
+
     // Windows-specific: Disable mouse input at the console level
     #[cfg(windows)]
     disable_windows_mouse_input()?;
-    
+
     let backend = CrosstermBackend::new(io::stdout());
     let terminal = Terminal::new(backend)?;
     Ok(terminal)
@@ -42,14 +42,14 @@ fn disable_windows_mouse_input() -> Result<()> {
     unsafe {
         let handle = GetStdHandle(STD_INPUT_HANDLE)
             .map_err(|e| anyhow::anyhow!("Failed to get console handle: {}", e))?;
-        
+
         let mut mode = CONSOLE_MODE(0);
         GetConsoleMode(handle, &mut mode)
             .map_err(|e| anyhow::anyhow!("Failed to get console mode: {}", e))?;
-        
+
         // Remove ENABLE_MOUSE_INPUT flag to disable mouse events
         mode &= !ENABLE_MOUSE_INPUT;
-        
+
         SetConsoleMode(handle, mode)
             .map_err(|e| anyhow::anyhow!("Failed to set console mode: {}", e))?;
     }
@@ -61,11 +61,11 @@ fn disable_windows_mouse_input() -> Result<()> {
 pub fn restore() -> Result<()> {
     disable_raw_mode()?;
     execute!(io::stdout(), LeaveAlternateScreen)?;
-    
+
     // Windows-specific: Re-enable mouse input to restore original console state
     #[cfg(windows)]
     enable_windows_mouse_input()?;
-    
+
     Ok(())
 }
 
@@ -80,14 +80,14 @@ fn enable_windows_mouse_input() -> Result<()> {
     unsafe {
         let handle = GetStdHandle(STD_INPUT_HANDLE)
             .map_err(|e| anyhow::anyhow!("Failed to get console handle: {}", e))?;
-        
+
         let mut mode = CONSOLE_MODE(0);
         GetConsoleMode(handle, &mut mode)
             .map_err(|e| anyhow::anyhow!("Failed to get console mode: {}", e))?;
-        
+
         // Add ENABLE_MOUSE_INPUT flag to restore mouse events
         mode |= ENABLE_MOUSE_INPUT;
-        
+
         SetConsoleMode(handle, mode)
             .map_err(|e| anyhow::anyhow!("Failed to set console mode: {}", e))?;
     }

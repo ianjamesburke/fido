@@ -9,9 +9,9 @@ mod integration_tests {
     // 1. Starting the server
     // 2. Making HTTP requests
     // 3. Verifying responses
-    
+
     // For now, we document the test scenarios that should be covered:
-    
+
     /// Test Scenario: Post creation with hashtag extraction
     /// 1. Create a post with hashtags in content
     /// 2. Verify hashtags are extracted and stored

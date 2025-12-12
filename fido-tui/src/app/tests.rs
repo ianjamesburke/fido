@@ -629,7 +629,7 @@ use proptest::prelude::*;
 
 // **Feature: web-terminal-interface, Property 1: Keyboard Shortcut Consistency**
 // **Validates: Requirements 1.2**
-// For any keyboard input sequence, the web terminal should produce the same navigation 
+// For any keyboard input sequence, the web terminal should produce the same navigation
 // and command results as the native TUI application.
 proptest! {
     #[test]
@@ -641,7 +641,7 @@ proptest! {
     ) {
         let mut native_app = App::new();
         let mut web_app = App::new();
-        
+
         // Set up identical initial state for both apps
         let tab = match initial_tab {
             0 => Tab::Posts,
@@ -649,51 +649,51 @@ proptest! {
             2 => Tab::Profile,
             _ => Tab::Settings,
         };
-        
+
         native_app.current_tab = tab;
         web_app.current_tab = tab;
         native_app.input_mode = InputMode::Navigation;
         web_app.input_mode = InputMode::Navigation;
-        
+
         // Optionally open a modal to test modal behavior consistency
         if has_modal_open {
             native_app.show_help = true;
             web_app.show_help = true;
         }
-        
+
         // Create key event
         let modifiers = if has_modifiers { KeyModifiers::CONTROL } else { KeyModifiers::empty() };
         let key_event = KeyEvent::new(KeyCode::Char(key_char), modifiers);
-        
+
         // Apply the same key event to both apps
         let native_result = native_app.handle_key_event(key_event);
         let web_result = web_app.handle_key_event(key_event);
-        
+
         // Both should succeed or fail in the same way
-        prop_assert_eq!(native_result.is_ok(), web_result.is_ok(), 
+        prop_assert_eq!(native_result.is_ok(), web_result.is_ok(),
             "Key event handling should have same success/failure for native and web modes");
-        
+
         // Key application state should be identical
-        prop_assert_eq!(native_app.current_tab, web_app.current_tab, 
+        prop_assert_eq!(native_app.current_tab, web_app.current_tab,
             "Current tab should be identical between native and web modes");
-        prop_assert_eq!(native_app.input_mode, web_app.input_mode, 
+        prop_assert_eq!(native_app.input_mode, web_app.input_mode,
             "Input mode should be identical between native and web modes");
-        prop_assert_eq!(native_app.show_help, web_app.show_help, 
+        prop_assert_eq!(native_app.show_help, web_app.show_help,
             "Help modal state should be identical between native and web modes");
-        prop_assert_eq!(native_app.running, web_app.running, 
+        prop_assert_eq!(native_app.running, web_app.running,
             "Running state should be identical between native and web modes");
-        
+
         // Modal states should be consistent
-        prop_assert_eq!(native_app.composer_state.mode.is_some(), web_app.composer_state.mode.is_some(), 
+        prop_assert_eq!(native_app.composer_state.mode.is_some(), web_app.composer_state.mode.is_some(),
             "Composer modal state should be identical between native and web modes");
-        prop_assert_eq!(native_app.dms_state.show_new_conversation_modal, web_app.dms_state.show_new_conversation_modal, 
+        prop_assert_eq!(native_app.dms_state.show_new_conversation_modal, web_app.dms_state.show_new_conversation_modal,
             "DM modal state should be identical between native and web modes");
     }
 }
 
 // **Feature: web-terminal-interface, Property 12: ANSI Color Code Support**
 // **Validates: Requirements 7.5**
-// For any terminal output containing ANSI color codes, the web terminal should render 
+// For any terminal output containing ANSI color codes, the web terminal should render
 // the colors correctly according to standard ANSI specifications.
 proptest! {
     #[test]
@@ -706,7 +706,7 @@ proptest! {
         ])
     ) {
         use crate::ui::theme::get_theme_colors;
-        
+
         // Create app with specific color scheme
         let mut app = App::new();
         app.settings_state.config = Some(fido_types::UserConfig {
@@ -716,39 +716,39 @@ proptest! {
             max_posts_display: 25,
             emoji_enabled: true,
         });
-        
+
         // Get theme colors for the scheme
         let theme = get_theme_colors(&app);
-        
+
         // Verify theme colors are valid RGB values (ANSI color compatibility)
         // ANSI terminals support RGB colors, so all theme colors should be RGB or standard colors
         prop_assert!(
             matches!(theme.primary, ratatui::style::Color::Rgb(_, _, _)) ||
-            matches!(theme.primary, ratatui::style::Color::Black | ratatui::style::Color::Red | 
+            matches!(theme.primary, ratatui::style::Color::Black | ratatui::style::Color::Red |
                      ratatui::style::Color::Green | ratatui::style::Color::Yellow |
                      ratatui::style::Color::Blue | ratatui::style::Color::Magenta |
-                     ratatui::style::Color::Cyan | ratatui::style::Color::White), 
+                     ratatui::style::Color::Cyan | ratatui::style::Color::White),
             "Primary color should be ANSI-compatible (RGB or standard color)"
         );
-        
+
         prop_assert!(
             matches!(theme.text, ratatui::style::Color::Rgb(_, _, _)) ||
-            matches!(theme.text, ratatui::style::Color::Black | ratatui::style::Color::Red | 
+            matches!(theme.text, ratatui::style::Color::Black | ratatui::style::Color::Red |
                      ratatui::style::Color::Green | ratatui::style::Color::Yellow |
                      ratatui::style::Color::Blue | ratatui::style::Color::Magenta |
-                     ratatui::style::Color::Cyan | ratatui::style::Color::White), 
+                     ratatui::style::Color::Cyan | ratatui::style::Color::White),
             "Text color should be ANSI-compatible (RGB or standard color)"
         );
-        
+
         prop_assert!(
             matches!(theme.background, ratatui::style::Color::Rgb(_, _, _)) ||
-            matches!(theme.background, ratatui::style::Color::Black | ratatui::style::Color::Red | 
+            matches!(theme.background, ratatui::style::Color::Black | ratatui::style::Color::Red |
                      ratatui::style::Color::Green | ratatui::style::Color::Yellow |
                      ratatui::style::Color::Blue | ratatui::style::Color::Magenta |
-                     ratatui::style::Color::Cyan | ratatui::style::Color::White), 
+                     ratatui::style::Color::Cyan | ratatui::style::Color::White),
             "Background color should be ANSI-compatible (RGB or standard color)"
         );
-        
+
         // Verify color contrast for readability (basic check)
         // This ensures ANSI colors will be visible in web terminal
         match (theme.text, theme.background) {
@@ -757,8 +757,8 @@ proptest! {
                 let text_lum = (tr as f32 * 0.299 + tg as f32 * 0.587 + tb as f32 * 0.114) / 255.0;
                 let bg_lum = (br as f32 * 0.299 + bg as f32 * 0.587 + bb as f32 * 0.114) / 255.0;
                 let contrast = (text_lum - bg_lum).abs();
-                
-                prop_assert!(contrast > 0.3, 
+
+                prop_assert!(contrast > 0.3,
                     "Text and background should have sufficient contrast for ANSI terminal readability");
             },
             (ratatui::style::Color::Rgb(_, _, _), ratatui::style::Color::Black) |
@@ -771,7 +771,7 @@ proptest! {
                 prop_assert!(true, "Standard ANSI colors have acceptable contrast");
             }
         }
-        
+
         // Verify all theme colors are defined (no None values that would break ANSI rendering)
         prop_assert!(theme.primary != ratatui::style::Color::Reset, "Primary color should be defined");
         prop_assert!(theme.text != ratatui::style::Color::Reset, "Text color should be defined");
@@ -783,7 +783,7 @@ proptest! {
 
 // **Feature: web-terminal-interface, Property 4: Session Cleanup on Logout**
 // **Validates: Requirements 2.3, 2.4**
-// For any user logout action, all session storage should be immediately cleared 
+// For any user logout action, all session storage should be immediately cleared
 // and the system should return to an unauthenticated state.
 proptest! {
     #[test]
@@ -795,19 +795,19 @@ proptest! {
         // Test session cleanup using web mode to avoid file system issues
         let mode = crate::mode::AppMode::Web;
         let storage_adapter = crate::storage::StorageAdapterFactory::create_adapter(&mode).unwrap();
-        
+
         // Store credentials (web mode uses placeholder implementation)
         let store_result = storage_adapter.store_credentials(&credentials);
         prop_assert!(store_result.is_ok(), "Should be able to store credentials");
-        
+
         // Load credentials (web mode returns None for placeholder)
         let _loaded_before = storage_adapter.load_credentials().unwrap();
         // Web mode placeholder returns None, which is expected behavior
-        
+
         // Simulate logout by clearing credentials
         let clear_result = storage_adapter.clear_credentials();
         prop_assert!(clear_result.is_ok(), "Should be able to clear credentials");
-        
+
         // Verify credentials are cleared (simulating unauthenticated state)
         let loaded_after = storage_adapter.load_credentials().unwrap();
         prop_assert_eq!(loaded_after, None, "Credentials should be cleared after logout");
@@ -816,7 +816,7 @@ proptest! {
 
 // **Feature: web-terminal-interface, Property 9: Mode-Specific Configuration Handling**
 // **Validates: Requirements 4.5**
-// For any configuration setting that differs between modes, the system should transparently 
+// For any configuration setting that differs between modes, the system should transparently
 // apply the correct mode-specific value without affecting other settings.
 proptest! {
     #[test]
@@ -844,11 +844,11 @@ proptest! {
             // Simulate native mode by creating a detector that returns Native mode
             crate::mode::ModeDetector { mode: crate::mode::AppMode::Native }
         };
-        
+
         // Create storage adapter based on mode
         let storage_adapter = crate::storage::StorageAdapterFactory::create_adapter(mode_detector.mode())
             .expect("Failed to create storage adapter");
-        
+
         // Create app with the specific mode detector
         let mut app = App {
             running: true,
@@ -995,16 +995,16 @@ proptest! {
             server_config_manager: crate::server_config::ServerConfigManager::new().unwrap(),
             current_server_url: "https://fido-social.fly.dev".to_string(),
         };
-        
+
         // Verify mode detection is correct
         let detected_mode = app.mode_detector.mode();
-        let expected_mode = if mode_is_web { 
-            crate::mode::AppMode::Web 
-        } else { 
-            crate::mode::AppMode::Native 
+        let expected_mode = if mode_is_web {
+            crate::mode::AppMode::Web
+        } else {
+            crate::mode::AppMode::Native
         };
         prop_assert_eq!(detected_mode, &expected_mode, "Mode should be detected correctly");
-        
+
         // Create a test configuration
         let test_config = fido_types::UserConfig {
             user_id: uuid::Uuid::new_v4(),
@@ -1013,44 +1013,44 @@ proptest! {
             max_posts_display: max_posts,
             emoji_enabled,
         };
-        
+
         // Set the configuration
         app.settings_state.config = Some(test_config.clone());
-        
+
         // Verify that configuration values are preserved regardless of mode
         let stored_config = app.settings_state.config.as_ref().unwrap();
-        prop_assert_eq!(stored_config.color_scheme, color_scheme, 
+        prop_assert_eq!(stored_config.color_scheme, color_scheme,
             "Color scheme should be preserved in both modes");
-        prop_assert_eq!(stored_config.sort_order, sort_order, 
+        prop_assert_eq!(stored_config.sort_order, sort_order,
             "Sort order should be preserved in both modes");
-        prop_assert_eq!(stored_config.max_posts_display, max_posts, 
+        prop_assert_eq!(stored_config.max_posts_display, max_posts,
             "Max posts display should be preserved in both modes");
-        prop_assert_eq!(stored_config.emoji_enabled, emoji_enabled, 
+        prop_assert_eq!(stored_config.emoji_enabled, emoji_enabled,
             "Emoji enabled setting should be preserved in both modes");
-        
+
         // Verify mode-specific behavior: storage adapter type
         match detected_mode {
             crate::mode::AppMode::Web => {
                 // In web mode, GitHub option should be disabled
-                prop_assert!(!app.auth_state.show_github_option, 
+                prop_assert!(!app.auth_state.show_github_option,
                     "GitHub option should be disabled in web mode");
             },
             crate::mode::AppMode::Native => {
                 // In native mode, GitHub option should be enabled
-                prop_assert!(app.auth_state.show_github_option, 
+                prop_assert!(app.auth_state.show_github_option,
                     "GitHub option should be enabled in native mode");
             }
         }
-        
+
         // Verify that non-mode-specific settings work the same way
         // (e.g., UI state, navigation, etc.)
-        prop_assert_eq!(app.current_screen, crate::app::Screen::Auth, 
+        prop_assert_eq!(app.current_screen, crate::app::Screen::Auth,
             "Initial screen should be Auth in both modes");
-        prop_assert_eq!(app.current_tab, crate::app::Tab::Posts, 
+        prop_assert_eq!(app.current_tab, crate::app::Tab::Posts,
             "Initial tab should be Posts in both modes");
-        prop_assert_eq!(app.input_mode, crate::app::InputMode::Navigation, 
+        prop_assert_eq!(app.input_mode, crate::app::InputMode::Navigation,
             "Initial input mode should be Navigation in both modes");
-        
+
         // No environment cleanup needed since we're not using global environment variables
     }
 }

@@ -1,6 +1,6 @@
+use chrono::Local;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
-use chrono::Local;
 
 /// Log file path constant
 pub const DEBUG_LOG_FILE: &str = "fido_modal_debug.log";
@@ -22,7 +22,7 @@ pub fn clear_debug_log() {
 fn append_to_log(message: &str) {
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
     let log_line = format!("[{}] {}\n", timestamp, message);
-    
+
     if let Ok(mut file) = OpenOptions::new()
         .create(true)
         .append(true)
@@ -48,10 +48,7 @@ pub fn log_modal_state(
 
 /// Log key event information
 pub fn log_key_event(key_code: &str, modal_context: &str) {
-    let message = format!(
-        "KEY_EVENT: key={}, context={}",
-        key_code, modal_context
-    );
+    let message = format!("KEY_EVENT: key={}, context={}", key_code, modal_context);
     append_to_log(&message);
 }
 

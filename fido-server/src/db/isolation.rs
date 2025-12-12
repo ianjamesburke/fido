@@ -3,10 +3,12 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
-use fido_types::{UserContext, UserType, IsolatedData, Post, DirectMessage, Vote, SortOrder};
+use fido_types::{DirectMessage, IsolatedData, Post, SortOrder, UserContext, UserType, Vote};
 
+use crate::db::repositories::{
+    DirectMessageRepository, PostRepository, UserRepository, VoteRepository,
+};
 use crate::db::DbPool;
-use crate::db::repositories::{PostRepository, UserRepository, VoteRepository, DirectMessageRepository};
 
 /// Database adapter trait for handling user context and data isolation
 pub trait DatabaseAdapter {
@@ -18,19 +20,19 @@ pub trait DatabaseAdapter {
 pub trait DatabaseOperations {
     /// Get posts with user context filtering
     fn get_posts(&self, sort_order: SortOrder, limit: i32) -> Result<Vec<Post>>;
-    
+
     /// Create a post with user context
     fn create_post(&self, post: &Post) -> Result<()>;
-    
+
     /// Get direct messages for user
     fn get_direct_messages(&self, user_id: &Uuid) -> Result<Vec<DirectMessage>>;
-    
+
     /// Send a direct message
     fn send_direct_message(&self, message: &DirectMessage) -> Result<()>;
-    
+
     /// Vote on a post
     fn vote_on_post(&self, vote: &Vote) -> Result<()>;
-    
+
     /// Reset test user data (only works for test users)
     fn reset_test_data(&self) -> Result<()>;
 }
@@ -50,7 +52,7 @@ impl IsolatedDatabaseAdapter {
             test_data: Arc::new(Mutex::new(HashMap::new())),
         }
     }
-    
+
     /// Reset all test user data
     pub fn reset_all_test_data(&self) -> Result<()> {
         let mut data = self.test_data.lock().unwrap();
@@ -84,14 +86,18 @@ impl DatabaseOperations for ContextualDatabaseOperations {
                 let data = self.test_data.lock().unwrap();
                 if let Some(isolated_data) = data.get(test_id) {
                     let mut posts = isolated_data.posts.clone();
-                    
+
                     // Apply sorting
                     match sort_order {
                         SortOrder::Newest => {
                             posts.sort_by(|a, b| b.created_at.cmp(&a.created_at));
                         }
                         SortOrder::Popular => {
-                            posts.sort_by(|a, b| b.upvotes.cmp(&a.upvotes).then(b.created_at.cmp(&a.created_at)));
+                            posts.sort_by(|a, b| {
+                                b.upvotes
+                                    .cmp(&a.upvotes)
+                                    .then(b.created_at.cmp(&a.created_at))
+                            });
                         }
                         SortOrder::Controversial => {
                             posts.sort_by(|a, b| {
@@ -101,7 +107,7 @@ impl DatabaseOperations for ContextualDatabaseOperations {
                             });
                         }
                     }
-                    
+
                     // Apply limit
                     posts.truncate(limit as usize);
                     Ok(posts)
@@ -114,7 +120,7 @@ impl DatabaseOperations for ContextualDatabaseOperations {
                 // For real users, query the actual database but filter out test user content
                 let post_repo = PostRepository::new(self.pool.clone());
                 let mut posts = post_repo.get_posts(sort_order, limit)?;
-                
+
                 // Filter out test user posts
                 let user_repo = UserRepository::new(self.pool.clone());
                 posts.retain(|post| {
@@ -124,18 +130,20 @@ impl DatabaseOperations for ContextualDatabaseOperations {
                         false
                     }
                 });
-                
+
                 Ok(posts)
             }
         }
     }
-    
+
     fn create_post(&self, post: &Post) -> Result<()> {
         match &self.context.user_type {
             UserType::TestUser(test_id) => {
                 // For test users, store in isolated in-memory storage
                 let mut data = self.test_data.lock().unwrap();
-                let isolated_data = data.entry(test_id.clone()).or_insert_with(IsolatedData::new);
+                let isolated_data = data
+                    .entry(test_id.clone())
+                    .or_insert_with(IsolatedData::new);
                 isolated_data.posts.push(post.clone());
                 Ok(())
             }
@@ -146,14 +154,16 @@ impl DatabaseOperations for ContextualDatabaseOperations {
             }
         }
     }
-    
+
     fn get_direct_messages(&self, user_id: &Uuid) -> Result<Vec<DirectMessage>> {
         match &self.context.user_type {
             UserType::TestUser(test_id) => {
                 // For test users, return only test data from in-memory storage
                 let data = self.test_data.lock().unwrap();
                 if let Some(isolated_data) = data.get(test_id) {
-                    let messages: Vec<DirectMessage> = isolated_data.messages.iter()
+                    let messages: Vec<DirectMessage> = isolated_data
+                        .messages
+                        .iter()
                         .filter(|msg| msg.from_user_id == *user_id || msg.to_user_id == *user_id)
                         .cloned()
                         .collect();
@@ -171,15 +181,16 @@ impl DatabaseOperations for ContextualDatabaseOperations {
                     let mut conversation = dm_repo.get_conversation(user_id, &other_user_id)?;
                     messages.append(&mut conversation);
                 }
-                
+
                 // Filter out messages involving test users
                 let user_repo = UserRepository::new(self.pool.clone());
                 messages.retain(|msg| {
-                    let from_user_ok = if let Ok(Some(user)) = user_repo.get_by_id(&msg.from_user_id) {
-                        !user.is_test_user
-                    } else {
-                        false
-                    };
+                    let from_user_ok =
+                        if let Ok(Some(user)) = user_repo.get_by_id(&msg.from_user_id) {
+                            !user.is_test_user
+                        } else {
+                            false
+                        };
                     let to_user_ok = if let Ok(Some(user)) = user_repo.get_by_id(&msg.to_user_id) {
                         !user.is_test_user
                     } else {
@@ -187,18 +198,20 @@ impl DatabaseOperations for ContextualDatabaseOperations {
                     };
                     from_user_ok && to_user_ok
                 });
-                
+
                 Ok(messages)
             }
         }
     }
-    
+
     fn send_direct_message(&self, message: &DirectMessage) -> Result<()> {
         match &self.context.user_type {
             UserType::TestUser(test_id) => {
                 // For test users, store in isolated in-memory storage
                 let mut data = self.test_data.lock().unwrap();
-                let isolated_data = data.entry(test_id.clone()).or_insert_with(IsolatedData::new);
+                let isolated_data = data
+                    .entry(test_id.clone())
+                    .or_insert_with(IsolatedData::new);
                 isolated_data.messages.push(message.clone());
                 Ok(())
             }
@@ -209,48 +222,60 @@ impl DatabaseOperations for ContextualDatabaseOperations {
             }
         }
     }
-    
+
     fn vote_on_post(&self, vote: &Vote) -> Result<()> {
         match &self.context.user_type {
             UserType::TestUser(test_id) => {
                 // For test users, store in isolated in-memory storage
                 let mut data = self.test_data.lock().unwrap();
-                let isolated_data = data.entry(test_id.clone()).or_insert_with(IsolatedData::new);
-                
+                let isolated_data = data
+                    .entry(test_id.clone())
+                    .or_insert_with(IsolatedData::new);
+
                 // Remove any existing vote for this user/post combination
-                isolated_data.votes.retain(|v| !(v.user_id == vote.user_id && v.post_id == vote.post_id));
-                
+                isolated_data
+                    .votes
+                    .retain(|v| !(v.user_id == vote.user_id && v.post_id == vote.post_id));
+
                 // Add the new vote
                 isolated_data.votes.push(vote.clone());
-                
+
                 // Update vote counts on the post
-                if let Some(post) = isolated_data.posts.iter_mut().find(|p| p.id == vote.post_id) {
+                if let Some(post) = isolated_data
+                    .posts
+                    .iter_mut()
+                    .find(|p| p.id == vote.post_id)
+                {
                     // Recalculate vote counts
-                    let upvotes = isolated_data.votes.iter()
+                    let upvotes = isolated_data
+                        .votes
+                        .iter()
                         .filter(|v| v.post_id == vote.post_id && v.direction.as_str() == "up")
                         .count() as i32;
-                    let downvotes = isolated_data.votes.iter()
+                    let downvotes = isolated_data
+                        .votes
+                        .iter()
                         .filter(|v| v.post_id == vote.post_id && v.direction.as_str() == "down")
                         .count() as i32;
-                    
+
                     post.upvotes = upvotes;
                     post.downvotes = downvotes;
                 }
-                
+
                 Ok(())
             }
             UserType::RealUser(_) => {
                 // For real users, store in actual database
                 let vote_repo = VoteRepository::new(self.pool.clone());
                 vote_repo.upsert_vote(&vote.user_id, &vote.post_id, vote.direction)?;
-                
+
                 // Update post vote counts
                 let post_repo = PostRepository::new(self.pool.clone());
                 post_repo.update_vote_counts(&vote.post_id)
             }
         }
     }
-    
+
     fn reset_test_data(&self) -> Result<()> {
         match &self.context.user_type {
             UserType::TestUser(test_id) => {
@@ -273,7 +298,7 @@ impl DatabaseOperations for ContextualDatabaseOperations {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use fido_types::{VoteDirection};
+    use fido_types::VoteDirection;
 
     fn create_test_post(author_id: Uuid, content: &str) -> Post {
         Post {
@@ -305,14 +330,14 @@ mod tests {
     #[test]
     fn test_isolated_data_operations() {
         let mut data = IsolatedData::new();
-        
+
         // Test adding a post
         let post = create_test_post(Uuid::new_v4(), "Test post content");
         data.posts.push(post.clone());
-        
+
         assert_eq!(data.posts.len(), 1);
         assert_eq!(data.posts[0].content, "Test post content");
-        
+
         // Test reset
         data.reset();
         assert!(data.is_empty());
@@ -323,12 +348,12 @@ mod tests {
         let mut data = IsolatedData::new();
         let user_id = Uuid::new_v4();
         let post_id = Uuid::new_v4();
-        
+
         // Add a post
         let mut post = create_test_post(user_id, "Test post");
         post.id = post_id;
         data.posts.push(post);
-        
+
         // Add a vote
         let vote = Vote {
             user_id,
@@ -337,7 +362,7 @@ mod tests {
             created_at: Utc::now(),
         };
         data.votes.push(vote);
-        
+
         assert_eq!(data.votes.len(), 1);
         assert_eq!(data.votes[0].direction, VoteDirection::Up);
     }
@@ -347,7 +372,7 @@ mod tests {
 
     // **Feature: web-terminal-interface, Property 5: Test User Data Isolation**
     // **Validates: Requirements 3.1, 3.3, 3.4**
-    // For any test user action (post creation, voting, messaging), the resulting data 
+    // For any test user action (post creation, voting, messaging), the resulting data
     // should never appear in production user queries or feeds.
     proptest! {
         #[test]
@@ -362,23 +387,23 @@ mod tests {
             prop_assert!(test_context.is_test_user());
             let expected_key = format!("test_{}", test_user_id);
             prop_assert_eq!(test_context.isolation_key(), Some(expected_key.as_str()));
-            
+
             // Create real user context
             let real_context = UserContext::real_user("github123".to_string());
             prop_assert!(real_context.is_real_user());
             prop_assert_eq!(real_context.isolation_key(), None);
-            
+
             // Test that test user data is isolated
             let mut test_data = IsolatedData::new();
-            
+
             // Add test user post
             let test_post = create_test_post(Uuid::new_v4(), &post_content);
             test_data.posts.push(test_post.clone());
-            
+
             // Verify test data exists in isolation
             prop_assert_eq!(test_data.posts.len(), 1);
             prop_assert_eq!(&test_data.posts[0].content, &post_content);
-            
+
             // Verify isolation key is correctly formatted
             prop_assert_eq!(test_context.isolation_key(), Some(expected_key.as_str()));
         }
@@ -386,7 +411,7 @@ mod tests {
 
     // **Feature: web-terminal-interface, Property 6: Test User Data Reset on Load**
     // **Validates: Requirements 3.2**
-    // For any web interface load event, all existing test user data should be 
+    // For any web interface load event, all existing test user data should be
     // completely reset to a clean initial state.
     proptest! {
         #[test]
@@ -396,12 +421,12 @@ mod tests {
         ) {
             // Create isolated data with some test content
             let mut test_data = IsolatedData::new();
-            
+
             // Add various types of test data
             for (i, content) in post_contents.iter().enumerate() {
                 let post = create_test_post(Uuid::new_v4(), content);
                 test_data.posts.push(post);
-                
+
                 // Add some votes
                 let vote = Vote {
                     user_id: Uuid::new_v4(),
@@ -411,15 +436,15 @@ mod tests {
                 };
                 test_data.votes.push(vote);
             }
-            
+
             // Verify data exists before reset
             prop_assert!(!test_data.is_empty());
             prop_assert_eq!(test_data.posts.len(), post_contents.len());
             prop_assert_eq!(test_data.votes.len(), post_contents.len());
-            
+
             // Simulate web interface load - reset all test data
             test_data.reset();
-            
+
             // Verify all data is completely reset
             prop_assert!(test_data.is_empty());
             prop_assert_eq!(test_data.posts.len(), 0);

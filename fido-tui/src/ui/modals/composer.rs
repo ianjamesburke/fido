@@ -6,9 +6,9 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::App;
 use super::super::theme::get_theme_colors;
 use super::utils::centered_rect;
+use crate::app::App;
 
 /// Render unified composer modal (new post, reply, edit post, edit bio)
 pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rect) {
@@ -33,7 +33,10 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
             }) => {
                 let context_width = area.width.saturating_sub(24).min(66) as usize;
                 let truncated_content = if parent_content.chars().count() > context_width {
-                    let truncated: String = parent_content.chars().take(context_width.saturating_sub(3)).collect();
+                    let truncated: String = parent_content
+                        .chars()
+                        .take(context_width.saturating_sub(3))
+                        .collect();
                     format!("{}...", truncated)
                 } else {
                     parent_content.clone()
@@ -72,9 +75,13 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
                 280,
                 "Type to edit | Enter: Submit | Esc: Cancel",
             ),
-            Some(ComposerMode::EditBio) => {
-                ("Edit Bio", false, vec![], 160, "Type to edit | Enter: Submit | Esc: Cancel")
-            }
+            Some(ComposerMode::EditBio) => (
+                "Edit Bio",
+                false,
+                vec![],
+                160,
+                "Type to edit | Enter: Submit | Esc: Cancel",
+            ),
             None => return, // Should never happen
         };
 
@@ -93,7 +100,11 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
     let outer_block = Block::default()
         .title(format!(" {} ", title))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+        .border_style(
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )
         .style(Style::default().bg(theme.background));
 
     let inner = outer_block.inner(modal_area);
@@ -142,7 +153,7 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
         .borders(Borders::ALL)
         .title("Content")
         .border_style(Style::default().fg(theme.primary));
-    
+
     let inner_content_area = content_block.inner(content_area);
     frame.render_widget(content_block, content_area);
 

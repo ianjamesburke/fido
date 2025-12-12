@@ -514,10 +514,7 @@ impl PostDetailState {
         let mut children_map: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
         for reply in &self.replies {
             if let Some(parent_id) = reply.parent_post_id {
-                children_map
-                    .entry(parent_id)
-                    .or_default()
-                    .push(reply.id);
+                children_map.entry(parent_id).or_default().push(reply.id);
             }
         }
 
