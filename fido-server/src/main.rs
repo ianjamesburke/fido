@@ -254,10 +254,6 @@ async fn main() {
             post(api::web_session::reset_test_data),
         )
         .route("/web/mode", get(api::web_session::get_mode_info))
-        .route(
-            "/web/write-session",
-            post(api::web_session::write_session_file),
-        )
         .with_state(state.clone())
         .layer(axum_middleware::from_fn_with_state(
             state,

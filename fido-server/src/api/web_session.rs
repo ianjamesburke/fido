@@ -214,52 +214,6 @@ pub async fn get_mode_info() -> ApiResult<Json<serde_json::Value>> {
     })))
 }
 
-/// Request to write session info to temporary file
-#[derive(Deserialize)]
-pub struct WriteSessionRequest {
-    pub session_token: String,
-    pub user: User,
-}
-
-/// POST /web/write-session - Write session info to temporary file
-///
-/// Writes session information to a temporary file that the terminal can read.
-/// This enables the web interface to pass authentication to the terminal.
-pub async fn write_session_file(
-    Json(payload): Json<WriteSessionRequest>,
-) -> ApiResult<Json<serde_json::Value>> {
-    use std::fs;
-    use std::path::Path;
-
-    // Create temp directory if it doesn't exist
-    let temp_dir = Path::new("temp");
-    if !temp_dir.exists() {
-        fs::create_dir_all(temp_dir).map_err(|e| {
-            ApiError::InternalError(format!("Failed to create temp directory: {}", e))
-        })?;
-    }
-
-    // Write session info to temporary file
-    let session_info = serde_json::json!({
-        "session_token": payload.session_token,
-        "user": payload.user,
-        "timestamp": chrono::Utc::now().to_rfc3339()
-    });
-
-    let session_file = temp_dir.join("web_session.json");
-    let json_content = serde_json::to_string_pretty(&session_info)
-        .map_err(|e| ApiError::InternalError(format!("Failed to serialize session data: {}", e)))?;
-
-    fs::write(&session_file, json_content)
-        .map_err(|e| ApiError::InternalError(format!("Failed to write session file: {}", e)))?;
-
-    tracing::info!("Wrote web session file for user: {}", payload.user.username);
-
-    Ok(Json(serde_json::json!({
-        "message": "Session file written successfully",
-        "timestamp": chrono::Utc::now().to_rfc3339()
-    })))
-}
 
 #[cfg(test)]
 mod tests {
@@ -285,13 +239,19 @@ mod tests {
     #[test]
     fn test_web_mode_detection() {
         // Test environment variable detection
-        std::env::remove_var("FIDO_WEB_MODE");
+        unsafe {
+            std::env::remove_var("FIDO_WEB_MODE");
+        }
         assert!(!std::env::var("FIDO_WEB_MODE").is_ok());
 
-        std::env::set_var("FIDO_WEB_MODE", "true");
+        unsafe {
+            std::env::set_var("FIDO_WEB_MODE", "true");
+        }
         assert!(std::env::var("FIDO_WEB_MODE").is_ok());
 
-        std::env::remove_var("FIDO_WEB_MODE");
+        unsafe {
+            std::env::remove_var("FIDO_WEB_MODE");
+        }
     }
 
     // Property-based tests

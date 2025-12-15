@@ -352,6 +352,7 @@ impl App {
     }
 
     /// Create a new App with a custom server URL (deprecated - use with_server_url_and_config)
+    #[deprecated(since = "0.2.0", note = "Please use `with_server_url_and_config` instead")]
     pub fn with_server_url(server_url: String) -> Self {
         let server_config_manager = crate::server_config::ServerConfigManager::new()
             .expect("Failed to initialize server config manager");
