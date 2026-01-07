@@ -18,19 +18,24 @@ https://fido-social.fly.dev/
 
 ## Installation
 
-### MacOS (untested on Windows)
+### Option 1: Install from crates.io
 
 First, make sure you have [Rust](https://rustup.rs/) installed
 
 ```bash
-brew install rust 
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Install Fido
+cargo install fido
 ```
 
-
-Then install Fido:
+### Option 2: Build from source
 
 ```bash
-cargo install fido
+git clone https://github.com/ianburke/fido.git
+cd fido
+cargo build --release
 ```
 
 ## Quick Start
@@ -65,20 +70,63 @@ See [QUICKSTART.md](QUICKSTART.md) for more details.
 - `?` - Help
 - `q` - Quit
 
+## Development Scripts
+
+### Web Terminal Demo
+
+Launch the full web-based terminal demo (includes nginx, ttyd, and server):
+
+```bash
+./start.sh
+```
+
+This script:
+- Builds the Rust binaries if needed
+- Starts the Fido API server on port 3000
+- Runs ttyd (terminal-over-web) on port 7681  
+- Configures nginx as a reverse proxy on port 8080
+- Provides a web interface at http://localhost:8080
+
+The script works in both local development and Docker environments.
+
+### Publishing to Crates.io
+
+Publish new versions to crates.io with version checking:
+
+```bash
+./publish.sh
+```
+
+This script:
+- Validates version consistency across workspace crates
+- Checks if versions are already published
+- Runs dry-run tests before publishing
+- Publishes `fido-types` first, then `fido` (respects dependency order)
+- Handles the 20-second wait for crates.io indexing
+
 ## Tech Stack
 
-Built with Rust:
-- **Ratatui** - TUI framework
-- **Axum** - API server
-- **SQLite** - Database
+Built with Rust using a workspace architecture:
+
+### Core Crates
+- **fido-types** - Shared models and data structures
+- **fido-tui** - Terminal UI client (main binary, uses Ratatui)
+- **fido-server** - REST API server (Axum + SQLite)
+- **fido-migrate** - Database migration utilities
+
+### Technologies
+- **Ratatui** - Terminal UI framework
+- **Axum** - Fast, ergonomic web framework
+- **SQLite** - Lightweight database with r2d2 connection pooling
+- **tokio** - Async runtime
+- **oauth2** - GitHub authentication
 - Deployed on Fly.io
 
 ## Documentation
 
 - [QUICKSTART.md](QUICKSTART.md) - Detailed getting started guide
-- [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Server deployment guide
-- [ARCHITECTURE.md](ARCHITECTURE.md) - System design
+- [ARCHITECTURE.md](ARCHITECTURE.md) - System design and technical details
+- [CLAUDE.md](CLAUDE.md) - Development guidance for AI assistants
 
 ## Troubleshooting
 
@@ -87,17 +135,51 @@ Built with Rust:
 **UI look weird?** Use a modern terminal with UTF-8 support (iTerm2, Alacritty, Ghostty).
 
 
-## Contributing
+## Development
 
-Want to help? Check out [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions.
+### Local Development Setup
 
-To run locally:
+To run Fido locally for development:
+
 ```bash
+# Clone the repository
+git clone https://github.com/ianburke/fido.git
+cd fido
+
+# Build the workspace
+cargo build
+
 # Start the server
 cargo run --bin fido-server
 
 # In another terminal, connect to it
-fido --server http://localhost:3000
+cargo run --bin fido -- --server http://localhost:3000
+```
+
+### Testing
+
+```bash
+# Run all tests
+cargo test
+
+# Run tests for specific crate
+cargo test -p fido-server
+cargo test -p fido-tui
+cargo test -p fido-types
+
+# Format code
+cargo fmt
+
+# Check for linting issues
+cargo clippy
+```
+
+### Web Demo
+
+For the full web terminal experience (see Development Scripts above):
+
+```bash
+./start.sh
 ```
 
 ## License

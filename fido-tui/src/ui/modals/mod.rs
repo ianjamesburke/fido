@@ -1,15 +1,15 @@
 // Modal rendering modules
-mod utils;
 mod composer;
+mod filters;
+mod help;
 mod posts;
 mod social;
 mod social_components;
-mod filters;
-mod help;
+mod utils;
 
 // Re-export all public functions
 pub use composer::*;
-pub use posts::*;
-pub use social::*;
 pub use filters::*;
 pub use help::*;
+pub use posts::*;
+pub use social::*;

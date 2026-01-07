@@ -19,6 +19,9 @@ pub enum ApiError {
 
     #[error("Bad request: {0}")]
     BadRequest(String),
+
+    #[error("Rate limit exceeded: {0}")]
+    TooManyRequests(String),
 }
 
 pub type ApiResult<T> = Result<T, ApiError>;

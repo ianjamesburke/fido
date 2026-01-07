@@ -1,0 +1,172 @@
+# Implementation Plan
+
+- [x] 1. Create MockBackend core structure
+  - [x] 1.1 Create mock_backend.rs with MockBackend struct and MockData
+    - Define MockBackend with Arc<Mutex<MockData>> for thread-safe in-memory storage
+    - Define MockData struct with users, posts, messages, votes, followed_hashtags, configs
+    - Implement MockBackend::new() that initializes with sample data
+    - _Requirements: 5.3, 7.3_
+  - [ ]* 1.2 Write property test for test user authentication
+    - **Property 1: Test user authentication succeeds**
+    - **Validates: Requirements 1.4**
+  - [x] 1.3 Implement authentication methods (get_test_users, login)
+    - get_test_users returns all users from MockData
+    - login finds user by username, generates demo session token, stores current_user
+    - Return ApiError::NotFound for invalid usernames
+    - _Requirements: 1.3, 1.4_
+
+- [x] 2. Implement sample data generator
+  - [x] 2.1 Create sample_data.rs with test users
+    - Create 4 test users: demo_user, alice, bob, charlie
+    - Each user has unique UUID, username, bio, join_date
+    - demo_user is the default login option
+    - _Requirements: 1.3, 2.1_
+  - [x] 2.2 Create sample posts with hashtags and replies
+    - Generate 15-20 sample posts from different test users
+    - Include hashtags: #rust, #terminal, #fido, #coding, #opensource
+    - Vary upvotes/downvotes (0-50 range)
+    - Create 5-10 replies threaded under some posts
+    - _Requirements: 2.1, 2.2_
+  - [x] 2.3 Create sample DM conversations
+    - Pre-populate 2-3 conversations between test users
+    - Include 3-5 messages per conversation
+    - Set realistic timestamps
+    - _Requirements: 4.1_
+
+- [x] 3. Implement post operations in MockBackend
+  - [x] 3.1 Implement get_posts with sorting and filtering
+    - Support limit, sort (newest/oldest/top), hashtag filter, username filter
+    - Sort by created_at (newest/oldest) or by score (top)
+    - Filter by hashtag presence in post.hashtags
+    - _Requirements: 2.3, 2.4_
+  - [ ]* 3.2 Write property test for post sort order
+    - **Property 2: Post sort order consistency**
+    - **Validates: Requirements 2.3**
+  - [ ]* 3.3 Write property test for hashtag filter
+    - **Property 3: Hashtag filter correctness**
+    - **Validates: Requirements 2.4**
+  - [x] 3.4 Implement create_post with hashtag extraction
+    - Generate new UUID for post
+    - Extract hashtags from content (words starting with #)
+    - Add to MockData.posts
+    - _Requirements: 3.1, 3.2_
+  - [ ]* 3.5 Write property test for post creation round-trip
+    - **Property 4: Post creation round-trip**
+    - **Validates: Requirements 3.1**
+  - [ ]* 3.6 Write property test for hashtag extraction
+    - **Property 5: Hashtag extraction accuracy**
+    - **Validates: Requirements 3.2**
+  - [x] 3.7 Implement vote_on_post
+    - Check if user already voted on post
+    - If same direction, remove vote (toggle off)
+    - If different direction, change vote
+    - If no existing vote, add new vote
+    - Update post upvotes/downvotes counts
+    - _Requirements: 3.3_
+  - [ ]* 3.8 Write property test for vote consistency
+    - **Property 6: Vote count consistency**
+    - **Validates: Requirements 3.3**
+  - [x] 3.9 Implement get_replies and create_reply
+    - get_replies filters posts by parent_post_id
+    - create_reply creates post with parent_post_id set
+    - Increment parent post's reply_count
+    - _Requirements: 3.4_
+  - [ ]* 3.10 Write property test for reply linkage
+    - **Property 7: Reply parent linkage integrity**
+    - **Validates: Requirements 3.4**
+
+- [x] 5. Implement DM operations in MockBackend
+  - [x] 5.1 Implement get_conversations
+    - Group messages by conversation partner
+    - Return list with other_user info, last message, unread count
+    - Sort by most recent message
+    - _Requirements: 4.1_
+  - [x] 5.2 Implement get_conversation and send_message
+    - get_conversation returns messages between current user and specified user
+    - send_message creates new DirectMessage, adds to MockData.messages
+    - _Requirements: 4.2, 4.3, 4.4_
+  - [ ]* 5.3 Write property test for message round-trip
+    - **Property 8: Message send round-trip**
+    - **Validates: Requirements 4.2**
+  - [ ]* 5.4 Write property test for message ordering
+    - **Property 9: Message chronological ordering**
+    - **Validates: Requirements 4.3**
+  - [ ]* 5.5 Write property test for conversation creation
+    - **Property 10: Conversation creation**
+    - **Validates: Requirements 4.4**
+
+- [x] 6. Implement remaining MockBackend methods
+  - [x] 6.1 Implement profile methods (get_profile, update_bio)
+    - get_profile returns UserProfile for user_id
+    - update_bio updates user's bio in MockData
+    - _Requirements: 7.3_
+  - [x] 6.2 Implement config methods (get_config, update_config)
+    - get_config returns or creates default UserConfig for current user
+    - update_config updates color_scheme, sort_order, max_posts_display
+    - _Requirements: 7.3_
+  - [x] 6.3 Implement hashtag methods (get_followed_hashtags, follow_hashtag, unfollow_hashtag)
+    - Store followed hashtags per user in MockData
+    - _Requirements: 7.3_
+  - [ ]* 6.4 Write property test for error message safety
+    - **Property 11: Error message safety**
+    - **Validates: Requirements 8.4**
+
+- [x] 7. Integrate MockBackend with fido-tui
+  - [x] 7.1 Add demo mode detection to main.rs
+    - Check for FIDO_DEMO_MODE environment variable
+    - If set, use MockBackend instead of ApiClient
+    - Display welcome banner indicating demo mode
+    - _Requirements: 5.2, 7.3_
+  - [x] 7.2 Create backend abstraction for App
+    - Modify App to accept either ApiClient or MockBackend
+    - Use enum or trait object to switch between backends
+    - Ensure all existing functionality works with both backends
+    - _Requirements: 7.2, 7.3_
+  - [x] 7.3 Add demo mode welcome message
+    - Display banner on login screen: "🎮 DEMO MODE - Data is temporary"
+    - Show available test users prominently
+    - _Requirements: 1.2, 5.2_
+
+- [x] 8. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 9. Create deployment configuration
+  - [x] 9.1 Create nginx.conf
+    - Configure upstream servers for fido-server and ttyd
+    - Set up routing: / for static, /ttyd for terminal, /* for API
+    - Add WebSocket upgrade headers for ttyd
+    - Add security headers (CSP, X-Frame-Options)
+    - Add health check endpoint
+    - _Requirements: 8.1, 8.2_
+  - [x] 9.2 Create supervisord.conf
+    - Configure fido-server process
+    - Configure ttyd with flags: -o -O -b /ttyd -m 10
+    - Configure nginx process
+    - Set up log rotation
+    - _Requirements: 8.3_
+  - [x] 9.3 Update Dockerfile
+    - Install ttyd, nginx, supervisor, curl
+    - Copy all config files
+    - Add HEALTHCHECK instruction
+    - Set CMD to supervisord
+    - _Requirements: 8.2_
+  - [x] 9.4 Update fly.toml
+    - Change internal_port to 8080 (nginx)
+    - Add health check configuration
+    - Increase memory to 1024MB
+    - _Requirements: 8.2_
+
+- [x] 10. Update web landing page
+  - [x] 10.1 Update index.html with embedded terminal
+    - Replace "Coming Soon" section with terminal iframe
+    - Add demo mode banner
+    - Style terminal container for responsive display
+    - _Requirements: 1.1, 1.2_
+  - [x] 10.2 Update style.css for terminal embedding
+    - Style terminal container with appropriate dimensions
+    - Add demo banner styling
+    - Ensure responsive layout
+    - _Requirements: 1.1_
+
+- [x] 11. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

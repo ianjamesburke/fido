@@ -5,7 +5,7 @@ use std::time::Instant;
 use tui_textarea::TextArea;
 use uuid::Uuid;
 
-use crate::api::ApiClient;
+use crate::api::Backend;
 
 /// Get platform-appropriate modifier key name for display
 /// Returns "Cmd" on macOS, "Ctrl" on other platforms
@@ -143,7 +143,7 @@ pub struct UserSearchResult {
 pub struct App {
     pub running: bool,
     pub current_screen: Screen,
-    pub api_client: ApiClient,
+    pub api_client: Backend,
     pub auth_state: AuthState,
     pub current_tab: Tab,
     pub posts_state: PostsState,
@@ -162,6 +162,9 @@ pub struct App {
     pub user_search_state: UserSearchState,
     pub user_profile_view: Option<UserProfileViewState>,
     pub log_config: crate::logging::LogConfig,
+    pub is_demo_mode: bool,
+    /// Latest version available on crates.io (if newer than current)
+    pub update_available: Option<String>,
 }
 
 /// Settings tab state
@@ -509,10 +512,7 @@ impl PostDetailState {
         let mut children_map: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
         for reply in &self.replies {
             if let Some(parent_id) = reply.parent_post_id {
-                children_map
-                    .entry(parent_id)
-                    .or_default()
-                    .push(reply.id);
+                children_map.entry(parent_id).or_default().push(reply.id);
             }
         }
 

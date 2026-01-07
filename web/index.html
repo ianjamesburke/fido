@@ -41,10 +41,20 @@
         </header>
 
         <section class="demo">
-            <h2>Web Interface Coming Soon</h2>
+            <h2>Try Fido in Your Browser</h2>
             <p class="demo-instructions">
-                The web interface is currently under development.
+                Experience the terminal interface right here. Use keyboard shortcuts to navigate:
+                <kbd>Tab</kbd> to switch tabs, <kbd>j</kbd>/<kbd>k</kbd> to scroll, <kbd>n</kbd> to compose a post.
             </p>
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <span class="terminal-button close"></span>
+                    <span class="terminal-button minimize"></span>
+                    <span class="terminal-button maximize"></span>
+                    <span class="terminal-title">fido-tui (demo)</span>
+                </div>
+                <iframe id="terminal" src="/ttyd/" title="Fido Terminal Demo"></iframe>
+            </div>
         </section>
 
         <section class="features">

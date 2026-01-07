@@ -1,38 +1,69 @@
-# Dockerfile - API server only
+# Fido Web Terminal - Multi-service Docker Image
+# Includes: fido-server (API), fido-tui (TUI), ttyd (web terminal), nginx (reverse proxy)
+
+# Stage 1: Build Rust binaries
 FROM rust:1.83 as builder
 
 WORKDIR /app
+
+# Copy workspace files
 COPY Cargo.toml Cargo.lock ./
 COPY fido-types ./fido-types
 COPY fido-server ./fido-server
 COPY fido-tui ./fido-tui
 COPY fido-migrate ./fido-migrate
 
-# Build the server
-RUN cargo build --release --bin fido-server
+# Build release binaries
+RUN cargo build --release --bin fido-server --bin fido
 
-# Runtime stage
+# Stage 2: Runtime image
 FROM debian:bookworm-slim
 
-# Install dependencies
+# Install runtime dependencies
 RUN apt-get update && \
-    apt-get install -y ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y \
+        ca-certificates \
+        nginx \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy binary and web assets
+# Install ttyd from GitHub releases (not available in Debian repos)
+RUN curl -L https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -o /usr/local/bin/ttyd && \
+    chmod +x /usr/local/bin/ttyd
+
+# Copy compiled binaries
 COPY --from=builder /app/target/release/fido-server /usr/local/bin/fido-server
-COPY web /web
+COPY --from=builder /app/target/release/fido /usr/local/bin/fido
 
-# Set environment variables
+# Copy configuration files
+COPY nginx.conf /etc/nginx/nginx.conf
+COPY start.sh /usr/local/bin/start.sh
+
+# Copy web assets
+COPY web /var/www/html
+
+# Make start script executable
+RUN chmod +x /usr/local/bin/start.sh
+
+# Create necessary directories
+RUN mkdir -p /data /var/log/fido && chmod 755 /data /var/log/fido
+
+# Environment variables
 ENV HOST=0.0.0.0
-ENV PORT=8080
+ENV PORT=3000
+ENV TTYD_PORT=7681
+ENV NGINX_PORT=8080
 ENV DATABASE_PATH=/data/fido.db
+ENV LOG_DIR=/var/log/fido
 ENV RUST_LOG=info
 ENV RUST_BACKTRACE=1
 
-# Create data directory
-RUN mkdir -p /data && chmod 755 /data
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
 
+# Expose nginx port (all services proxied through here)
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/local/bin/fido-server"]
+# Use start script as entrypoint
+ENTRYPOINT ["/usr/local/bin/start.sh"]

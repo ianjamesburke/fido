@@ -1,7 +1,6 @@
 /// Example showing different logging configurations
-/// 
+///
 /// Run with: cargo run --example logging_config
-
 use fido::logging::{LogConfig, LogFeatures};
 use log::LevelFilter;
 use std::path::PathBuf;
@@ -49,9 +48,9 @@ fn main() {
         clear_on_startup: false, // Append to existing log
         features: LogFeatures {
             modal_state: false,
-            key_events: true,    // Only key events
+            key_events: true, // Only key events
             rendering: false,
-            api_calls: true,     // And API calls
+            api_calls: true, // And API calls
             settings: false,
             general: false,
         },

@@ -6,9 +6,9 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::App;
 use super::super::theme::get_theme_colors;
 use super::utils::centered_rect;
+use crate::app::App;
 
 /// Render unified composer modal (new post, reply, edit post, edit bio)
 pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rect) {
@@ -33,7 +33,10 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
             }) => {
                 let context_width = area.width.saturating_sub(24).min(66) as usize;
                 let truncated_content = if parent_content.chars().count() > context_width {
-                    let truncated: String = parent_content.chars().take(context_width.saturating_sub(3)).collect();
+                    let truncated: String = parent_content
+                        .chars()
+                        .take(context_width.saturating_sub(3))
+                        .collect();
                     format!("{}...", truncated)
                 } else {
                     parent_content.clone()
@@ -72,11 +75,25 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
                 280,
                 "Type to edit | Enter: Submit | Esc: Cancel",
             ),
-            Some(ComposerMode::EditBio) => {
-                ("Edit Bio", false, vec![], 160, "Type to edit | Enter: Submit | Esc: Cancel")
-            }
+            Some(ComposerMode::EditBio) => (
+                "Edit Bio",
+                false,
+                vec![],
+                160,
+                "Type to edit | Enter: Submit | Esc: Cancel",
+            ),
             None => return, // Should never happen
         };
+
+    // Get error message if any
+    let error_message = match &app.composer_state.mode {
+        Some(ComposerMode::NewPost) => app.posts_state.error.clone(),
+        Some(ComposerMode::Reply { .. }) | Some(ComposerMode::EditPost { .. }) => {
+            app.post_detail_state.as_ref().and_then(|s| s.error.clone())
+        }
+        Some(ComposerMode::EditBio) => app.profile_state.error.clone(),
+        None => None,
+    };
 
     // Create centered modal area
     // Reply modal is smaller (70% width, 56% height) to show thread context behind it
@@ -93,27 +110,37 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
     let outer_block = Block::default()
         .title(format!(" {} ", title))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+        .border_style(
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )
         .style(Style::default().bg(theme.background));
 
     let inner = outer_block.inner(modal_area);
     frame.render_widget(outer_block, modal_area);
 
     // Create modal layout
-    let constraints = if has_context {
+    let mut constraints = if has_context {
         vec![
             Constraint::Length(4), // Context
             Constraint::Min(0),    // Content
             Constraint::Length(3), // Character counter
-            Constraint::Length(3), // Instructions (needs 3 for border + text)
         ]
     } else {
         vec![
             Constraint::Min(0),    // Content
             Constraint::Length(3), // Character counter
-            Constraint::Length(3), // Instructions (needs 3 for border + text)
         ]
     };
+
+    // Add space for error if present
+    if error_message.is_some() {
+        constraints.push(Constraint::Length(3)); // Error message
+    }
+
+    // Instructions always at bottom
+    constraints.push(Constraint::Length(3));
 
     let modal_chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -142,7 +169,7 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
         .borders(Borders::ALL)
         .title("Content")
         .border_style(Style::default().fg(theme.primary));
-    
+
     let inner_content_area = content_block.inner(content_area);
     frame.render_widget(content_block, content_area);
 
@@ -173,6 +200,20 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
         );
     frame.render_widget(counter, modal_chunks[chunk_idx]);
     chunk_idx += 1;
+
+    // Error message (if present)
+    if let Some(err) = error_message {
+        let error_widget = Paragraph::new(err)
+            .style(Style::default().fg(theme.error).add_modifier(Modifier::BOLD))
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.error)),
+            );
+        frame.render_widget(error_widget, modal_chunks[chunk_idx]);
+        chunk_idx += 1;
+    }
 
     // Instructions - context-sensitive shortcuts
     let instructions_widget = Paragraph::new(instructions)

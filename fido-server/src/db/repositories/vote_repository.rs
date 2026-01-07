@@ -17,9 +17,14 @@ impl VoteRepository {
     }
 
     /// Upsert a vote (insert or update if exists)
-    pub fn upsert_vote(&self, user_id: &Uuid, post_id: &Uuid, direction: VoteDirection) -> Result<()> {
+    pub fn upsert_vote(
+        &self,
+        user_id: &Uuid,
+        post_id: &Uuid,
+        direction: VoteDirection,
+    ) -> Result<()> {
         let conn = self.pool.get()?;
-        
+
         conn.execute(
             "INSERT INTO votes (user_id, post_id, direction, created_at) 
              VALUES (?, ?, ?, ?)
@@ -31,8 +36,9 @@ impl VoteRepository {
                 direction.as_str(),
                 Utc::now().to_rfc3339(),
             ),
-        ).context("Failed to upsert vote")?;
-        
+        )
+        .context("Failed to upsert vote")?;
+
         Ok(())
     }
 
@@ -42,12 +48,11 @@ impl VoteRepository {
         let mut stmt = conn.prepare(
             "SELECT user_id, post_id, direction, created_at 
              FROM votes 
-             WHERE user_id = ? AND post_id = ?"
+             WHERE user_id = ? AND post_id = ?",
         )?;
 
-        let vote = stmt.query_row(
-            (user_id.to_string(), post_id.to_string()),
-            |row| {
+        let vote = stmt
+            .query_row((user_id.to_string(), post_id.to_string()), |row| {
                 let direction_str: String = row.get(2)?;
                 Ok(Vote {
                     user_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
@@ -55,8 +60,8 @@ impl VoteRepository {
                     direction: VoteDirection::parse(&direction_str).unwrap(),
                     created_at: row.get::<_, String>(3)?.parse().unwrap(),
                 })
-            }
-        ).optional()?;
+            })
+            .optional()?;
 
         Ok(vote)
     }
@@ -68,7 +73,8 @@ impl VoteRepository {
         conn.execute(
             "DELETE FROM votes WHERE user_id = ? AND post_id = ?",
             (user_id.to_string(), post_id.to_string()),
-        ).context("Failed to delete vote")?;
+        )
+        .context("Failed to delete vote")?;
         Ok(())
     }
 

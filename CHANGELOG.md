@@ -15,6 +15,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.1.8] - 2026-01-07
+
+- Literally just testing the outdated version banner so needed a version bump.
+- Apologies for the braindead vibe coding smell. 
+- sorry not sorry.
+- this shits fun get off my ass.
+- luv you.
+
+## [0.1.7] - 2026-01-07
+
+### Added
+- Update availability checking with notification banner in TUI
+- Self-update functionality via `--update` CLI flag
+
+### Changed
+- Expanded README with installation options and development guide
+- Improved dry-run checks and dependency handling in publish script
+
+## [0.1.6] - 2026-01-07
+
+### Added
+- Web terminal demo mode with ttyd integration
+- Rate limit handling with improved error display in TUI
+
+### Changed
+- Extended session expiration and improved logging defaults
+- Simplified demo mode banner and terminal title
+- Install ttyd from GitHub releases with improved environment detection
+
 ## [0.1.5] - 2024-12-11
 
 ### Changed

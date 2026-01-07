@@ -37,8 +37,9 @@ pub struct LogFeatures {
 
 impl Default for LogConfig {
     fn default() -> Self {
+        // Production default: logging disabled to avoid writing files to user's system
         Self {
-            enabled: true,
+            enabled: false,
             log_file: PathBuf::from("fido_debug.log"),
             clear_on_startup: true,
             features: LogFeatures::default(),
@@ -108,11 +109,7 @@ impl LogConfig {
 pub fn init_logging(config: &LogConfig) -> anyhow::Result<()> {
     if !config.enabled {
         // Initialize with no-op logger
-        let _ = WriteLogger::init(
-            LevelFilter::Off,
-            Config::default(),
-            std::io::sink(),
-        );
+        let _ = WriteLogger::init(LevelFilter::Off, Config::default(), std::io::sink());
         return Ok(());
     }
 
@@ -137,7 +134,11 @@ pub fn init_logging(config: &LogConfig) -> anyhow::Result<()> {
     // Initialize logger
     WriteLogger::init(config.level, log_config, log_file)?;
 
-    log::info!("Logging initialized: file={}, level={:?}", config.log_file.display(), config.level);
+    log::info!(
+        "Logging initialized: file={}, level={:?}",
+        config.log_file.display(),
+        config.level
+    );
     log::debug!("Log features: {:?}", config.features);
 
     Ok(())

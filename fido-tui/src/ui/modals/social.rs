@@ -6,21 +6,21 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::App;
 use super::super::theme::get_theme_colors;
-use super::utils::centered_rect;
 use super::social_components::*;
+use super::utils::centered_rect;
+use crate::app::App;
 
 // Implement UserListItem for existing types
 impl UserListItem for crate::api::SocialUserInfo {
     fn username(&self) -> &str {
         &self.username
     }
-    
+
     fn follower_count(&self) -> Option<usize> {
         Some(self.follower_count)
     }
-    
+
     fn following_count(&self) -> Option<usize> {
         Some(self.following_count)
     }
@@ -29,15 +29,15 @@ impl UserListItem for crate::api::SocialUserInfo {
 /// Render social connections modal (Following/Followers/Mutual Friends)
 pub fn render_friends_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
-    
+
     use super::social_components::*;
-    
+
     let config = SocialModalConfig {
         title: " Social Connections ",
         width_percent: 70,
         height_percent: 80,
     };
-    
+
     let inner = create_modal_container(frame, area, &config, &theme);
 
     if app.friends_state.loading {
@@ -52,10 +52,10 @@ pub fn render_friends_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Tab bar
-            Constraint::Length(3),  // Search bar
-            Constraint::Min(0),     // User list
-            Constraint::Length(3),  // Footer (needs 3 for border + text)
+            Constraint::Length(3), // Tab bar
+            Constraint::Length(3), // Search bar
+            Constraint::Min(0),    // User list
+            Constraint::Length(3), // Footer (needs 3 for border + text)
         ])
         .split(inner);
 
@@ -68,33 +68,61 @@ pub fn render_friends_modal(frame: &mut Frame, app: &mut App, area: Rect) {
 
     // Build tab bar as a single line with spans
     let mut tab_spans = Vec::new();
-    
+
     // Following tab
     if selected_tab_index == 0 {
-        tab_spans.push(Span::styled(" [Following] ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)));
+        tab_spans.push(Span::styled(
+            " [Following] ",
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ));
     } else {
-        tab_spans.push(Span::styled("  Following  ", Style::default().fg(theme.text_dim)));
+        tab_spans.push(Span::styled(
+            "  Following  ",
+            Style::default().fg(theme.text_dim),
+        ));
     }
     tab_spans.push(Span::raw(" | "));
-    
+
     // Followers tab
     if selected_tab_index == 1 {
-        tab_spans.push(Span::styled(" [Followers] ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)));
+        tab_spans.push(Span::styled(
+            " [Followers] ",
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ));
     } else {
-        tab_spans.push(Span::styled("  Followers  ", Style::default().fg(theme.text_dim)));
+        tab_spans.push(Span::styled(
+            "  Followers  ",
+            Style::default().fg(theme.text_dim),
+        ));
     }
     tab_spans.push(Span::raw(" | "));
-    
+
     // Mutual Friends tab
     if selected_tab_index == 2 {
-        tab_spans.push(Span::styled(" [Mutual Friends] ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)));
+        tab_spans.push(Span::styled(
+            " [Mutual Friends] ",
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ));
     } else {
-        tab_spans.push(Span::styled("  Mutual Friends  ", Style::default().fg(theme.text_dim)));
+        tab_spans.push(Span::styled(
+            "  Mutual Friends  ",
+            Style::default().fg(theme.text_dim),
+        ));
     }
-    
+
     let tab_bar = Paragraph::new(Line::from(tab_spans))
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.border)));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border)),
+        );
     frame.render_widget(tab_bar, chunks[0]);
 
     // Render search bar
@@ -107,8 +135,16 @@ pub fn render_friends_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     };
 
     let search_bar = Paragraph::new(search_text)
-        .style(Style::default().fg(if app.friends_state.search_mode { theme.accent } else { theme.text_dim }))
-        .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.border)));
+        .style(Style::default().fg(if app.friends_state.search_mode {
+            theme.accent
+        } else {
+            theme.text_dim
+        }))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border)),
+        );
     frame.render_widget(search_bar, chunks[1]);
 
     // Get filtered user list
@@ -151,7 +187,11 @@ pub fn render_friends_modal(frame: &mut Frame, app: &mut App, area: Rect) {
             .highlight_symbol(">> ");
 
         let mut list_state = ListState::default();
-        list_state.select(Some(app.friends_state.selected_index.min(filtered_users.len().saturating_sub(1))));
+        list_state.select(Some(
+            app.friends_state
+                .selected_index
+                .min(filtered_users.len().saturating_sub(1)),
+        ));
 
         frame.render_stateful_widget(list, chunks[2], &mut list_state);
     }
@@ -192,7 +232,11 @@ pub fn render_user_profile_view(frame: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(" User Profile ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+        .border_style(
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )
         .style(Style::default().bg(theme.background));
 
     let inner = block.inner(modal_area);
@@ -286,7 +330,9 @@ pub fn render_user_profile_view(frame: &mut Frame, app: &App, area: Rect) {
     // Render actions footer with context-sensitive shortcuts
     let actions_text = match &profile.relationship {
         crate::app::RelationshipStatus::Self_ => "Esc: Cancel",
-        crate::app::RelationshipStatus::MutualFriends => "f: Follow/Unfollow | m: Message | Esc: Cancel",
+        crate::app::RelationshipStatus::MutualFriends => {
+            "f: Follow/Unfollow | m: Message | Esc: Cancel"
+        }
         crate::app::RelationshipStatus::Following => "f: Follow/Unfollow | Esc: Cancel",
         crate::app::RelationshipStatus::FollowsYou => "f: Follow/Unfollow | Esc: Cancel",
         crate::app::RelationshipStatus::None => "f: Follow/Unfollow | Esc: Cancel",
@@ -316,7 +362,11 @@ pub fn render_new_conversation_modal(frame: &mut Frame, app: &mut App, area: Rec
     let block = Block::default()
         .title(" New Conversation ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+        .border_style(
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )
         .style(Style::default().bg(theme.background));
 
     let inner = block.inner(modal_area);
@@ -326,9 +376,9 @@ pub fn render_new_conversation_modal(frame: &mut Frame, app: &mut App, area: Rec
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Search bar
-            Constraint::Min(0),     // User list
-            Constraint::Length(3),  // Footer (needs 3 for border + text)
+            Constraint::Length(3), // Search bar
+            Constraint::Min(0),    // User list
+            Constraint::Length(3), // Footer (needs 3 for border + text)
         ])
         .split(inner);
 
@@ -342,8 +392,18 @@ pub fn render_new_conversation_modal(frame: &mut Frame, app: &mut App, area: Rec
     };
 
     let search_bar = Paragraph::new(search_text)
-        .style(Style::default().fg(if app.dms_state.new_conversation_search_mode { theme.accent } else { theme.text_dim }))
-        .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.border)));
+        .style(
+            Style::default().fg(if app.dms_state.new_conversation_search_mode {
+                theme.accent
+            } else {
+                theme.text_dim
+            }),
+        )
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border)),
+        );
     frame.render_widget(search_bar, chunks[0]);
 
     // Get filtered user list
@@ -382,7 +442,11 @@ pub fn render_new_conversation_modal(frame: &mut Frame, app: &mut App, area: Rec
             .highlight_symbol(">> ");
 
         let mut list_state = ListState::default();
-        list_state.select(Some(app.dms_state.new_conversation_selected_index.min(filtered_users.len().saturating_sub(1))));
+        list_state.select(Some(
+            app.dms_state
+                .new_conversation_selected_index
+                .min(filtered_users.len().saturating_sub(1)),
+        ));
 
         frame.render_stateful_widget(list, chunks[1], &mut list_state);
     }
@@ -458,13 +522,17 @@ pub fn render_user_search_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     // Create modal container using shared component
     let modal_area = centered_rect(70, 80, area);
     frame.render_widget(Clear, modal_area);
-    
+
     let block = Block::default()
         .title(" Search Users ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+        .border_style(
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )
         .style(Style::default().bg(theme.background));
-    
+
     let inner = block.inner(modal_area);
     frame.render_widget(block, modal_area);
 
@@ -481,9 +549,9 @@ pub fn render_user_search_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Search bar
-            Constraint::Min(0),     // User list
-            Constraint::Length(3),  // Footer
+            Constraint::Length(3), // Search bar
+            Constraint::Min(0),    // User list
+            Constraint::Length(3), // Footer
         ])
         .split(inner);
 
@@ -496,7 +564,11 @@ pub fn render_user_search_modal(frame: &mut Frame, app: &mut App, area: Rect) {
 
     let search_bar = Paragraph::new(search_text)
         .style(Style::default().fg(theme.accent))
-        .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.border)));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border)),
+        );
     frame.render_widget(search_bar, chunks[0]);
 
     // Render user list or empty state
@@ -530,26 +602,31 @@ pub fn render_user_search_modal(frame: &mut Frame, app: &mut App, area: Rect) {
             .highlight_symbol(">> ");
 
         let mut list_state = ListState::default();
-        list_state.select(Some(app.user_search_state.selected_index.min(results.len().saturating_sub(1))));
+        list_state.select(Some(
+            app.user_search_state
+                .selected_index
+                .min(results.len().saturating_sub(1)),
+        ));
 
         frame.render_stateful_widget(list, chunks[1], &mut list_state);
     }
 
     // Render footer
-    let footer = Paragraph::new("↑/↓/j/k: Navigate | Enter: View Profile | d: Send DM | Esc: Close")
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(theme.text))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
-        );
+    let footer =
+        Paragraph::new("↑/↓/j/k: Navigate | Enter: View Profile | d: Send DM | Esc: Close")
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(theme.text))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border)),
+            );
     frame.render_widget(footer, chunks[2]);
 }
 
 // TODO: Refactor all social modals to use shared components from social_components.rs
 // This will reduce code duplication by ~280 lines across:
 // - render_friends_modal
-// - render_new_conversation_modal  
+// - render_new_conversation_modal
 // - render_user_search_modal
 // See social_refactored_example.rs for the pattern

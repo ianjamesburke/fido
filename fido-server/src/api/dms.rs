@@ -3,7 +3,8 @@ use axum::{
     http::HeaderMap,
     Json,
 };
-use chrono::Utc;
+use chrono::{Duration, Utc};
+use rusqlite::OptionalExtension;
 use uuid::Uuid;
 
 use crate::{
@@ -19,10 +20,69 @@ fn get_user_from_headers(state: &AppState, headers: &HeaderMap) -> Result<Uuid, 
         .get("X-Session-Token")
         .and_then(|v| v.to_str().ok())
         .ok_or_else(|| ApiError::Unauthorized("Missing session token".to_string()))?;
-    
+
     state
         .get_authenticated_user_id_from_token(token)
         .ok_or_else(|| ApiError::Unauthorized("Invalid session token".to_string()))
+}
+
+/// Check if user has exceeded DM rate limit (1 DM per 1 second)
+fn check_dm_rate_limit(state: &AppState, user_id: &Uuid) -> Result<(), ApiError> {
+    let conn = state
+        .db
+        .pool
+        .get()
+        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+
+    // Query last DM time for this user
+    let last_dm_at: Option<String> = conn
+        .query_row(
+            "SELECT last_dm_at FROM dm_rate_limits WHERE user_id = ?",
+            [user_id.to_string()],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+
+    if let Some(last_dm_str) = last_dm_at {
+        // Parse the timestamp
+        let last_dm = chrono::DateTime::parse_from_rfc3339(&last_dm_str)
+            .map_err(|e| ApiError::InternalError(format!("Failed to parse timestamp: {}", e)))?
+            .with_timezone(&Utc);
+
+        let now = Utc::now();
+        let time_since_last_dm = now.signed_duration_since(last_dm);
+        let rate_limit_duration = Duration::seconds(1);
+
+        if time_since_last_dm < rate_limit_duration {
+            return Err(ApiError::TooManyRequests(
+                "Rate limit exceeded. Please wait 1 second before sending another message."
+                    .to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+/// Update the rate limit timestamp after successful DM creation
+fn update_dm_rate_limit(state: &AppState, user_id: &Uuid) -> Result<(), ApiError> {
+    let conn = state
+        .db
+        .pool
+        .get()
+        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+
+    let now = Utc::now().to_rfc3339();
+
+    conn.execute(
+        "INSERT INTO dm_rate_limits (user_id, last_dm_at) VALUES (?, ?)
+         ON CONFLICT(user_id) DO UPDATE SET last_dm_at = excluded.last_dm_at",
+        (user_id.to_string(), now),
+    )
+    .map_err(|e| ApiError::InternalError(e.to_string()))?;
+
+    Ok(())
 }
 
 /// GET /dms/conversations - List conversations for current user
@@ -121,12 +181,12 @@ pub async fn get_conversation(
             .get_by_id(&msg.from_user_id)
             .map_err(|e| ApiError::InternalError(e.to_string()))?
             .ok_or_else(|| ApiError::NotFound("Sender not found".to_string()))?;
-        
+
         let to_user = user_repo
             .get_by_id(&msg.to_user_id)
             .map_err(|e| ApiError::InternalError(e.to_string()))?
             .ok_or_else(|| ApiError::NotFound("Recipient not found".to_string()))?;
-        
+
         msg.from_username = from_user.username;
         msg.to_username = to_user.username;
     }
@@ -174,11 +234,16 @@ pub async fn send_message(
 ) -> ApiResult<Json<DirectMessage>> {
     // Validate content
     if payload.content.is_empty() {
-        return Err(ApiError::BadRequest("Message content cannot be empty".to_string()));
+        return Err(ApiError::BadRequest(
+            "Message content cannot be empty".to_string(),
+        ));
     }
 
     // Get authenticated user from session token
     let from_user_id = get_user_from_headers(&state, &headers)?;
+
+    // Check rate limit (1 DM per 1 second)
+    check_dm_rate_limit(&state, &from_user_id)?;
 
     let pool = state.db.pool.clone();
     let user_repo = UserRepository::new(pool.clone());
@@ -188,9 +253,7 @@ pub async fn send_message(
     let to_user = user_repo
         .get_by_username(&payload.to_username)
         .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| {
-            ApiError::NotFound(format!("User '{}' not found", payload.to_username))
-        })?;
+        .ok_or_else(|| ApiError::NotFound(format!("User '{}' not found", payload.to_username)))?;
 
     // Validate sender authentication (already done via from_user_id)
     // Cannot send message to yourself
@@ -222,6 +285,9 @@ pub async fn send_message(
     dm_repo
         .create(&message)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
+
+    // Update rate limit timestamp
+    update_dm_rate_limit(&state, &from_user_id)?;
 
     Ok(Json(message))
 }

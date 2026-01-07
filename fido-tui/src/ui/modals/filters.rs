@@ -6,17 +6,16 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::App;
 use super::super::theme::get_theme_colors;
 use super::utils::centered_rect;
+use crate::app::App;
 
 /// Render filter modal
 pub fn render_filter_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
 
     // Render semi-transparent background overlay
-    let background = Block::default()
-        .style(Style::default().bg(theme.background));
+    let background = Block::default().style(Style::default().bg(theme.background));
     frame.render_widget(background, area);
 
     // Create centered modal (70% width, 80% height)
@@ -28,11 +27,19 @@ pub fn render_filter_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     // Add outer border with accent color
     let outer_block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+        .border_style(
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )
         .title(" Filter Posts ")
-        .title_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+        .title_style(
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )
         .style(Style::default().bg(theme.background));
-    
+
     let inner = outer_block.inner(modal_area);
     frame.render_widget(outer_block, modal_area);
 
@@ -54,37 +61,60 @@ pub fn render_filter_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     };
 
     let mut tab_spans = Vec::new();
-    
+
     // All tab
     if selected_tab_idx == 0 {
-        tab_spans.push(Span::styled(" [All] ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)));
+        tab_spans.push(Span::styled(
+            " [All] ",
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ));
     } else {
         tab_spans.push(Span::styled("  All  ", Style::default().fg(theme.text_dim)));
     }
     tab_spans.push(Span::raw(" | "));
-    
+
     // Hashtags tab
     if selected_tab_idx == 1 {
-        tab_spans.push(Span::styled(" [Hashtags] ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)));
+        tab_spans.push(Span::styled(
+            " [Hashtags] ",
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ));
     } else {
-        tab_spans.push(Span::styled("  Hashtags  ", Style::default().fg(theme.text_dim)));
+        tab_spans.push(Span::styled(
+            "  Hashtags  ",
+            Style::default().fg(theme.text_dim),
+        ));
     }
     tab_spans.push(Span::raw(" | "));
-    
+
     // Users tab
     if selected_tab_idx == 2 {
-        tab_spans.push(Span::styled(" [Users] ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)));
+        tab_spans.push(Span::styled(
+            " [Users] ",
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ));
     } else {
-        tab_spans.push(Span::styled("  Users  ", Style::default().fg(theme.text_dim)));
+        tab_spans.push(Span::styled(
+            "  Users  ",
+            Style::default().fg(theme.text_dim),
+        ));
     }
 
     let tab_widget = Paragraph::new(Line::from(tab_spans))
         .alignment(Alignment::Center)
         .style(Style::default().bg(theme.background))
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme.border))
-            .style(Style::default().bg(theme.background)));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border))
+                .style(Style::default().bg(theme.background)),
+        );
     frame.render_widget(tab_widget, modal_chunks[0]);
 
     // Content based on selected tab
@@ -355,4 +385,3 @@ pub fn render_filter_modal(frame: &mut Frame, app: &mut App, area: Rect) {
         );
     frame.render_widget(instructions, modal_chunks[2]);
 }
-

@@ -24,7 +24,11 @@ impl IntoResponse for ApiError {
             ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "Bad Request", Some(msg)),
             ApiError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, "Unauthorized", Some(msg)),
             ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, "Forbidden", Some(msg)),
-            ApiError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, "Too Many Requests", Some(msg)),
+            ApiError::TooManyRequests(msg) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "Too Many Requests",
+                Some(msg),
+            ),
             ApiError::InternalError(msg) => {
                 tracing::error!("Internal error: {}", msg);
                 (

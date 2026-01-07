@@ -3,17 +3,16 @@ use regex::Regex;
 
 /// Regex pattern for matching hashtags
 /// Matches: #word where word contains letters, numbers, underscores (minimum 2 chars)
-static HASHTAG_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"#(\w{2,})").expect("Failed to compile hashtag regex")
-});
+static HASHTAG_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"#(\w{2,})").expect("Failed to compile hashtag regex"));
 
 /// Extract hashtags from post content
-/// 
+///
 /// Returns a vector of unique hashtag names (without the # prefix)
 /// Hashtags are normalized to lowercase and duplicates are removed
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```
 /// use fido_server::hashtag::extract_hashtags;
 /// let content = "Check out #rust and #Rust! Also #web_dev";
@@ -24,11 +23,11 @@ static HASHTAG_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// ```
 pub fn extract_hashtags(content: &str) -> Vec<String> {
     use std::collections::HashSet;
-    
+
     HASHTAG_REGEX
         .captures_iter(content)
-        .map(|cap| cap[1].to_lowercase())  // Normalize to lowercase
-        .collect::<HashSet<_>>()  // Remove duplicates
+        .map(|cap| cap[1].to_lowercase()) // Normalize to lowercase
+        .collect::<HashSet<_>>() // Remove duplicates
         .into_iter()
         .collect()
 }

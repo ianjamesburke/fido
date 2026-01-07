@@ -44,13 +44,13 @@ impl Settings {
     /// Create a new Settings instance with configuration loaded from files and environment
     pub fn new() -> Result<Self, ConfigError> {
         let mut builder = Config::builder();
-        
+
         // Load configuration files (lowest priority)
         builder = Self::load_config_files(builder)?;
-        
+
         // Set defaults (medium priority)
         builder = Self::set_defaults(builder)?;
-        
+
         // Apply environment overrides (highest priority)
         builder = Self::apply_env_overrides(builder)?;
 
@@ -59,7 +59,9 @@ impl Settings {
     }
 
     /// Load configuration files from standard locations
-    fn load_config_files(mut builder: ConfigBuilder<config::builder::DefaultState>) -> Result<ConfigBuilder<config::builder::DefaultState>, ConfigError> {
+    fn load_config_files(
+        mut builder: ConfigBuilder<config::builder::DefaultState>,
+    ) -> Result<ConfigBuilder<config::builder::DefaultState>, ConfigError> {
         // Check in current directory (for production deployment)
         let current_dir_path = PathBuf::from(CONFIG_FILE_NAME);
         if current_dir_path.exists() {
@@ -76,7 +78,9 @@ impl Settings {
     }
 
     /// Set default configuration values
-    fn set_defaults(builder: ConfigBuilder<config::builder::DefaultState>) -> Result<ConfigBuilder<config::builder::DefaultState>, ConfigError> {
+    fn set_defaults(
+        builder: ConfigBuilder<config::builder::DefaultState>,
+    ) -> Result<ConfigBuilder<config::builder::DefaultState>, ConfigError> {
         Ok(builder
             .set_default("server.host", DEFAULT_HOST)?
             .set_default("server.port", DEFAULT_PORT)?
@@ -84,7 +88,9 @@ impl Settings {
     }
 
     /// Apply environment variable overrides
-    fn apply_env_overrides(mut builder: ConfigBuilder<config::builder::DefaultState>) -> Result<ConfigBuilder<config::builder::DefaultState>, ConfigError> {
+    fn apply_env_overrides(
+        mut builder: ConfigBuilder<config::builder::DefaultState>,
+    ) -> Result<ConfigBuilder<config::builder::DefaultState>, ConfigError> {
         // Environment variables take highest priority
         if let Ok(db_path) = std::env::var("DATABASE_PATH") {
             builder = builder.set_override("database.path", db_path)?;
@@ -167,7 +173,7 @@ mod tests {
         env::set_var("DATABASE_PATH", "/tmp/test.db");
 
         let settings = Settings::new().expect("Failed to load settings");
-        
+
         assert_eq!(settings.server.host, "127.0.0.1");
         assert_eq!(settings.server.port, 8080);
         assert_eq!(settings.database.path, "/tmp/test.db");

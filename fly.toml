@@ -21,7 +21,7 @@ primary_region = 'ord'
   RUST_LOG = 'info'
   
   # Health check configuration
-  HEALTH_CHECK_ATTEMPTS = '15'
+  HEALTH_CHECK_ATTEMPTS = '5'
   
   # Performance tuning
   RUST_BACKTRACE = '0'
@@ -54,7 +54,7 @@ primary_region = 'ord'
     type = "http"
 
 [[vm]]
-  memory = '512mb'
+  memory = '1024mb'
   cpu_kind = 'shared'
   cpus = 1
 

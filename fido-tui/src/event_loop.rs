@@ -1,0 +1,587 @@
+use crate::app::{App, FilterTab, InputMode, PostFilter, Screen, Tab};
+use crate::auth::AuthFlow;
+use crate::log_reply;
+use crate::{log_key_event, ui};
+use anyhow::Result;
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use std::time::Duration;
+
+pub struct EventLoop {
+    modal_tracker: ModalStateTracker,
+    last_tab: Tab,
+    last_dm_conversation_index: Option<usize>,
+    last_terminal_size: (u16, u16),
+    last_device_poll: std::time::Instant,
+}
+
+impl EventLoop {
+    pub fn new() -> Self {
+        Self {
+            modal_tracker: ModalStateTracker::new(),
+            last_tab: Tab::Posts, // Default starting tab
+            last_dm_conversation_index: None,
+            last_terminal_size: (0, 0),
+            last_device_poll: std::time::Instant::now(),
+        }
+    }
+
+    pub async fn run(
+        &mut self,
+        app: &mut App,
+        auth_flow: &mut AuthFlow,
+        tui: &mut crate::terminal::Terminal,
+    ) -> Result<()> {
+        while app.running {
+            // Handle GitHub Device Flow polling
+            self.handle_github_device_flow(app, auth_flow).await?;
+
+            // Check modal state changes and load data as needed
+            self.modal_tracker.check_and_load(app).await?;
+
+            // Handle tab changes and data loading
+            self.handle_tab_changes(app).await?;
+
+            // Handle DM conversation changes
+            self.handle_dm_conversation_changes(app).await?;
+
+            // Clear expired messages
+            app.clear_expired_messages();
+
+            // Render UI
+            self.render_ui(app, tui)?;
+
+            // Handle pending loads
+            self.handle_pending_loads(app).await?;
+
+            // Process events
+            self.process_events(app, auth_flow).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn handle_github_device_flow(
+        &mut self,
+        app: &mut App,
+        auth_flow: &mut AuthFlow,
+    ) -> Result<()> {
+        if !app.auth_state.github_auth_in_progress {
+            return Ok(());
+        }
+
+        // Check for timeout (15 minutes)
+        if let Some(start_time) = app.auth_state.github_auth_start_time {
+            if start_time.elapsed() > Duration::from_secs(900) {
+                log::warn!("GitHub Device Flow timeout after 15 minutes");
+                app.auth_state.error =
+                    Some("Device authorization timeout: Please try again.".to_string());
+                self.reset_github_auth_state(app);
+                return Ok(());
+            }
+        }
+
+        // Only poll at the specified interval
+        let poll_interval = app.auth_state.github_poll_interval.unwrap_or(5);
+        if self.last_device_poll.elapsed() < Duration::from_secs(poll_interval as u64) {
+            return Ok(());
+        }
+
+        if let Some(device_code) = &app.auth_state.github_device_code.clone() {
+            log::debug!("Polling GitHub for device authorization...");
+
+            match auth_flow.api_client().github_device_poll(device_code).await {
+                Ok(login_response) => {
+                    log::info!(
+                        "GitHub Device Flow completed successfully for user: {}",
+                        login_response.user.username
+                    );
+                    self.handle_successful_github_login(app, auth_flow, login_response)
+                        .await?;
+                }
+                Err(e) => {
+                    self.handle_github_poll_error(app, e);
+                }
+            }
+
+            self.last_device_poll = std::time::Instant::now();
+        }
+
+        Ok(())
+    }
+
+    fn reset_github_auth_state(&self, app: &mut App) {
+        app.auth_state.github_auth_in_progress = false;
+        app.auth_state.github_device_code = None;
+        app.auth_state.github_user_code = None;
+        app.auth_state.github_verification_uri = None;
+        app.auth_state.github_poll_interval = None;
+        app.auth_state.github_auth_start_time = None;
+    }
+
+    async fn handle_successful_github_login(
+        &self,
+        app: &mut App,
+        auth_flow: &mut AuthFlow,
+        login_response: fido_types::LoginResponse,
+    ) -> Result<()> {
+        // Store session and update state
+        if let Err(e) = auth_flow.save_session(&login_response.session_token) {
+            log::error!("Failed to save session: {}", e);
+        }
+
+        // Set session token in both API clients
+        auth_flow
+            .api_client_mut()
+            .set_session_token(Some(login_response.session_token.clone()));
+        app.api_client
+            .set_session_token(Some(login_response.session_token.clone()));
+
+        app.auth_state.current_user = Some(login_response.user);
+        app.current_screen = Screen::Main;
+        self.reset_github_auth_state(app);
+        app.auth_state.error = None;
+
+        // Load initial data
+        let _ = app.load_settings().await;
+        app.load_filter_preference();
+        let _ = app.load_posts().await;
+
+        Ok(())
+    }
+
+    fn handle_github_poll_error(&self, app: &mut App, error: crate::api::ApiError) {
+        let error_msg = format!("{:?}", error);
+        log::debug!("Device poll error: {}", error_msg);
+
+        if !error_msg.contains("authorization_pending") {
+            log::error!("Error polling for device authorization: {}", error);
+            app.auth_state.error = Some(format!("Device authorization error: {}", error));
+            self.reset_github_auth_state(app);
+        }
+    }
+
+    async fn handle_tab_changes(&mut self, app: &mut App) -> Result<()> {
+        if app.current_tab == self.last_tab {
+            return Ok(());
+        }
+
+        match app.current_tab {
+            Tab::Profile => {
+                app.load_profile().await?;
+            }
+            Tab::DMs => {
+                app.load_conversations().await?;
+            }
+            Tab::Settings => {
+                app.load_settings().await?;
+            }
+            _ => {}
+        }
+
+        self.last_tab = app.current_tab;
+        Ok(())
+    }
+
+    async fn handle_dm_conversation_changes(&mut self, app: &mut App) -> Result<()> {
+        if app.current_tab != Tab::DMs {
+            return Ok(());
+        }
+
+        let needs_load = app.dms_state.selected_conversation_index
+            != self.last_dm_conversation_index
+            || app.dms_state.needs_message_load;
+
+        if needs_load && !app.dms_state.conversations.is_empty() {
+            app.load_conversation_messages().await?;
+            self.last_dm_conversation_index = app.dms_state.selected_conversation_index;
+            app.dms_state.needs_message_load = false;
+        }
+
+        Ok(())
+    }
+
+    fn render_ui(&mut self, app: &mut App, tui: &mut crate::terminal::Terminal) -> Result<()> {
+        tui.draw(|frame| {
+            // Update viewport height if terminal size changed
+            let current_size = (frame.area().width, frame.area().height);
+            if current_size != self.last_terminal_size {
+                self.last_terminal_size = current_size;
+            }
+
+            ui::render(app, frame)
+        })?;
+
+        Ok(())
+    }
+
+    async fn handle_pending_loads(&self, app: &mut App) -> Result<()> {
+        // Check if we need to perform a pending load
+        if app.posts_state.pending_load {
+            app.posts_state.pending_load = false;
+            app.load_posts().await?;
+        }
+
+        // Load hashtags when modal is opened and hashtags list is empty
+        if app.hashtags_state.show_hashtags_modal
+            && app.hashtags_state.hashtags.is_empty()
+            && !app.hashtags_state.loading
+        {
+            app.load_hashtags().await?;
+        }
+
+        Ok(())
+    }
+
+    async fn process_events(&self, app: &mut App, auth_flow: &mut AuthFlow) -> Result<()> {
+        if !event::poll(Duration::from_millis(100))? {
+            return Ok(());
+        }
+
+        let event = event::read()?;
+
+        // Filter out mouse events - keyboard-only navigation
+        if matches!(event, Event::Mouse(_)) {
+            return Ok(());
+        }
+
+        if let Event::Key(key) = event {
+            if key.kind == KeyEventKind::Press {
+                // Log key event with modal context
+                let modal_context = self.get_modal_context(app);
+                log_key_event!(
+                    app.log_config,
+                    "key={:?}, context={}",
+                    key.code,
+                    modal_context
+                );
+
+                // Handle async operations that were previously in main.rs
+                log_reply!(
+                    "EventLoop: Processing key event, composer_open={}",
+                    app.composer_state.is_open()
+                );
+                self.handle_async_key_events(app, key, auth_flow).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn get_modal_context(&self, app: &App) -> &'static str {
+        if app.composer_state.is_open() {
+            "composer_open"
+        } else if app.viewing_post_detail {
+            "post_detail"
+        } else {
+            "main_view"
+        }
+    }
+
+    async fn handle_async_key_events(
+        &self,
+        app: &mut App,
+        key: crossterm::event::KeyEvent,
+        auth_flow: &mut AuthFlow,
+    ) -> Result<()> {
+        // Handle the async key events that were previously in main.rs
+        match key.code {
+            KeyCode::Char('l') if app.current_screen == Screen::Auth => {
+                app.load_test_users().await?;
+            }
+            KeyCode::Char('g') | KeyCode::Char('G')
+                if app.current_screen == Screen::Auth
+                    && !app.auth_state.github_auth_in_progress
+                    && app.auth_state.show_github_option =>
+            {
+                self.initiate_github_device_flow(app, auth_flow).await?;
+            }
+            KeyCode::Esc
+                if app.current_screen == Screen::Auth && app.auth_state.github_auth_in_progress =>
+            {
+                self.reset_github_auth_state(app);
+            }
+            KeyCode::Enter
+                if app.current_screen == Screen::Auth
+                    && !app.auth_state.github_auth_in_progress =>
+            {
+                app.login_selected_user().await?;
+            }
+            KeyCode::Enter if app.composer_state.is_open() => {
+                log_reply!(
+                    "EventLoop: Enter key detected for composer, mode={:?}",
+                    app.composer_state.mode
+                );
+                app.submit_composer().await?;
+                log_reply!("EventLoop: submit_composer completed");
+            }
+            KeyCode::Enter if app.dms_state.show_new_conversation_modal => {
+                app.start_new_conversation().await?;
+            }
+            KeyCode::Enter if app.posts_state.show_filter_modal => {
+                self.handle_filter_modal_enter(app).await?;
+            }
+            KeyCode::Enter | KeyCode::Char(' ')
+                if app.current_tab == Tab::Posts
+                    && !app.posts_state.show_new_post_modal
+                    && !app.viewing_post_detail
+                    && !app.composer_state.is_open()
+                    && !app.posts_state.show_filter_modal =>
+            {
+                self.handle_post_selection(app).await?;
+            }
+            KeyCode::Enter
+                if app.current_tab == Tab::DMs
+                    && !app.dms_state.show_new_conversation_modal
+                    && app.input_mode == InputMode::Typing =>
+            {
+                app.send_dm().await?;
+            }
+            KeyCode::Char('u') | KeyCode::Char('U')
+                if app.current_screen == Screen::Main
+                    && app.current_tab == Tab::Posts
+                    && !app.composer_state.is_open()
+                    && !app.posts_state.show_filter_modal =>
+            {
+                self.handle_vote(app, "up").await?;
+            }
+            KeyCode::Char('d') | KeyCode::Char('D')
+                if app.current_screen == Screen::Main
+                    && app.current_tab == Tab::Posts
+                    && !app.composer_state.is_open()
+                    && !app.posts_state.show_filter_modal =>
+            {
+                self.handle_vote(app, "down").await?;
+            }
+            KeyCode::Char('s') | KeyCode::Char('S')
+                if app.current_screen == Screen::Main
+                    && app.current_tab == Tab::Settings
+                    && !app.settings_state.show_save_confirmation =>
+            {
+                app.save_settings().await?;
+            }
+            KeyCode::Char('y') | KeyCode::Char('Y')
+                if app.viewing_post_detail
+                    && app
+                        .post_detail_state
+                        .as_ref()
+                        .map(|s| s.show_delete_confirmation)
+                        .unwrap_or(false) =>
+            {
+                app.delete_post().await?;
+            }
+            KeyCode::Char('y') | KeyCode::Char('Y')
+                if app.settings_state.show_save_confirmation =>
+            {
+                self.handle_save_confirmation(app).await?;
+            }
+            KeyCode::Char('L') if app.current_screen == Screen::Main => {
+                app.logout().await?;
+            }
+            _ => {
+                // Delegate to synchronous key handling
+                app.handle_key_event(key)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn initiate_github_device_flow(
+        &self,
+        app: &mut App,
+        auth_flow: &mut AuthFlow,
+    ) -> Result<()> {
+        app.auth_state.loading = true;
+        app.auth_state.error = None;
+
+        match auth_flow.initiate_github_device_flow().await {
+            Ok((device_code, user_code, verification_uri, interval)) => {
+                app.auth_state.github_device_code = Some(device_code);
+                app.auth_state.github_user_code = Some(user_code.clone());
+                app.auth_state.github_verification_uri = Some(verification_uri.clone());
+                app.auth_state.github_poll_interval = Some(interval);
+                app.auth_state.github_auth_in_progress = true;
+                app.auth_state.github_auth_start_time = Some(std::time::Instant::now());
+                app.auth_state.loading = false;
+
+                // Try to open browser to verification URI
+                if let Err(e) = auth_flow.open_browser(&verification_uri) {
+                    log::warn!("Failed to open browser: {}", e);
+                    app.auth_state.error = Some(format!(
+                        "Could not open browser automatically. Please visit: {}",
+                        verification_uri
+                    ));
+                }
+            }
+            Err(e) => {
+                app.auth_state.error =
+                    Some(format!("Failed to initiate GitHub Device Flow: {}", e));
+                app.auth_state.loading = false;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn handle_filter_modal_enter(&self, app: &mut App) -> Result<()> {
+        // In hashtags tab add input mode, Enter follows the hashtag
+        if app.posts_state.filter_modal_state.selected_tab == FilterTab::Hashtags
+            && app.posts_state.filter_modal_state.show_add_hashtag_input
+        {
+            let hashtag_name = app
+                .posts_state
+                .filter_modal_state
+                .add_hashtag_input
+                .trim()
+                .to_string();
+            if !hashtag_name.is_empty() {
+                app.follow_hashtag(&hashtag_name).await?;
+                app.posts_state.filter_modal_state.show_add_hashtag_input = false;
+                app.posts_state.filter_modal_state.add_hashtag_input.clear();
+            }
+            return Ok(()); // Don't apply filter, just followed a hashtag
+        }
+
+        // In hashtags tab on "Add Hashtag" option, don't apply filter
+        if app.posts_state.filter_modal_state.selected_tab == FilterTab::Hashtags
+            && app.posts_state.filter_modal_state.selected_index
+                == app.posts_state.filter_modal_state.hashtag_list.len()
+        {
+            // This will be handled by synchronous key handling
+            return Ok(());
+        }
+
+        // Apply filter based on checked items
+        let filter = match app.posts_state.filter_modal_state.selected_tab {
+            FilterTab::All => PostFilter::All,
+            FilterTab::Hashtags => {
+                if !app
+                    .posts_state
+                    .filter_modal_state
+                    .checked_hashtags
+                    .is_empty()
+                {
+                    PostFilter::Multi {
+                        hashtags: app.posts_state.filter_modal_state.checked_hashtags.clone(),
+                        users: vec![],
+                    }
+                } else {
+                    PostFilter::All
+                }
+            }
+            FilterTab::Users => {
+                if !app.posts_state.filter_modal_state.checked_users.is_empty() {
+                    PostFilter::Multi {
+                        hashtags: vec![],
+                        users: app.posts_state.filter_modal_state.checked_users.clone(),
+                    }
+                } else {
+                    PostFilter::All
+                }
+            }
+        };
+        app.apply_filter(filter).await?;
+
+        Ok(())
+    }
+
+    async fn handle_post_selection(&self, app: &mut App) -> Result<()> {
+        if let Some(selected_index) = app.posts_state.list_state.selected() {
+            if selected_index < app.posts_state.posts.len() {
+                let post_id = app.posts_state.posts[selected_index].id;
+                app.open_post_detail(post_id).await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn handle_vote(&self, app: &mut App, direction: &str) -> Result<()> {
+        if app.viewing_post_detail {
+            app.vote_in_detail_view(direction).await?;
+        } else {
+            app.vote_on_selected_post(direction).await?;
+        }
+        Ok(())
+    }
+
+    async fn handle_save_confirmation(&self, app: &mut App) -> Result<()> {
+        app.save_settings().await?;
+        if let Some(pending_tab) = app.settings_state.pending_tab.take() {
+            app.settings_state.show_save_confirmation = false;
+            app.current_tab = pending_tab;
+        }
+        Ok(())
+    }
+}
+
+/// Helper to track modal state changes and trigger data loading
+struct ModalStateTracker {
+    filter_modal: bool,
+    friends_modal: bool,
+    new_conversation_modal: bool,
+    user_search_modal: bool,
+    last_search_query: String,
+}
+
+impl ModalStateTracker {
+    fn new() -> Self {
+        Self {
+            filter_modal: false,
+            friends_modal: false,
+            new_conversation_modal: false,
+            user_search_modal: false,
+            last_search_query: String::new(),
+        }
+    }
+
+    /// Check and handle modal state changes, loading data when modals open
+    async fn check_and_load(&mut self, app: &mut App) -> Result<()> {
+        self.handle_filter_modal(app).await?;
+        self.handle_friends_modal(app).await?;
+        self.handle_user_search_modal(app).await?;
+        self.handle_new_conversation_modal(app).await?;
+        Ok(())
+    }
+
+    async fn handle_filter_modal(&mut self, app: &mut App) -> Result<()> {
+        if app.posts_state.show_filter_modal && !self.filter_modal {
+            app.load_filter_modal_data().await?;
+        }
+        self.filter_modal = app.posts_state.show_filter_modal;
+        Ok(())
+    }
+
+    async fn handle_friends_modal(&mut self, app: &mut App) -> Result<()> {
+        if app.friends_state.show_friends_modal && !self.friends_modal {
+            app.load_social_connections().await?;
+        }
+        self.friends_modal = app.friends_state.show_friends_modal;
+        Ok(())
+    }
+
+    async fn handle_user_search_modal(&mut self, app: &mut App) -> Result<()> {
+        if app.user_search_state.show_modal {
+            if !self.user_search_modal {
+                // Modal just opened - no search yet
+                self.user_search_modal = true;
+                self.last_search_query = String::new();
+            } else if app.user_search_state.search_query != self.last_search_query {
+                // Query changed - trigger search
+                self.last_search_query = app.user_search_state.search_query.clone();
+                app.search_users().await?;
+            }
+        } else {
+            self.user_search_modal = false;
+            self.last_search_query.clear();
+        }
+        Ok(())
+    }
+
+    async fn handle_new_conversation_modal(&mut self, app: &mut App) -> Result<()> {
+        if app.dms_state.show_new_conversation_modal && !self.new_conversation_modal {
+            app.load_mutual_friends_for_dms().await?;
+        }
+        self.new_conversation_modal = app.dms_state.show_new_conversation_modal;
+        Ok(())
+    }
+}

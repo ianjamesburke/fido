@@ -168,11 +168,27 @@ header {
     text-align: center;
 }
 
+.demo-banner {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+    color: white;
+    text-align: center;
+    padding: 12px 20px;
+    font-family: inherit;
+    font-weight: 500;
+    font-size: 0.95em;
+    border-radius: 8px;
+    margin: 0 auto 24px;
+    max-width: 600px;
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+    letter-spacing: 0.02em;
+}
+
 .demo-instructions {
     text-align: center;
     margin-bottom: 32px;
     color: var(--color-text-dim);
     font-size: 0.95em;
+    line-height: 1.8;
 }
 
 kbd {
@@ -241,6 +257,7 @@ kbd {
     /* Remove any default spacing */
     margin: 0;
     padding: 0;
+    background: #000;
 }
 
 /* Info Section */
@@ -402,8 +419,22 @@ footer a:focus-visible {
         grid-template-columns: 1fr;
     }
 
+    .demo-banner {
+        font-size: 0.85em;
+        padding: 10px 16px;
+    }
+
+    .demo-instructions {
+        font-size: 0.9em;
+        padding: 0 10px;
+    }
+
     #terminal {
         height: 500px;
+    }
+
+    .terminal-container {
+        border-radius: 8px;
     }
 
     .tech-grid {
@@ -412,5 +443,21 @@ footer a:focus-visible {
     
     .future-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    #terminal {
+        height: 400px;
+    }
+
+    .demo-banner {
+        font-size: 0.8em;
+        padding: 8px 12px;
+    }
+
+    kbd {
+        font-size: 0.85em;
+        padding: 2px 8px;
     }
 }

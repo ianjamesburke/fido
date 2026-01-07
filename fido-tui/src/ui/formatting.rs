@@ -38,11 +38,11 @@ pub fn format_post_content_with_width(
 
         for wrapped_line in wrapped {
             let mut spans = vec![Span::raw("  ")]; // Indent
-            
+
             let line_str = wrapped_line.to_string();
             let mut current_word = String::new();
             let mut whitespace_buffer = String::new();
-            
+
             for ch in line_str.chars() {
                 if ch.is_whitespace() {
                     if !current_word.is_empty() {
@@ -57,7 +57,7 @@ pub fn format_post_content_with_width(
                     current_word.push(ch);
                 }
             }
-            
+
             if !current_word.is_empty() {
                 push_styled_word(&mut spans, &current_word, is_selected, theme);
             }
@@ -73,20 +73,32 @@ pub fn format_post_content_with_width(
 }
 
 /// Push a styled word to spans with appropriate formatting
-fn push_styled_word(spans: &mut Vec<Span<'static>>, word: &str, is_selected: bool, theme: &ThemeColors) {
+fn push_styled_word(
+    spans: &mut Vec<Span<'static>>,
+    word: &str,
+    is_selected: bool,
+    theme: &ThemeColors,
+) {
     let (color, should_bold) = if word.starts_with('#') {
-        (if is_selected { theme.accent } else { theme.secondary }, true)
+        (
+            if is_selected {
+                theme.accent
+            } else {
+                theme.secondary
+            },
+            true,
+        )
     } else if word.starts_with('@') {
         (theme.primary, true)
     } else {
         (theme.text, is_selected)
     };
-    
+
     let mut style = Style::default().fg(color);
     if should_bold {
         style = style.add_modifier(Modifier::BOLD);
     }
-    
+
     spans.push(Span::styled(word.to_string(), style));
 }
 
@@ -124,7 +136,3 @@ pub fn format_bio_content_with_width(
 
     lines
 }
-
-
-
-

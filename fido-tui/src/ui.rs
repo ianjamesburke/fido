@@ -1,8 +1,8 @@
 // UI module - split into cohesive submodules for maintainability
-pub mod theme;
 mod formatting;
-mod tabs;
 mod modals;
+mod tabs;
+pub mod theme;
 
 // Re-export main render function
 pub use self::render_main::render;
@@ -17,18 +17,18 @@ mod render_main {
         Frame,
     };
 
-    use crate::app::{App, Screen};
-    use super::theme::get_theme_colors;
     use super::tabs::{render_auth_screen, render_main_screen};
+    use super::theme::get_theme_colors;
+    use crate::app::{App, Screen};
 
     /// Render the UI
     pub fn render(app: &mut App, frame: &mut Frame) {
         let area = frame.area();
-        
+
         let theme = get_theme_colors(app);
-        
+
         frame.render_widget(Clear, area);
-        
+
         let background = Block::default().style(Style::default().bg(theme.background));
         frame.render_widget(background, area);
 

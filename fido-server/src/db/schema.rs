@@ -154,8 +154,16 @@ CREATE TABLE IF NOT EXISTS post_rate_limits (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- DM rate limiting table
+CREATE TABLE IF NOT EXISTS dm_rate_limits (
+    user_id TEXT PRIMARY KEY,
+    last_dm_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- Create index for efficient rate limit lookups
 CREATE INDEX IF NOT EXISTS idx_post_rate_limits_user ON post_rate_limits(user_id);
+CREATE INDEX IF NOT EXISTS idx_dm_rate_limits_user ON dm_rate_limits(user_id);
 "#;
 
 /// Test data for development and testing
