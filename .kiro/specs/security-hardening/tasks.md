@@ -6,7 +6,7 @@ This implementation plan addresses critical security vulnerabilities in the Fido
 
 ## Tasks
 
-- [ ] 1. Remove secrets from Git and update configuration
+- [x] 1. Remove secrets from Git and update configuration
   - Remove GITHUB_CLIENT_ID from .env file
   - Update .env.example with placeholder and documentation
   - Update config.rs to require GITHUB_CLIENT_ID from environment

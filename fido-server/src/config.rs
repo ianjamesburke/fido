@@ -21,9 +21,15 @@ pub struct Database {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct OAuth {
+    pub github_client_id: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
     pub server: Server,
     pub database: Database,
+    pub oauth: OAuth,
 }
 
 impl Default for Settings {
@@ -35,6 +41,9 @@ impl Default for Settings {
             },
             database: Database {
                 path: DEFAULT_DB_PATH.to_string(),
+            },
+            oauth: OAuth {
+                github_client_id: String::new(), // Will be loaded from environment
             },
         }
     }
@@ -84,7 +93,8 @@ impl Settings {
         Ok(builder
             .set_default("server.host", DEFAULT_HOST)?
             .set_default("server.port", DEFAULT_PORT)?
-            .set_default("database.path", DEFAULT_DB_PATH)?)
+            .set_default("database.path", DEFAULT_DB_PATH)?
+            .set_default("oauth.github_client_id", "")?)
     }
 
     /// Apply environment variable overrides
@@ -100,6 +110,11 @@ impl Settings {
         }
         if let Ok(host) = std::env::var("HOST") {
             builder = builder.set_override("server.host", host)?;
+        }
+
+        // OAuth configuration from environment (required)
+        if let Ok(github_client_id) = std::env::var("GITHUB_CLIENT_ID") {
+            builder = builder.set_override("oauth.github_client_id", github_client_id)?;
         }
 
         Ok(builder)
@@ -122,6 +137,13 @@ impl Settings {
             return Err(ConfigError::Message("Host cannot be empty".to_string()));
         }
 
+        // Validate OAuth configuration
+        if self.oauth.github_client_id.is_empty() {
+            return Err(ConfigError::Message(
+                "GITHUB_CLIENT_ID environment variable is required but not set".to_string(),
+            ));
+        }
+
         Ok(())
     }
 }
@@ -137,6 +159,7 @@ mod tests {
         assert_eq!(settings.server.host, DEFAULT_HOST);
         assert_eq!(settings.server.port, DEFAULT_PORT);
         assert_eq!(settings.database.path, DEFAULT_DB_PATH);
+        assert_eq!(settings.oauth.github_client_id, "");
     }
 
     #[test]
@@ -147,7 +170,8 @@ mod tests {
 
     #[test]
     fn test_validation_success() {
-        let settings = Settings::default();
+        let mut settings = Settings::default();
+        settings.oauth.github_client_id = "test_client_id".to_string();
         assert!(settings.validate().is_ok());
     }
 
@@ -162,7 +186,19 @@ mod tests {
     fn test_validation_empty_host() {
         let mut settings = Settings::default();
         settings.server.host = String::new();
+        settings.oauth.github_client_id = "test_client_id".to_string();
         assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn test_validation_missing_github_client_id() {
+        let settings = Settings::default(); // github_client_id is empty by default
+        let result = settings.validate();
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("GITHUB_CLIENT_ID"));
     }
 
     #[test]
@@ -171,16 +207,19 @@ mod tests {
         env::set_var("HOST", "127.0.0.1");
         env::set_var("PORT", "8080");
         env::set_var("DATABASE_PATH", "/tmp/test.db");
+        env::set_var("GITHUB_CLIENT_ID", "test_github_client_id");
 
         let settings = Settings::new().expect("Failed to load settings");
 
         assert_eq!(settings.server.host, "127.0.0.1");
         assert_eq!(settings.server.port, 8080);
         assert_eq!(settings.database.path, "/tmp/test.db");
+        assert_eq!(settings.oauth.github_client_id, "test_github_client_id");
 
         // Clean up
         env::remove_var("HOST");
         env::remove_var("PORT");
         env::remove_var("DATABASE_PATH");
+        env::remove_var("GITHUB_CLIENT_ID");
     }
 }

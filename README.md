@@ -146,6 +146,9 @@ To run Fido locally for development:
 git clone https://github.com/ianburke/fido.git
 cd fido
 
+# Set required environment variables
+export GITHUB_CLIENT_ID=your_github_client_id_here
+
 # Build the workspace
 cargo build
 
@@ -155,6 +158,22 @@ cargo run --bin fido-server
 # In another terminal, connect to it
 cargo run --bin fido -- --server http://localhost:3000
 ```
+
+### Required Environment Variables
+
+The following environment variables must be set before starting the server:
+
+- **GITHUB_CLIENT_ID** (required): GitHub OAuth application client ID
+  - Register an OAuth app at: https://github.com/settings/developers
+  - Note: Device Flow doesn't require a callback URL or client secret
+  - The server will fail to start if this is not set
+
+Optional environment variables:
+
+- **HOST**: Server bind address (default: 0.0.0.0)
+- **PORT**: Server port (default: 3000)
+- **DATABASE_PATH**: SQLite database file path (default: fido.db)
+- **FIDO_SERVER_URL**: Server URL for TUI client (default: http://localhost:3000)
 
 ### Testing
 
