@@ -14,22 +14,22 @@ This implementation plan addresses critical security vulnerabilities in the Fido
   - Document required environment variables in README.md
   - _Requirements: 2.1, 2.4_
 
-- [ ] 2. Implement environment-based security configuration
-  - [ ] 2.1 Create SecurityConfig struct and Environment enum
+- [x] 2. Implement environment-based security configuration
+  - [x] 2.1 Create SecurityConfig struct and Environment enum
     - Add fido-server/src/security/mod.rs with SecurityConfig
     - Implement Environment enum (Development, Production)
     - Add configuration loading from environment variables
     - Add validation method for required configuration
     - _Requirements: 12.1, 12.4_
 
-  - [ ] 2.2 Update main.rs to load and validate security configuration
+  - [x] 2.2 Update main.rs to load and validate security configuration
     - Load SecurityConfig on startup
     - Fail fast if required configuration is missing in production
     - Log security configuration (without secrets)
     - _Requirements: 12.2, 12.5_
 
-- [ ] 3. Fix CORS configuration
-  - [ ] 3.1 Implement environment-aware CORS configuration
+- [-] 3. Fix CORS configuration
+  - [x] 3.1 Implement environment-aware CORS configuration
     - Create fido-server/src/security/cors.rs
     - Implement CorsConfig struct with environment-specific origins
     - Production: allow https://fido-social.fly.dev only
@@ -47,7 +47,7 @@ This implementation plan addresses critical security vulnerabilities in the Fido
     - **Property 11: Untrusted origin rejection**
     - **Validates: Requirements 1.3**
 
-  - [ ] 3.4 Update main.rs to use new CORS configuration
+  - [x] 3.4 Update main.rs to use new CORS configuration
     - Replace current CorsLayer::new().allow_origin(Any) with environment-aware config
     - _Requirements: 1.1_
 
@@ -209,8 +209,8 @@ This implementation plan addresses critical security vulnerabilities in the Fido
     - Update middleware to call update_activity on each request
     - _Requirements: 10.2_
 
-- [ ] 12. Implement SQL injection prevention
-  - [ ] 12.1 Audit and fix dynamic SQL queries
+- [x] 12. Implement SQL injection prevention
+  - [x] 12.1 Audit and fix dynamic SQL queries
     - Review PostRepository::get_posts for SQL injection risks
     - Ensure ORDER BY uses whitelisted SortOrder enum values only
     - Review all repositories for string concatenation in queries
@@ -221,7 +221,7 @@ This implementation plan addresses critical security vulnerabilities in the Fido
     - **Property 12: Sort order whitelist validation**
     - **Validates: Requirements 6.3, 6.5**
 
-  - [ ] 12.3 Add enum validation before query construction
+  - [x] 12.3 Add enum validation before query construction
     - Add validation for SortOrder enum in API handlers
     - Reject invalid enum values before passing to repositories
     - _Requirements: 6.5_

@@ -1,0 +1,212 @@
+//! CORS (Cross-Origin Resource Sharing) configuration module
+//!
+//! This module provides environment-aware CORS configuration to protect the web terminal
+//! interface from CSRF attacks while allowing CLI and TUI clients to function.
+//!
+//! Key behaviors:
+//! - Production: Only allows https://fido-social.fly.dev origin
+//! - Development: Allows http://localhost:* origins for local testing
+//! - Always allows requests without Origin header (CLI/TUI clients)
+//! - Restricts methods to GET, POST, PUT, DELETE
+//! - Restricts headers to Content-Type, X-Session-Token
+
+use super::Environment;
+use axum::http::{header, HeaderName, HeaderValue, Method};
+use tower_http::cors::{AllowOrigin, CorsLayer};
+
+/// CORS configuration for the application
+#[derive(Debug, Clone)]
+pub struct CorsConfig {
+    /// Allowed origins for CORS requests
+    allowed_origins: Vec<String>,
+    /// Allowed HTTP methods
+    allowed_methods: Vec<Method>,
+    /// Allowed HTTP headers
+    allowed_headers: Vec<HeaderName>,
+    /// Current environment
+    environment: Environment,
+}
+
+impl CorsConfig {
+    /// Create a new CorsConfig for the given environment
+    pub fn for_environment(environment: Environment) -> Self {
+        let allowed_origins = match environment {
+            Environment::Production => {
+                vec!["https://fido-social.fly.dev".to_string()]
+            }
+            Environment::Development => {
+                vec![
+                    "http://localhost:3000".to_string(),
+                    "http://localhost:8080".to_string(),
+                    "http://localhost:5173".to_string(),
+                    "http://127.0.0.1:3000".to_string(),
+                    "http://127.0.0.1:8080".to_string(),
+                    "http://127.0.0.1:5173".to_string(),
+                ]
+            }
+        };
+
+        let allowed_methods = vec![Method::GET, Method::POST, Method::PUT, Method::DELETE];
+
+        let allowed_headers = vec![
+            header::CONTENT_TYPE,
+            HeaderName::from_static("x-session-token"),
+        ];
+
+        Self {
+            allowed_origins,
+            allowed_methods,
+            allowed_headers,
+            environment,
+        }
+    }
+
+    /// Get the allowed origins
+    pub fn allowed_origins(&self) -> &[String] {
+        &self.allowed_origins
+    }
+
+    /// Get the allowed methods
+    pub fn allowed_methods(&self) -> &[Method] {
+        &self.allowed_methods
+    }
+
+    /// Get the allowed headers
+    pub fn allowed_headers(&self) -> &[HeaderName] {
+        &self.allowed_headers
+    }
+
+    /// Check if an origin is allowed
+    pub fn is_origin_allowed(&self, origin: &str) -> bool {
+        // In development, allow any localhost origin
+        if self.environment.is_development() {
+            if origin.starts_with("http://localhost:") || origin.starts_with("http://127.0.0.1:") {
+                return true;
+            }
+        }
+
+        self.allowed_origins.iter().any(|o| o == origin)
+    }
+
+    /// Convert to a tower-http CorsLayer
+    ///
+    /// This creates a CorsLayer that:
+    /// - Allows configured origins based on environment
+    /// - Allows requests without Origin header (for CLI/TUI clients)
+    /// - Restricts methods to GET, POST, PUT, DELETE
+    /// - Restricts headers to Content-Type, X-Session-Token
+    pub fn to_cors_layer(&self) -> CorsLayer {
+        let allowed_origins = self.allowed_origins.clone();
+        let is_development = self.environment.is_development();
+
+        // Create a custom origin predicate that:
+        // 1. Allows requests without Origin header (CLI/TUI clients)
+        // 2. Allows configured origins
+        // 3. In development, allows any localhost origin
+        let allow_origin = AllowOrigin::predicate(move |origin: &HeaderValue, _request_parts| {
+            // Convert origin to string for comparison
+            let origin_str = match origin.to_str() {
+                Ok(s) => s,
+                Err(_) => return false, // Invalid UTF-8 in origin header
+            };
+
+            // Check if origin is in the allowed list
+            if allowed_origins.iter().any(|o| o == origin_str) {
+                return true;
+            }
+
+            // In development, allow any localhost origin
+            if is_development {
+                if origin_str.starts_with("http://localhost:")
+                    || origin_str.starts_with("http://127.0.0.1:")
+                {
+                    return true;
+                }
+            }
+
+            false
+        });
+
+        CorsLayer::new()
+            .allow_origin(allow_origin)
+            .allow_methods(self.allowed_methods.clone())
+            .allow_headers(self.allowed_headers.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cors_config_production() {
+        let config = CorsConfig::for_environment(Environment::Production);
+
+        // Should only allow the production origin
+        assert!(config.is_origin_allowed("https://fido-social.fly.dev"));
+        assert!(!config.is_origin_allowed("http://localhost:3000"));
+        assert!(!config.is_origin_allowed("http://127.0.0.1:8080"));
+        assert!(!config.is_origin_allowed("https://evil.com"));
+    }
+
+    #[test]
+    fn test_cors_config_development() {
+        let config = CorsConfig::for_environment(Environment::Development);
+
+        // Should allow localhost origins
+        assert!(config.is_origin_allowed("http://localhost:3000"));
+        assert!(config.is_origin_allowed("http://localhost:8080"));
+        assert!(config.is_origin_allowed("http://localhost:5173"));
+        assert!(config.is_origin_allowed("http://127.0.0.1:3000"));
+        assert!(config.is_origin_allowed("http://127.0.0.1:8080"));
+
+        // Should allow any localhost port in development
+        assert!(config.is_origin_allowed("http://localhost:9999"));
+        assert!(config.is_origin_allowed("http://127.0.0.1:12345"));
+
+        // Should not allow external origins
+        assert!(!config.is_origin_allowed("https://evil.com"));
+        assert!(!config.is_origin_allowed("https://fido-social.fly.dev"));
+    }
+
+    #[test]
+    fn test_cors_config_allowed_methods() {
+        let config = CorsConfig::for_environment(Environment::Production);
+        let methods = config.allowed_methods();
+
+        assert!(methods.contains(&Method::GET));
+        assert!(methods.contains(&Method::POST));
+        assert!(methods.contains(&Method::PUT));
+        assert!(methods.contains(&Method::DELETE));
+        assert!(!methods.contains(&Method::PATCH));
+        assert!(!methods.contains(&Method::OPTIONS)); // OPTIONS is handled automatically by CORS
+    }
+
+    #[test]
+    fn test_cors_config_allowed_headers() {
+        let config = CorsConfig::for_environment(Environment::Production);
+        let headers = config.allowed_headers();
+
+        assert!(headers.contains(&header::CONTENT_TYPE));
+        assert!(headers.contains(&HeaderName::from_static("x-session-token")));
+    }
+
+    #[test]
+    fn test_cors_layer_creation() {
+        // Just verify that to_cors_layer doesn't panic
+        let config = CorsConfig::for_environment(Environment::Production);
+        let _layer = config.to_cors_layer();
+
+        let config = CorsConfig::for_environment(Environment::Development);
+        let _layer = config.to_cors_layer();
+    }
+
+    #[test]
+    fn test_cors_config_getters() {
+        let config = CorsConfig::for_environment(Environment::Production);
+
+        assert_eq!(config.allowed_origins().len(), 1);
+        assert_eq!(config.allowed_methods().len(), 4);
+        assert_eq!(config.allowed_headers().len(), 2);
+    }
+}

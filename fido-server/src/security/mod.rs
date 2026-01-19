@@ -1,0 +1,390 @@
+//! Security configuration module for Fido server
+//!
+//! This module provides environment-based security configuration with validation
+//! for production-ready security controls.
+
+pub mod cors;
+
+use std::fmt;
+use thiserror::Error;
+
+pub use cors::CorsConfig;
+
+/// Security configuration errors
+#[derive(Debug, Error)]
+pub enum SecurityConfigError {
+    #[error("Missing required configuration: {0}")]
+    MissingConfig(String),
+
+    #[error("Invalid configuration value for {field}: {message}")]
+    InvalidValue { field: String, message: String },
+
+    #[error("Environment variable error: {0}")]
+    EnvError(String),
+}
+
+/// Application environment
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Environment {
+    /// Development environment - relaxed security for local testing
+    Development,
+    /// Production environment - strict security enforcement
+    Production,
+}
+
+impl Environment {
+    /// Parse environment from string
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "production" | "prod" => Environment::Production,
+            _ => Environment::Development,
+        }
+    }
+
+    /// Check if this is a production environment
+    pub fn is_production(&self) -> bool {
+        matches!(self, Environment::Production)
+    }
+
+    /// Check if this is a development environment
+    pub fn is_development(&self) -> bool {
+        matches!(self, Environment::Development)
+    }
+}
+
+impl fmt::Display for Environment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Environment::Development => write!(f, "development"),
+            Environment::Production => write!(f, "production"),
+        }
+    }
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Environment::Development
+    }
+}
+
+/// Security configuration for the application
+#[derive(Debug, Clone)]
+pub struct SecurityConfig {
+    /// Current environment (Development or Production)
+    pub environment: Environment,
+
+    /// Allowed CORS origins
+    pub allowed_origins: Vec<String>,
+
+    /// GitHub OAuth client ID
+    pub github_client_id: String,
+
+    /// Whether to enable HTTPS redirect
+    pub enable_https_redirect: bool,
+
+    /// Maximum request body size in bytes (default: 1MB)
+    pub max_request_size: usize,
+
+    /// Maximum session age in days (default: 7)
+    pub session_max_age_days: i64,
+
+    /// Session idle timeout in hours (default: 24)
+    pub session_idle_timeout_hours: i64,
+}
+
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        Self {
+            environment: Environment::Development,
+            allowed_origins: vec![
+                "http://localhost:3000".to_string(),
+                "http://localhost:8080".to_string(),
+                "http://127.0.0.1:3000".to_string(),
+                "http://127.0.0.1:8080".to_string(),
+            ],
+            github_client_id: String::new(),
+            enable_https_redirect: false,
+            max_request_size: 1024 * 1024, // 1MB
+            session_max_age_days: 7,
+            session_idle_timeout_hours: 24,
+        }
+    }
+}
+
+impl SecurityConfig {
+    /// Create a new SecurityConfig by loading from environment variables
+    pub fn from_env() -> Result<Self, SecurityConfigError> {
+        let environment = std::env::var("ENVIRONMENT")
+            .or_else(|_| std::env::var("RUST_ENV"))
+            .map(|s| Environment::from_str(&s))
+            .unwrap_or(Environment::Development);
+
+        let github_client_id = std::env::var("GITHUB_CLIENT_ID").unwrap_or_default();
+
+        let allowed_origins = Self::get_allowed_origins(&environment);
+
+        let enable_https_redirect = environment.is_production();
+
+        let max_request_size = std::env::var("MAX_REQUEST_SIZE")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1024 * 1024); // 1MB default
+
+        let session_max_age_days = std::env::var("SESSION_MAX_AGE_DAYS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(7);
+
+        let session_idle_timeout_hours = std::env::var("SESSION_IDLE_TIMEOUT_HOURS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(24);
+
+        Ok(Self {
+            environment,
+            allowed_origins,
+            github_client_id,
+            enable_https_redirect,
+            max_request_size,
+            session_max_age_days,
+            session_idle_timeout_hours,
+        })
+    }
+
+    /// Get allowed origins based on environment
+    fn get_allowed_origins(environment: &Environment) -> Vec<String> {
+        match environment {
+            Environment::Production => {
+                vec!["https://fido-social.fly.dev".to_string()]
+            }
+            Environment::Development => {
+                vec![
+                    "http://localhost:3000".to_string(),
+                    "http://localhost:8080".to_string(),
+                    "http://127.0.0.1:3000".to_string(),
+                    "http://127.0.0.1:8080".to_string(),
+                ]
+            }
+        }
+    }
+
+    /// Validate the security configuration
+    ///
+    /// In production, this will fail if required configuration is missing.
+    /// In development, it will log warnings but allow startup.
+    pub fn validate(&self) -> Result<(), SecurityConfigError> {
+        // GitHub client ID is required in production
+        if self.environment.is_production() && self.github_client_id.is_empty() {
+            return Err(SecurityConfigError::MissingConfig(
+                "GITHUB_CLIENT_ID is required in production".to_string(),
+            ));
+        }
+
+        // Validate session configuration
+        if self.session_max_age_days <= 0 {
+            return Err(SecurityConfigError::InvalidValue {
+                field: "session_max_age_days".to_string(),
+                message: "Must be greater than 0".to_string(),
+            });
+        }
+
+        if self.session_idle_timeout_hours <= 0 {
+            return Err(SecurityConfigError::InvalidValue {
+                field: "session_idle_timeout_hours".to_string(),
+                message: "Must be greater than 0".to_string(),
+            });
+        }
+
+        // Validate max request size
+        if self.max_request_size == 0 {
+            return Err(SecurityConfigError::InvalidValue {
+                field: "max_request_size".to_string(),
+                message: "Must be greater than 0".to_string(),
+            });
+        }
+
+        // Validate allowed origins in production
+        if self.environment.is_production() && self.allowed_origins.is_empty() {
+            return Err(SecurityConfigError::InvalidValue {
+                field: "allowed_origins".to_string(),
+                message: "At least one allowed origin is required in production".to_string(),
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Log the security configuration (without sensitive values)
+    pub fn log_config(&self) {
+        tracing::info!("Security Configuration:");
+        tracing::info!("  Environment: {}", self.environment);
+        tracing::info!("  Allowed Origins: {:?}", self.allowed_origins);
+        tracing::info!("  HTTPS Redirect: {}", self.enable_https_redirect);
+        tracing::info!("  Max Request Size: {} bytes", self.max_request_size);
+        tracing::info!("  Session Max Age: {} days", self.session_max_age_days);
+        tracing::info!(
+            "  Session Idle Timeout: {} hours",
+            self.session_idle_timeout_hours
+        );
+        // Note: github_client_id is intentionally not logged for security
+        tracing::info!(
+            "  GitHub Client ID: {}",
+            if self.github_client_id.is_empty() {
+                "<not set>"
+            } else {
+                "<configured>"
+            }
+        );
+    }
+
+    /// Check if a specific origin is allowed
+    pub fn is_origin_allowed(&self, origin: &str) -> bool {
+        // In development, also allow localhost variants
+        if self.environment.is_development() {
+            if origin.starts_with("http://localhost:") || origin.starts_with("http://127.0.0.1:") {
+                return true;
+            }
+        }
+
+        self.allowed_origins.iter().any(|o| o == origin)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_environment_from_str() {
+        assert_eq!(Environment::from_str("production"), Environment::Production);
+        assert_eq!(Environment::from_str("prod"), Environment::Production);
+        assert_eq!(Environment::from_str("PRODUCTION"), Environment::Production);
+        assert_eq!(
+            Environment::from_str("development"),
+            Environment::Development
+        );
+        assert_eq!(Environment::from_str("dev"), Environment::Development);
+        assert_eq!(Environment::from_str("anything"), Environment::Development);
+    }
+
+    #[test]
+    fn test_environment_is_production() {
+        assert!(Environment::Production.is_production());
+        assert!(!Environment::Development.is_production());
+    }
+
+    #[test]
+    fn test_environment_is_development() {
+        assert!(Environment::Development.is_development());
+        assert!(!Environment::Production.is_development());
+    }
+
+    #[test]
+    fn test_environment_display() {
+        assert_eq!(format!("{}", Environment::Production), "production");
+        assert_eq!(format!("{}", Environment::Development), "development");
+    }
+
+    #[test]
+    fn test_security_config_default() {
+        let config = SecurityConfig::default();
+        assert_eq!(config.environment, Environment::Development);
+        assert!(!config.allowed_origins.is_empty());
+        assert_eq!(config.max_request_size, 1024 * 1024);
+        assert_eq!(config.session_max_age_days, 7);
+        assert_eq!(config.session_idle_timeout_hours, 24);
+    }
+
+    #[test]
+    fn test_security_config_validate_development() {
+        let config = SecurityConfig::default();
+        // Development mode should pass validation even without github_client_id
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_security_config_validate_production_missing_github() {
+        let config = SecurityConfig {
+            environment: Environment::Production,
+            github_client_id: String::new(),
+            ..Default::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(SecurityConfigError::MissingConfig(_))));
+    }
+
+    #[test]
+    fn test_security_config_validate_production_success() {
+        let config = SecurityConfig {
+            environment: Environment::Production,
+            github_client_id: "test_client_id".to_string(),
+            allowed_origins: vec!["https://fido-social.fly.dev".to_string()],
+            ..Default::default()
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_security_config_validate_invalid_session_age() {
+        let config = SecurityConfig {
+            session_max_age_days: 0,
+            ..Default::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(SecurityConfigError::InvalidValue { .. })
+        ));
+    }
+
+    #[test]
+    fn test_security_config_validate_invalid_idle_timeout() {
+        let config = SecurityConfig {
+            session_idle_timeout_hours: -1,
+            ..Default::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_is_origin_allowed_production() {
+        let config = SecurityConfig {
+            environment: Environment::Production,
+            allowed_origins: vec!["https://fido-social.fly.dev".to_string()],
+            ..Default::default()
+        };
+        assert!(config.is_origin_allowed("https://fido-social.fly.dev"));
+        assert!(!config.is_origin_allowed("http://localhost:3000"));
+        assert!(!config.is_origin_allowed("https://evil.com"));
+    }
+
+    #[test]
+    fn test_is_origin_allowed_development() {
+        let config = SecurityConfig {
+            environment: Environment::Development,
+            allowed_origins: vec!["http://localhost:3000".to_string()],
+            ..Default::default()
+        };
+        assert!(config.is_origin_allowed("http://localhost:3000"));
+        assert!(config.is_origin_allowed("http://localhost:8080")); // Any localhost port in dev
+        assert!(config.is_origin_allowed("http://127.0.0.1:3000"));
+        assert!(!config.is_origin_allowed("https://evil.com"));
+    }
+
+    #[test]
+    fn test_get_allowed_origins_production() {
+        let origins = SecurityConfig::get_allowed_origins(&Environment::Production);
+        assert_eq!(origins.len(), 1);
+        assert!(origins.contains(&"https://fido-social.fly.dev".to_string()));
+    }
+
+    #[test]
+    fn test_get_allowed_origins_development() {
+        let origins = SecurityConfig::get_allowed_origins(&Environment::Development);
+        assert!(origins.len() >= 2);
+        assert!(origins.contains(&"http://localhost:3000".to_string()));
+    }
+}

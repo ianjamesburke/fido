@@ -37,9 +37,18 @@ impl PostRepository {
     }
 
     /// Get posts with sorting and limit
+    /// 
+    /// # SQL Injection Safety
+    /// This method uses format!() to build the ORDER BY clause, but it is safe because:
+    /// - The `sort_order` parameter is a validated enum (SortOrder), not user input
+    /// - The enum can only have three values: Newest, Popular, Controversial
+    /// - Each enum value maps to a hardcoded SQL clause
+    /// - The API layer validates sort order before calling this method
+    /// - All other parameters (limit) use parameterized queries
     pub fn get_posts(&self, sort_order: SortOrder, limit: i32) -> Result<Vec<Post>> {
         let conn = self.pool.get()?;
 
+        // Safe: order_clause is built from whitelisted enum values only
         let order_clause = match sort_order {
             SortOrder::Newest => "ORDER BY p.created_at DESC",
             SortOrder::Popular => "ORDER BY p.upvotes DESC, p.created_at DESC",
@@ -283,6 +292,14 @@ impl PostRepository {
     }
 
     /// Get posts filtered by hashtag
+    /// 
+    /// # SQL Injection Safety
+    /// This method uses format!() to build the ORDER BY clause, but it is safe because:
+    /// - The `sort_order` parameter is a validated enum (SortOrder), not user input
+    /// - The enum can only have three values: Newest, Popular, Controversial
+    /// - Each enum value maps to a hardcoded SQL clause
+    /// - The API layer validates sort order before calling this method
+    /// - All other parameters (hashtag_name, limit) use parameterized queries
     pub fn get_posts_by_hashtag(
         &self,
         hashtag_name: &str,
@@ -291,6 +308,7 @@ impl PostRepository {
     ) -> Result<Vec<Post>> {
         let conn = self.pool.get()?;
 
+        // Safe: order_clause is built from whitelisted enum values only
         let order_clause = match sort_order {
             SortOrder::Newest => "ORDER BY p.created_at DESC",
             SortOrder::Popular => "ORDER BY p.upvotes DESC, p.created_at DESC",
@@ -342,6 +360,14 @@ impl PostRepository {
     }
 
     /// Get posts filtered by username
+    /// 
+    /// # SQL Injection Safety
+    /// This method uses format!() to build the ORDER BY clause, but it is safe because:
+    /// - The `sort_order` parameter is a validated enum (SortOrder), not user input
+    /// - The enum can only have three values: Newest, Popular, Controversial
+    /// - Each enum value maps to a hardcoded SQL clause
+    /// - The API layer validates sort order before calling this method
+    /// - All other parameters (username, limit) use parameterized queries
     pub fn get_posts_by_username(
         &self,
         username: &str,
@@ -350,6 +376,7 @@ impl PostRepository {
     ) -> Result<Vec<Post>> {
         let conn = self.pool.get()?;
 
+        // Safe: order_clause is built from whitelisted enum values only
         let order_clause = match sort_order {
             SortOrder::Newest => "ORDER BY p.created_at DESC",
             SortOrder::Popular => "ORDER BY p.upvotes DESC, p.created_at DESC",
@@ -399,6 +426,14 @@ impl PostRepository {
     }
 
     /// Get posts filtered by both hashtag and username
+    /// 
+    /// # SQL Injection Safety
+    /// This method uses format!() to build the ORDER BY clause, but it is safe because:
+    /// - The `sort_order` parameter is a validated enum (SortOrder), not user input
+    /// - The enum can only have three values: Newest, Popular, Controversial
+    /// - Each enum value maps to a hardcoded SQL clause
+    /// - The API layer validates sort order before calling this method
+    /// - All other parameters (hashtag_name, username, limit) use parameterized queries
     pub fn get_posts_by_hashtag_and_username(
         &self,
         hashtag_name: &str,
@@ -408,6 +443,7 @@ impl PostRepository {
     ) -> Result<Vec<Post>> {
         let conn = self.pool.get()?;
 
+        // Safe: order_clause is built from whitelisted enum values only
         let order_clause = match sort_order {
             SortOrder::Newest => "ORDER BY p.created_at DESC",
             SortOrder::Popular => "ORDER BY p.upvotes DESC, p.created_at DESC",

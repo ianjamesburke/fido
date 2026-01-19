@@ -5,6 +5,7 @@ mod hashtag;
 mod mention;
 mod oauth;
 mod rate_limit;
+mod security;
 mod session;
 mod state;
 
@@ -16,7 +17,6 @@ use axum::{
 use rate_limit::RateLimiter;
 use state::AppState;
 use std::net::SocketAddr;
-use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -35,6 +35,36 @@ async fn main() {
         .init();
 
     tracing::info!("Starting Fido server v1.0.1...");
+
+    // Load and validate security configuration
+    let security_config = match security::SecurityConfig::from_env() {
+        Ok(config) => {
+            tracing::info!("Successfully loaded security configuration");
+            config
+        }
+        Err(e) => {
+            tracing::error!("Failed to load security configuration: {}", e);
+            eprintln!("FATAL: Failed to load security configuration: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // Validate security configuration (fail fast in production)
+    if let Err(e) = security_config.validate() {
+        if security_config.environment.is_production() {
+            tracing::error!("Security configuration validation failed: {}", e);
+            eprintln!("FATAL: Security configuration validation failed: {}", e);
+            std::process::exit(1);
+        } else {
+            tracing::warn!(
+                "Security configuration validation warning (development mode): {}",
+                e
+            );
+        }
+    }
+
+    // Log security configuration (without secrets)
+    security_config.log_config();
 
     // Load settings with detailed error handling
     let settings = match config::Settings::new() {
@@ -161,11 +191,14 @@ async fn main() {
         }
     });
 
-    // Configure CORS
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    // Configure CORS using environment-aware configuration
+    let cors_config = security::CorsConfig::for_environment(security_config.environment);
+    tracing::info!(
+        "CORS configured for {} environment with origins: {:?}",
+        security_config.environment,
+        cors_config.allowed_origins()
+    );
+    let cors = cors_config.to_cors_layer();
 
     // Create global rate limiter: 100 requests per minute per user
     let rate_limiter = RateLimiter::new(100, 60);

@@ -7,5 +7,6 @@ pub mod db;
 pub mod hashtag;
 pub mod mention;
 pub mod oauth;
+pub mod security;
 pub mod session;
 pub mod state;

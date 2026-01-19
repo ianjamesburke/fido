@@ -185,6 +185,9 @@ fn check_index_exists(conn: &Connection, index_name: &str) -> Result<bool> {
 }
 
 fn get_table_columns(conn: &Connection, table_name: &str) -> Result<Vec<ColumnInfo>> {
+    // Note: PRAGMA statements don't support parameterized queries in SQLite
+    // However, table_name comes from a hardcoded whitelist, not user input
+    // This is safe because table_name is validated against a known list
     let mut stmt = conn.prepare(&format!("PRAGMA table_info({})", table_name))?;
 
     let columns = stmt
@@ -202,6 +205,9 @@ fn get_table_columns(conn: &Connection, table_name: &str) -> Result<Vec<ColumnIn
 }
 
 fn count_records(conn: &Connection, table_name: &str) -> Result<i32> {
+    // Note: SQLite doesn't support parameterized table names in FROM clause
+    // However, table_name comes from a hardcoded whitelist, not user input
+    // This is safe because table_name is validated against a known list
     let count: i32 =
         conn.query_row(&format!("SELECT COUNT(*) FROM {}", table_name), [], |row| {
             row.get(0)

@@ -118,12 +118,17 @@ pub async fn get_posts(
     let hashtag_repo = HashtagRepository::new(pool.clone());
     let vote_repo = VoteRepository::new(pool);
 
-    // Parse sort order
-    let sort_order = query
-        .sort
-        .as_deref()
-        .and_then(SortOrder::parse)
-        .unwrap_or(SortOrder::Newest);
+    // Parse and validate sort order - reject invalid values
+    let sort_order = if let Some(sort_str) = query.sort.as_deref() {
+        SortOrder::parse(sort_str).ok_or_else(|| {
+            ApiError::BadRequest(format!(
+                "Invalid sort order '{}'. Valid values: Newest, Popular, Controversial",
+                sort_str
+            ))
+        })?
+    } else {
+        SortOrder::Newest
+    };
 
     // Get posts (filtered by hashtag and/or username if specified)
     let mut posts = match (&query.hashtag, &query.username) {
