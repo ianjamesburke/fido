@@ -8,47 +8,12 @@ use uuid::Uuid;
 use crate::{
     api::{ApiError, ApiResult},
     db::repositories::{HashtagRepository, PostRepository, UserRepository, VoteRepository},
+    http::{extract_client_ip, extract_user_agent, AuthenticatedUser},
     security::validation::validate_bio,
     security::{AuditEvent, AuditEventType},
     state::AppState,
 };
 use fido_types::{UpdateBioRequest, UserProfile};
-
-/// Helper function to extract client IP address from headers
-fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
-    // Check X-Forwarded-For first (for proxied requests)
-    headers
-        .get("X-Forwarded-For")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
-        .or_else(|| {
-            // Fall back to X-Real-IP
-            headers
-                .get("X-Real-IP")
-                .and_then(|v| v.to_str().ok())
-                .map(|s| s.to_string())
-        })
-}
-
-/// Helper function to extract User-Agent from headers
-fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
-    headers
-        .get("User-Agent")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-}
-
-/// Extract user ID from session token header
-fn get_user_from_headers(state: &AppState, headers: &HeaderMap) -> Result<Uuid, ApiError> {
-    let token = headers
-        .get("X-Session-Token")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| ApiError::Unauthorized("Missing session token".to_string()))?;
-
-    state
-        .get_authenticated_user_id_from_token(token)
-        .ok_or_else(|| ApiError::Unauthorized("Invalid session token".to_string()))
-}
 
 /// GET /users/:id/profile - Get user profile with stats
 pub async fn get_profile(
@@ -108,6 +73,7 @@ pub async fn get_profile(
 /// PUT /users/:id/profile - Update user bio
 pub async fn update_profile(
     State(state): State<AppState>,
+    AuthenticatedUser(authenticated_user_id): AuthenticatedUser,
     Path(user_id): Path<String>,
     headers: HeaderMap,
     Json(payload): Json<UpdateBioRequest>,
@@ -130,9 +96,6 @@ pub async fn update_profile(
         );
         return Err(ApiError::BadRequest(e.to_string()));
     }
-
-    // Get authenticated user from session token
-    let authenticated_user_id = get_user_from_headers(&state, &headers)?;
 
     // Authorization check: users can only edit their own bio
     if user_id != authenticated_user_id {

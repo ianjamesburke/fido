@@ -1,6 +1,5 @@
 use axum::{
     extract::{Path, State},
-    http::HeaderMap,
     Json,
 };
 use chrono::{Duration, Utc};
@@ -10,21 +9,10 @@ use uuid::Uuid;
 use crate::{
     api::{ApiError, ApiResult},
     db::repositories::{DirectMessageRepository, UserRepository},
+    http::AuthenticatedUser,
     state::AppState,
 };
 use fido_types::{DirectMessage, SendMessageRequest};
-
-/// Extract user ID from session token header
-fn get_user_from_headers(state: &AppState, headers: &HeaderMap) -> Result<Uuid, ApiError> {
-    let token = headers
-        .get("X-Session-Token")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| ApiError::Unauthorized("Missing session token".to_string()))?;
-
-    state
-        .get_authenticated_user_id_from_token(token)
-        .ok_or_else(|| ApiError::Unauthorized("Invalid session token".to_string()))
-}
 
 /// Check if user has exceeded DM rate limit (1 DM per 1 second)
 fn check_dm_rate_limit(state: &AppState, user_id: &Uuid) -> Result<(), ApiError> {
@@ -88,11 +76,8 @@ fn update_dm_rate_limit(state: &AppState, user_id: &Uuid) -> Result<(), ApiError
 /// GET /dms/conversations - List conversations for current user
 pub async fn get_conversations(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<serde_json::Value>>> {
-    // Get authenticated user from session token
-    let user_id = get_user_from_headers(&state, &headers)?;
-
     let pool = state.db.pool.clone();
     let dm_repo = DirectMessageRepository::new(pool.clone());
     let user_repo = UserRepository::new(pool);
@@ -147,15 +132,12 @@ pub async fn get_conversations(
 /// GET /dms/conversations/:user_id - Get conversation with specific user
 pub async fn get_conversation(
     State(state): State<AppState>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     Path(other_user_id): Path<String>,
-    headers: HeaderMap,
 ) -> ApiResult<Json<Vec<DirectMessage>>> {
     // Parse other user ID
     let other_user_id = Uuid::parse_str(&other_user_id)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
-
-    // Get authenticated user from session token
-    let user_id = get_user_from_headers(&state, &headers)?;
 
     let pool = state.db.pool.clone();
     let dm_repo = DirectMessageRepository::new(pool.clone());
@@ -202,15 +184,12 @@ pub async fn get_conversation(
 /// POST /dms/mark-read/:user_id - Mark messages as read for a specific user
 pub async fn mark_messages_read(
     State(state): State<AppState>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     Path(other_user_id): Path<String>,
-    headers: HeaderMap,
 ) -> ApiResult<Json<serde_json::Value>> {
     // Parse other user ID
     let other_user_id = Uuid::parse_str(&other_user_id)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
-
-    // Get authenticated user from session token
-    let user_id = get_user_from_headers(&state, &headers)?;
 
     let pool = state.db.pool.clone();
     let dm_repo = DirectMessageRepository::new(pool);
@@ -229,7 +208,7 @@ pub async fn mark_messages_read(
 /// POST /dms - Send a direct message
 pub async fn send_message(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(from_user_id): AuthenticatedUser,
     Json(payload): Json<SendMessageRequest>,
 ) -> ApiResult<Json<DirectMessage>> {
     // Validate content
@@ -238,9 +217,6 @@ pub async fn send_message(
             "Message content cannot be empty".to_string(),
         ));
     }
-
-    // Get authenticated user from session token
-    let from_user_id = get_user_from_headers(&state, &headers)?;
 
     // Check rate limit (1 DM per 1 second)
     check_dm_rate_limit(&state, &from_user_id)?;
@@ -295,12 +271,9 @@ pub async fn send_message(
 /// DELETE /dms/conversations/:user_id - Delete conversation with specific user
 pub async fn delete_conversation(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     Path(other_user_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    // Get authenticated user from session token
-    let user_id = get_user_from_headers(&state, &headers)?;
-
     // Parse other user ID
     let other_user_id = Uuid::parse_str(&other_user_id)
         .map_err(|_| ApiError::BadRequest("Invalid user ID format".to_string()))?;

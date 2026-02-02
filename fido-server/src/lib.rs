@@ -5,6 +5,7 @@ pub mod api;
 pub mod config;
 pub mod db;
 pub mod hashtag;
+pub mod http;
 pub mod mention;
 pub mod oauth;
 pub mod rate_limit;

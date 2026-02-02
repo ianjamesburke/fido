@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -9,26 +9,9 @@ use uuid::Uuid;
 use crate::{
     api::{ApiError, ApiResult},
     db::repositories::{FriendRepository, PostRepository, UserRepository},
+    http::{AuthenticatedUser, OptionalUser},
     state::AppState,
 };
-
-/// Extract user ID from session token header
-fn get_user_from_headers(state: &AppState, headers: &HeaderMap) -> Result<Uuid, ApiError> {
-    let token = headers
-        .get("X-Session-Token")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| ApiError::Unauthorized("Missing session token".to_string()))?;
-
-    state
-        .get_authenticated_user_id_from_token(token)
-        .ok_or_else(|| ApiError::Unauthorized("Invalid session token".to_string()))
-}
-
-/// Extract optional user ID from session token header (for public endpoints)
-fn get_optional_user_from_headers(state: &AppState, headers: &HeaderMap) -> Option<Uuid> {
-    let token = headers.get("X-Session-Token")?.to_str().ok()?;
-    state.get_authenticated_user_id_from_token(token)
-}
 
 /// GET /users/search?q=query - Search users by username
 #[derive(Debug, Deserialize)]
@@ -111,11 +94,9 @@ pub enum RelationshipStatus {
 
 pub async fn get_user_profile(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    OptionalUser(viewer_id): OptionalUser,
     Path(user_id_str): Path<String>,
 ) -> ApiResult<Json<UserProfileResponse>> {
-    let viewer_id = get_optional_user_from_headers(&state, &headers);
-
     let profile_user_id = Uuid::parse_str(&user_id_str)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
@@ -187,11 +168,9 @@ pub async fn get_user_profile(
 /// POST /users/:id/follow - Follow a user
 pub async fn follow_user(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(follower_id): AuthenticatedUser,
     Path(user_id_str): Path<String>,
 ) -> ApiResult<StatusCode> {
-    let follower_id = get_user_from_headers(&state, &headers)?;
-
     let following_id = Uuid::parse_str(&user_id_str)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
@@ -217,11 +196,9 @@ pub async fn follow_user(
 /// DELETE /users/:id/follow - Unfollow a user
 pub async fn unfollow_user(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(follower_id): AuthenticatedUser,
     Path(user_id_str): Path<String>,
 ) -> ApiResult<StatusCode> {
-    let follower_id = get_user_from_headers(&state, &headers)?;
-
     let following_id = Uuid::parse_str(&user_id_str)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
@@ -248,10 +225,8 @@ pub struct SocialUserResponse {
 
 pub async fn get_following_list(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<SocialUserResponse>>> {
-    let user_id = get_user_from_headers(&state, &headers)?;
-
     let friend_repo = FriendRepository::new(state.db.pool.clone());
     let user_repo = UserRepository::new(state.db.pool.clone());
 
@@ -280,10 +255,8 @@ pub async fn get_following_list(
 /// GET /social/followers - Get list of users following the current user
 pub async fn get_followers_list(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<SocialUserResponse>>> {
-    let user_id = get_user_from_headers(&state, &headers)?;
-
     let friend_repo = FriendRepository::new(state.db.pool.clone());
     let user_repo = UserRepository::new(state.db.pool.clone());
 
@@ -312,10 +285,8 @@ pub async fn get_followers_list(
 /// GET /social/mutual - Get list of mutual friends
 pub async fn get_mutual_friends_list(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<SocialUserResponse>>> {
-    let user_id = get_user_from_headers(&state, &headers)?;
-
     let friend_repo = FriendRepository::new(state.db.pool.clone());
     let user_repo = UserRepository::new(state.db.pool.clone());
 
@@ -346,7 +317,7 @@ mod tests {
     use super::*;
     use crate::db::Database;
     use crate::state::AppState;
-    use axum::http::HeaderValue;
+    use axum::http::{HeaderMap, HeaderValue};
 
     fn setup_test_state() -> (AppState, Uuid, String) {
         let db = Database::in_memory().expect("Failed to create test database");

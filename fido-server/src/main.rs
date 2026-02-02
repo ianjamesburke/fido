@@ -2,6 +2,7 @@ mod api;
 mod config;
 mod db;
 mod hashtag;
+mod http;
 mod mention;
 mod oauth;
 mod rate_limit;

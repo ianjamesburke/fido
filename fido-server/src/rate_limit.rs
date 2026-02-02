@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::http::{extract_client_ip, extract_user_agent};
 use crate::security::{AuditEvent, AuditEventType};
 use crate::state::AppState;
 
@@ -97,40 +98,6 @@ impl RateLimiter {
             }
         }
     }
-}
-
-/// Helper function to extract client IP address from headers
-fn extract_client_ip(headers: &axum::http::HeaderMap) -> Option<String> {
-    // Check common proxy headers first
-    if let Some(forwarded) = headers.get("x-forwarded-for") {
-        if let Ok(value) = forwarded.to_str() {
-            // X-Forwarded-For can contain multiple IPs, take the first one
-            return Some(value.split(',').next().unwrap_or(value).trim().to_string());
-        }
-    }
-
-    if let Some(real_ip) = headers.get("x-real-ip") {
-        if let Ok(value) = real_ip.to_str() {
-            return Some(value.to_string());
-        }
-    }
-
-    // Fly.io specific header
-    if let Some(fly_ip) = headers.get("fly-client-ip") {
-        if let Ok(value) = fly_ip.to_str() {
-            return Some(value.to_string());
-        }
-    }
-
-    None
-}
-
-/// Helper function to extract User-Agent from headers
-fn extract_user_agent(headers: &axum::http::HeaderMap) -> Option<String> {
-    headers
-        .get("user-agent")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
 }
 
 /// Middleware to apply rate limiting to all requests

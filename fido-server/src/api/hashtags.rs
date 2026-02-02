@@ -4,51 +4,14 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-
 use crate::{
     api::{ApiError, ApiResult},
     db::repositories::HashtagRepository,
+    http::{extract_client_ip, extract_user_agent, AuthenticatedUser},
     security::validation::validate_hashtag,
     security::{AuditEvent, AuditEventType},
     state::AppState,
 };
-
-/// Helper function to extract client IP address from headers
-fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
-    // Check X-Forwarded-For first (for proxied requests)
-    headers
-        .get("X-Forwarded-For")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
-        .or_else(|| {
-            // Fall back to X-Real-IP
-            headers
-                .get("X-Real-IP")
-                .and_then(|v| v.to_str().ok())
-                .map(|s| s.to_string())
-        })
-}
-
-/// Helper function to extract User-Agent from headers
-fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
-    headers
-        .get("User-Agent")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-}
-
-/// Extract user ID from session token header
-fn get_user_from_headers(state: &AppState, headers: &HeaderMap) -> Result<Uuid, ApiError> {
-    let token = headers
-        .get("X-Session-Token")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| ApiError::Unauthorized("Missing session token".to_string()))?;
-
-    state
-        .get_authenticated_user_id_from_token(token)
-        .ok_or_else(|| ApiError::Unauthorized("Invalid session token".to_string()))
-}
 
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {
@@ -71,10 +34,8 @@ pub struct ActiveHashtagResponse {
 /// GET /hashtags/followed - Get user's followed hashtags
 pub async fn get_followed_hashtags(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<HashtagResponse>>> {
-    let user_id = get_user_from_headers(&state, &headers)?;
-
     let hashtag_repo = HashtagRepository::new(state.db.pool.clone());
     let hashtags = hashtag_repo
         .get_followed_by_user(&user_id)
@@ -102,6 +63,7 @@ pub struct FollowHashtagRequest {
 
 pub async fn follow_hashtag(
     State(state): State<AppState>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     headers: HeaderMap,
     Json(req): Json<FollowHashtagRequest>,
 ) -> ApiResult<StatusCode> {
@@ -120,8 +82,6 @@ pub async fn follow_hashtag(
         return Err(ApiError::BadRequest(e.to_string()));
     }
 
-    let user_id = get_user_from_headers(&state, &headers)?;
-
     let hashtag_repo = HashtagRepository::new(state.db.pool.clone());
     hashtag_repo
         .follow_hashtag(&user_id, &req.name)
@@ -133,6 +93,7 @@ pub async fn follow_hashtag(
 /// DELETE /hashtags/follow/:name - Unfollow a hashtag
 pub async fn unfollow_hashtag(
     State(state): State<AppState>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     headers: HeaderMap,
     Path(name): Path<String>,
 ) -> ApiResult<StatusCode> {
@@ -150,8 +111,6 @@ pub async fn unfollow_hashtag(
         );
         return Err(ApiError::BadRequest(e.to_string()));
     }
-
-    let user_id = get_user_from_headers(&state, &headers)?;
 
     let hashtag_repo = HashtagRepository::new(state.db.pool.clone());
     hashtag_repo
@@ -206,10 +165,8 @@ pub async fn search_hashtags(
 /// GET /hashtags/active - Get user's most active hashtags
 pub async fn get_active_hashtags(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<ActiveHashtagResponse>>> {
-    let user_id = get_user_from_headers(&state, &headers)?;
-
     let hashtag_repo = HashtagRepository::new(state.db.pool.clone());
     let hashtags = hashtag_repo
         .get_active_by_user(&user_id, 5)
