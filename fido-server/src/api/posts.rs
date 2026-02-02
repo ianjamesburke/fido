@@ -10,7 +10,6 @@ use uuid::Uuid;
 
 use crate::{
     api::{ApiError, ApiResult},
-    db::repositories::{HashtagRepository, PostRepository, VoteRepository},
     hashtag::extract_hashtags,
     http::{extract_client_ip, extract_user_agent, AuthenticatedUser, OptionalUser},
     security::validation::validate_post_content,
@@ -137,6 +136,7 @@ pub async fn create_post(
     headers: HeaderMap,
     Json(payload): Json<CreatePostRequest>,
 ) -> ApiResult<Json<Post>> {
+    let service = PostService::new(state.db.pool.clone());
     let client_ip = extract_client_ip(&headers);
     let user_agent = extract_user_agent(&headers);
 
@@ -155,16 +155,8 @@ pub async fn create_post(
     // Check rate limit (1 post per 10 minutes)
     check_post_rate_limit(&state, &author_id)?;
 
-    let pool = state.db.pool.clone();
-    let post_repo = PostRepository::new(pool.clone());
-    let hashtag_repo = HashtagRepository::new(pool.clone());
-    let user_repo = crate::db::repositories::UserRepository::new(pool);
-
     // Get author username
-    let author = user_repo
-        .get_by_id(&author_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("Author not found".to_string()))?;
+    let author = service.get_user_by_id(&author_id)?;
 
     // Extract hashtags using the new hashtag module
     let hashtags = extract_hashtags(&payload.content);
@@ -187,22 +179,18 @@ pub async fn create_post(
     };
 
     // Store post
-    post_repo
-        .create(&post)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    service.create_post(&post)?;
 
     // Update rate limit timestamp
     update_post_rate_limit(&state, &author_id)?;
 
     // Store hashtags and track activity
     if !hashtags.is_empty() {
-        hashtag_repo
-            .store_hashtags(&post.id, &hashtags)
-            .map_err(|e| ApiError::InternalError(e.to_string()))?;
+        service.store_hashtags(&post.id, &hashtags)?;
 
         // Track user activity for each hashtag
         for hashtag in &hashtags {
-            let _ = hashtag_repo.increment_activity(&author_id, hashtag);
+            service.increment_hashtag_activity(&author_id, hashtag);
         }
     }
 
@@ -216,6 +204,7 @@ pub async fn vote_on_post(
     Path(post_id): Path<String>,
     Json(payload): Json<VoteRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    let service = PostService::new(state.db.pool.clone());
     // Parse post ID
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
@@ -225,35 +214,7 @@ pub async fn vote_on_post(
         ApiError::BadRequest("Invalid vote direction. Use 'up' or 'down'".to_string())
     })?;
 
-    let pool = state.db.pool.clone();
-    let vote_repo = VoteRepository::new(pool.clone());
-    let post_repo = PostRepository::new(pool.clone());
-    let hashtag_repo = HashtagRepository::new(pool);
-
-    // Verify post exists
-    post_repo
-        .get_by_id(&post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
-
-    // Upsert vote
-    vote_repo
-        .upsert_vote(&user_id, &post_id, direction)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    // Update vote counts
-    post_repo
-        .update_vote_counts(&post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    // Track hashtag activity for this vote
-    let hashtags = hashtag_repo
-        .get_by_post(&post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    for hashtag in hashtags {
-        let _ = hashtag_repo.increment_activity(&user_id, &hashtag);
-    }
+    service.record_vote(&user_id, &post_id, direction)?;
 
     Ok(Json(serde_json::json!({
         "message": "Vote recorded successfully",
@@ -286,6 +247,7 @@ pub async fn create_reply(
     headers: HeaderMap,
     Json(payload): Json<fido_types::CreateReplyRequest>,
 ) -> ApiResult<Json<Post>> {
+    let service = PostService::new(state.db.pool.clone());
     let client_ip = extract_client_ip(&headers);
     let user_agent = extract_user_agent(&headers);
 
@@ -308,25 +270,14 @@ pub async fn create_reply(
     // Check rate limit for replies (same as posts - 1 per 10 minutes)
     check_post_rate_limit(&state, &author_id)?;
 
-    let pool = state.db.pool.clone();
-    let post_repo = PostRepository::new(pool.clone());
-    let hashtag_repo = HashtagRepository::new(pool.clone());
-    let user_repo = crate::db::repositories::UserRepository::new(pool);
-
     // Get the post being replied to
-    let target_post = post_repo
-        .get_by_id(&parent_post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
+    let target_post = service.get_post(&parent_post_id, None)?;
 
     // Use the actual parent_post_id for true nested replies
     let actual_parent_id = parent_post_id;
 
     // Get author username
-    let author = user_repo
-        .get_by_id(&author_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("Author not found".to_string()))?;
+    let author = service.get_user_by_id(&author_id)?;
 
     // Extract hashtags using the hashtag module
     let hashtags = extract_hashtags(&payload.content);
@@ -368,45 +319,22 @@ pub async fn create_reply(
     };
 
     // Store reply
-    post_repo
-        .create(&reply)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    service.create_post(&reply)?;
 
     // Update rate limit timestamp (replies count toward rate limit)
     update_post_rate_limit(&state, &author_id)?;
 
     // Store hashtags and track activity
     if !hashtags.is_empty() {
-        hashtag_repo
-            .store_hashtags(&reply.id, &hashtags)
-            .map_err(|e| ApiError::InternalError(e.to_string()))?;
+        service.store_hashtags(&reply.id, &hashtags)?;
 
         // Track user activity for each hashtag
         for hashtag in &hashtags {
-            let _ = hashtag_repo.increment_activity(&author_id, hashtag);
+            service.increment_hashtag_activity(&author_id, hashtag);
         }
     }
 
     Ok(Json(reply))
-}
-
-/// Helper function to verify post ownership
-fn verify_post_ownership(state: &AppState, user_id: Uuid, post_id: &Uuid) -> Result<(), ApiError> {
-    let pool = state.db.pool.clone();
-    let post_repo = PostRepository::new(pool);
-
-    let post = post_repo
-        .get_by_id(post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
-
-    if post.author_id != user_id {
-        return Err(ApiError::Forbidden(
-            "You don't have permission to modify this post".to_string(),
-        ));
-    }
-
-    Ok(())
 }
 
 /// PUT /posts/:id - Update a post
@@ -417,6 +345,7 @@ pub async fn update_post(
     headers: HeaderMap,
     Json(payload): Json<fido_types::UpdatePostRequest>,
 ) -> ApiResult<Json<Post>> {
+    let service = PostService::new(state.db.pool.clone());
     let client_ip = extract_client_ip(&headers);
     let user_agent = extract_user_agent(&headers);
 
@@ -437,17 +366,10 @@ pub async fn update_post(
     }
 
     // Verify post ownership
-    verify_post_ownership(&state, user_id, &post_id)?;
-
-    let pool = state.db.pool.clone();
-    let post_repo = PostRepository::new(pool.clone());
-    let hashtag_repo = HashtagRepository::new(pool);
+    service.verify_ownership(&user_id, &post_id)?;
 
     // Get existing post
-    let mut post = post_repo
-        .get_by_id(&post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
+    let mut post = service.get_post(&post_id, None)?;
 
     // Update content
     post.content = payload.content.clone();
@@ -457,19 +379,13 @@ pub async fn update_post(
     post.hashtags = new_hashtags.clone();
 
     // Update post in database
-    post_repo
-        .update_content(&post_id, &payload.content)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    service.update_post_content(&post_id, &payload.content)?;
 
     // Update hashtags (delete old ones and insert new ones)
-    hashtag_repo
-        .delete_by_post(&post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    service.delete_post_hashtags(&post_id)?;
 
     if !new_hashtags.is_empty() {
-        hashtag_repo
-            .store_hashtags(&post_id, &new_hashtags)
-            .map_err(|e| ApiError::InternalError(e.to_string()))?;
+        service.store_hashtags(&post_id, &new_hashtags)?;
     }
 
     Ok(Json(post))
@@ -481,26 +397,19 @@ pub async fn delete_post(
     AuthenticatedUser(user_id): AuthenticatedUser,
     Path(post_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    let service = PostService::new(state.db.pool.clone());
     // Parse post ID
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
 
     // Verify post ownership
-    verify_post_ownership(&state, user_id, &post_id)?;
-
-    let pool = state.db.pool.clone();
-    let post_repo = PostRepository::new(pool.clone());
+    service.verify_ownership(&user_id, &post_id)?;
 
     // Check if post exists
-    post_repo
-        .get_by_id(&post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
+    let _ = service.get_post(&post_id, None)?;
 
     // Delete post (cascade will handle replies, hashtags, and votes)
-    post_repo
-        .delete(&post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    service.delete_post(&post_id)?;
 
     Ok(Json(serde_json::json!({
         "success": true,

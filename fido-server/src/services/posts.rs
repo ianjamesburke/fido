@@ -3,13 +3,14 @@
 use uuid::Uuid;
 
 use crate::api::{ApiError, ApiResult};
-use crate::db::repositories::{HashtagRepository, PostRepository, VoteRepository};
+use crate::db::repositories::{HashtagRepository, PostRepository, UserRepository, VoteRepository};
 use crate::db::DbPool;
-use fido_types::{Post, SortOrder};
+use fido_types::{Post, SortOrder, User, VoteDirection};
 
 pub struct PostService {
     post_repo: PostRepository,
     hashtag_repo: HashtagRepository,
+    user_repo: UserRepository,
     vote_repo: VoteRepository,
 }
 
@@ -18,7 +19,8 @@ impl PostService {
         Self {
             post_repo: PostRepository::new(pool.clone()),
             hashtag_repo: HashtagRepository::new(pool.clone()),
-            vote_repo: VoteRepository::new(pool.clone()),
+            user_repo: UserRepository::new(pool.clone()),
+            vote_repo: VoteRepository::new(pool),
         }
     }
 
@@ -85,6 +87,77 @@ impl PostService {
         self.populate_posts(&mut replies, user_id)?;
 
         Ok((root_post, replies))
+    }
+
+    pub fn get_user_by_id(&self, user_id: &Uuid) -> ApiResult<User> {
+        self.user_repo
+            .get_by_id(user_id)?
+            .ok_or_else(|| ApiError::NotFound("User not found".to_string()))
+    }
+
+    pub fn create_post(&self, post: &Post) -> ApiResult<()> {
+        self.post_repo.create(post)?;
+        Ok(())
+    }
+
+    pub fn store_hashtags(&self, post_id: &Uuid, hashtags: &[String]) -> ApiResult<()> {
+        self.hashtag_repo.store_hashtags(post_id, hashtags)?;
+        Ok(())
+    }
+
+    pub fn delete_post_hashtags(&self, post_id: &Uuid) -> ApiResult<()> {
+        self.hashtag_repo.delete_by_post(post_id)?;
+        Ok(())
+    }
+
+    pub fn update_post_content(&self, post_id: &Uuid, content: &str) -> ApiResult<()> {
+        self.post_repo.update_content(post_id, content)?;
+        Ok(())
+    }
+
+    pub fn delete_post(&self, post_id: &Uuid) -> ApiResult<()> {
+        self.post_repo.delete(post_id)?;
+        Ok(())
+    }
+
+    pub fn record_vote(
+        &self,
+        user_id: &Uuid,
+        post_id: &Uuid,
+        direction: VoteDirection,
+    ) -> ApiResult<()> {
+        self.post_repo
+            .get_by_id(post_id)?
+            .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
+
+        self.vote_repo.upsert_vote(user_id, post_id, direction)?;
+        self.post_repo.update_vote_counts(post_id)?;
+
+        let hashtags = self.hashtag_repo.get_by_post(post_id)?;
+        for hashtag in hashtags {
+            let _ = self.hashtag_repo.increment_activity(user_id, &hashtag);
+        }
+
+        Ok(())
+    }
+
+    pub fn increment_hashtag_activity(&self, user_id: &Uuid, hashtag: &str) {
+        let _ = self.hashtag_repo.increment_activity(user_id, hashtag);
+    }
+
+    pub fn verify_ownership(&self, user_id: &Uuid, post_id: &Uuid) -> ApiResult<()> {
+        let post = self
+            .post_repo
+            .get_by_id(post_id)?
+            .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
+
+        if &post.author_id != user_id {
+            return Err(ApiError::Forbidden(
+                "You don't have permission to modify this post".to_string(),
+            ));
+        }
+
+        Ok(())
     }
 
     fn populate_posts(&self, posts: &mut [Post], user_id: Option<Uuid>) -> ApiResult<()> {
