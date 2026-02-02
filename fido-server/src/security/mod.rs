@@ -3,12 +3,21 @@
 //! This module provides environment-based security configuration with validation
 //! for production-ready security controls.
 
+pub mod admin;
+pub mod audit;
+pub mod cookies;
 pub mod cors;
+pub mod errors;
+pub mod headers;
+pub mod validation;
 
 use std::fmt;
 use thiserror::Error;
 
 pub use cors::CorsConfig;
+pub use errors::{ErrorCode, SecureError, SecureResult};
+pub use audit::{AuditError, AuditEvent, AuditEventType, AuditLogEntry, AuditLogger, AuditResult};
+pub use cookies::{is_https, create_session_cookie};
 
 /// Security configuration errors
 #[derive(Debug, Error)]

@@ -12,9 +12,35 @@ use crate::{
     api::{ApiError, ApiResult},
     db::repositories::{HashtagRepository, PostRepository, VoteRepository},
     hashtag::extract_hashtags,
+    security::validation::validate_post_content,
+    security::{AuditEvent, AuditEventType},
     state::AppState,
 };
 use fido_types::{CreatePostRequest, Post, SortOrder, VoteDirection, VoteRequest};
+
+/// Helper function to extract client IP address from headers
+fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
+    // Check X-Forwarded-For first (for proxied requests)
+    headers
+        .get("X-Forwarded-For")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
+        .or_else(|| {
+            // Fall back to X-Real-IP
+            headers
+                .get("X-Real-IP")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string())
+        })
+}
+
+/// Helper function to extract User-Agent from headers
+fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("User-Agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+}
 
 /// Extract user ID from session token header
 fn get_user_from_headers(state: &AppState, headers: &HeaderMap) -> Result<Uuid, ApiError> {
@@ -190,17 +216,19 @@ pub async fn create_post(
     headers: HeaderMap,
     Json(payload): Json<CreatePostRequest>,
 ) -> ApiResult<Json<Post>> {
-    // Validate content length
-    if payload.content.is_empty() {
-        return Err(ApiError::BadRequest(
-            "Post content cannot be empty".to_string(),
-        ));
-    }
-    if payload.content.len() > 280 {
-        return Err(ApiError::BadRequest(format!(
-            "Post content exceeds 280 character limit (current: {})",
-            payload.content.len()
-        )));
+    let client_ip = extract_client_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
+
+    // Validate post content using security validation module
+    if let Err(e) = validate_post_content(&payload.content) {
+        // Log validation failure
+        let _ = state.audit_logger.log(
+            AuditEvent::new(AuditEventType::ValidationFailure)
+                .with_optional_ip_address(client_ip)
+                .with_optional_user_agent(user_agent)
+                .with_details(format!("Post content validation failed: {}", e)),
+        );
+        return Err(ApiError::BadRequest(e.to_string()));
     }
 
     // Get authenticated user from session token
@@ -372,21 +400,23 @@ pub async fn create_reply(
     headers: HeaderMap,
     Json(payload): Json<fido_types::CreateReplyRequest>,
 ) -> ApiResult<Json<Post>> {
+    let client_ip = extract_client_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
+
     // Parse post ID
     let parent_post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
 
-    // Validate content length
-    if payload.content.is_empty() {
-        return Err(ApiError::BadRequest(
-            "Reply content cannot be empty".to_string(),
-        ));
-    }
-    if payload.content.len() > 280 {
-        return Err(ApiError::BadRequest(format!(
-            "Reply content exceeds 280 character limit (current: {})",
-            payload.content.len()
-        )));
+    // Validate reply content using security validation module
+    if let Err(e) = validate_post_content(&payload.content) {
+        // Log validation failure
+        let _ = state.audit_logger.log(
+            AuditEvent::new(AuditEventType::ValidationFailure)
+                .with_optional_ip_address(client_ip)
+                .with_optional_user_agent(user_agent)
+                .with_details(format!("Reply content validation failed: {}", e)),
+        );
+        return Err(ApiError::BadRequest(e.to_string()));
     }
 
     // Get authenticated user from session token
@@ -509,21 +539,23 @@ pub async fn update_post(
     headers: HeaderMap,
     Json(payload): Json<fido_types::UpdatePostRequest>,
 ) -> ApiResult<Json<Post>> {
+    let client_ip = extract_client_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
+
     // Parse post ID
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
 
-    // Validate content length
-    if payload.content.is_empty() {
-        return Err(ApiError::BadRequest(
-            "Post content cannot be empty".to_string(),
-        ));
-    }
-    if payload.content.len() > 280 {
-        return Err(ApiError::BadRequest(format!(
-            "Post content exceeds 280 character limit (current: {})",
-            payload.content.len()
-        )));
+    // Validate post content using security validation module
+    if let Err(e) = validate_post_content(&payload.content) {
+        // Log validation failure
+        let _ = state.audit_logger.log(
+            AuditEvent::new(AuditEventType::ValidationFailure)
+                .with_optional_ip_address(client_ip)
+                .with_optional_user_agent(user_agent)
+                .with_details(format!("Post update content validation failed: {}", e)),
+        );
+        return Err(ApiError::BadRequest(e.to_string()));
     }
 
     // Verify post ownership

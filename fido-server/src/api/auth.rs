@@ -1,4 +1,9 @@
-use axum::{extract::State, Json};
+use axum::{
+    extract::State,
+    http::HeaderMap,
+    Json,
+    response::{IntoResponse, Response},
+};
 use fido_types::{LoginRequest, LoginResponse, User};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -7,7 +12,33 @@ use std::sync::{Arc, Mutex};
 use super::{ApiError, ApiResult};
 use crate::db::repositories::UserRepository;
 use crate::oauth::GitHubOAuthConfig;
+use crate::security::validation::validate_username;
+use crate::security::{AuditEvent, AuditEventType, is_https, create_session_cookie};
 use crate::state::AppState;
+
+/// Helper function to extract client IP address from headers
+fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
+    // Check X-Forwarded-For first (for proxied requests)
+    headers
+        .get("X-Forwarded-For")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
+        .or_else(|| {
+            // Fall back to X-Real-IP
+            headers
+                .get("X-Real-IP")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string())
+        })
+}
+
+/// Helper function to extract User-Agent from headers
+fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("User-Agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+}
 
 // Temporary in-memory storage for device codes during OAuth flow
 // Maps device_code -> (timestamp, optional session_token)
@@ -53,22 +84,75 @@ pub async fn list_test_users(State(state): State<AppState>) -> ApiResult<Json<Ve
 /// POST /auth/login - Login with test user
 pub async fn login(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<LoginRequest>,
-) -> ApiResult<Json<LoginResponse>> {
+) -> ApiResult<Response> {
+    let client_ip = extract_client_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
+    let https = is_https(&headers);
+
+    // Validate username format
+    if let Err(e) = validate_username(&payload.username) {
+        // Log login failure due to invalid username
+        let _ = state.audit_logger.log(
+            AuditEvent::new(AuditEventType::LoginFailure)
+                .with_optional_ip_address(client_ip)
+                .with_optional_user_agent(user_agent)
+                .with_details(format!("Invalid username format: {}", payload.username)),
+        );
+        return Err(ApiError::BadRequest(e.to_string()));
+    }
+
     let repo = UserRepository::new(state.db.pool.clone());
 
     // Find user by username
-    let user = repo
-        .get_by_username(&payload.username)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound(format!("User '{}' not found", payload.username)))?;
+    let user = match repo.get_by_username(&payload.username) {
+        Ok(Some(u)) => u,
+        Ok(None) => {
+            // Log login failure - user not found
+            let _ = state.audit_logger.log(
+                AuditEvent::new(AuditEventType::LoginFailure)
+                    .with_optional_ip_address(client_ip)
+                    .with_optional_user_agent(user_agent)
+                    .with_details(format!("User not found: {}", payload.username)),
+            );
+            return Err(ApiError::NotFound(format!("User '{}' not found", payload.username)));
+        }
+        Err(e) => {
+            // Log login failure - database error
+            let _ = state.audit_logger.log(
+                AuditEvent::new(AuditEventType::LoginFailure)
+                    .with_optional_ip_address(client_ip.clone())
+                    .with_optional_user_agent(user_agent)
+                    .with_details(format!("Database error during login for: {}", payload.username)),
+            );
+            return Err(ApiError::InternalError(e.to_string()));
+        }
+    };
 
     // Verify it's a test user
     if !user.is_test_user {
+        // Log login failure - not a test user
+        let _ = state.audit_logger.log(
+            AuditEvent::new(AuditEventType::LoginFailure)
+                .with_user_id(user.id)
+                .with_optional_ip_address(client_ip)
+                .with_optional_user_agent(user_agent)
+                .with_details("Attempted login via test endpoint with non-test user"),
+        );
         return Err(ApiError::BadRequest(
             "Only test users can login via this endpoint".to_string(),
         ));
     }
+
+    // Invalidate all existing sessions for this user before creating a new one
+    // This ensures that previous sessions are invalidated on login for security
+    let _ = state
+        .session_manager
+        .invalidate_user_sessions(user.id)
+        .map_err(|e| {
+            tracing::warn!("Failed to invalidate user sessions: {}", e);
+        });
 
     // Create session
     let session_token = state
@@ -76,22 +160,56 @@ pub async fn login(
         .create_session(user.id)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
 
-    Ok(Json(LoginResponse {
+    // Log successful login
+    let _ = state.audit_logger.log(
+        AuditEvent::new(AuditEventType::LoginSuccess)
+            .with_user_id(user.id)
+            .with_optional_ip_address(client_ip)
+            .with_optional_user_agent(user_agent)
+            .with_details(format!("Test user login: {}", user.username)),
+    );
+
+    // Create response with session cookie
+    let response_body = LoginResponse {
         user,
-        session_token,
-    }))
+        session_token: session_token.clone(),
+    };
+
+    let mut response = Json(response_body).into_response();
+    
+    // Set session cookie with Secure flag if HTTPS
+    let cookie = create_session_cookie(&session_token, https);
+    response.headers_mut().insert("Set-Cookie", cookie);
+
+    Ok(response)
 }
 
 /// POST /auth/logout - Logout current user
 pub async fn logout(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(session_token): Json<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    let client_ip = extract_client_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
+
+    // Try to get user_id before deleting session for audit logging
+    let user_id = state.session_manager.validate_session(&session_token).ok();
+
     // Delete session
     state
         .session_manager
         .delete_session(&session_token)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
+
+    // Log session revocation
+    let _ = state.audit_logger.log(
+        AuditEvent::new(AuditEventType::SessionRevoked)
+            .with_optional_user_id(user_id)
+            .with_optional_ip_address(client_ip)
+            .with_optional_user_agent(user_agent)
+            .with_details("User logged out"),
+    );
 
     Ok(Json(serde_json::json!({
         "message": "Logged out successfully"
@@ -102,11 +220,32 @@ pub async fn logout(
 ///
 /// This endpoint removes all expired sessions from the database.
 /// Useful for manual cleanup or testing purposes.
-pub async fn cleanup_sessions(State(state): State<AppState>) -> ApiResult<Json<serde_json::Value>> {
+pub async fn cleanup_sessions(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> ApiResult<Json<serde_json::Value>> {
+    let client_ip = extract_client_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
+
+    // Get admin user ID from session token for audit logging
+    let admin_user_id = headers
+        .get("X-Session-Token")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|token| state.session_manager.validate_session(token).ok());
+
     let count = state
         .session_manager
         .cleanup_expired_sessions()
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
+
+    // Log admin action
+    let _ = state.audit_logger.log(
+        AuditEvent::new(AuditEventType::AdminAction)
+            .with_optional_user_id(admin_user_id)
+            .with_optional_ip_address(client_ip)
+            .with_optional_user_agent(user_agent)
+            .with_details(format!("Session cleanup: removed {} expired sessions", count)),
+    );
 
     Ok(Json(serde_json::json!({
         "message": "Session cleanup completed",
@@ -119,8 +258,12 @@ pub async fn cleanup_sessions(State(state): State<AppState>) -> ApiResult<Json<s
 /// Requests a device code from GitHub and returns the user code and verification URI.
 /// The client should display the user code and direct the user to the verification URI.
 pub async fn github_device_flow(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> ApiResult<Json<GitHubDeviceFlowResponse>> {
+    let client_ip = extract_client_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
+
     // Load GitHub OAuth configuration
     let oauth_config = GitHubOAuthConfig::from_env()
         .map_err(|e| ApiError::InternalError(format!("OAuth configuration error: {}", e)))?;
@@ -142,6 +285,14 @@ pub async fn github_device_flow(
         codes.retain(|_, (timestamp, _)| *timestamp > expired_threshold);
     }
 
+    // Log device code generation
+    let _ = state.audit_logger.log(
+        AuditEvent::new(AuditEventType::DeviceCodeGenerated)
+            .with_optional_ip_address(client_ip)
+            .with_optional_user_agent(user_agent)
+            .with_details(format!("User code: {}", device_response.user_code)),
+    );
+
     tracing::info!(
         "Generated GitHub device code: {}",
         device_response.user_code
@@ -162,8 +313,13 @@ pub async fn github_device_flow(
 /// Returns the session token if authorized, or an error if still pending/failed.
 pub async fn github_device_poll(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<DevicePollRequest>,
-) -> ApiResult<Json<LoginResponse>> {
+) -> ApiResult<Response> {
+    let client_ip = extract_client_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
+    let https = is_https(&headers);
+
     // Check if device code exists and is not expired
     let is_valid = {
         let codes = DEVICE_CODES.lock().unwrap();
@@ -176,6 +332,13 @@ pub async fn github_device_poll(
     };
 
     if !is_valid {
+        // Log login failure - invalid/expired device code
+        let _ = state.audit_logger.log(
+            AuditEvent::new(AuditEventType::LoginFailure)
+                .with_optional_ip_address(client_ip)
+                .with_optional_user_agent(user_agent)
+                .with_details("Invalid or expired device code"),
+        );
         return Err(ApiError::BadRequest(
             "Invalid or expired device code".to_string(),
         ));
@@ -195,6 +358,13 @@ pub async fn github_device_poll(
         Err(e) => {
             // Remove device code on error
             DEVICE_CODES.lock().unwrap().remove(&payload.device_code);
+            // Log login failure
+            let _ = state.audit_logger.log(
+                AuditEvent::new(AuditEventType::LoginFailure)
+                    .with_optional_ip_address(client_ip)
+                    .with_optional_user_agent(user_agent)
+                    .with_details(format!("Device authorization failed: {}", e)),
+            );
             return Err(ApiError::InternalError(format!(
                 "Device authorization failed: {}",
                 e
@@ -224,6 +394,15 @@ pub async fn github_device_poll(
         )
         .map_err(|e| ApiError::InternalError(format!("Failed to create/update user: {}", e)))?;
 
+    // Invalidate all existing sessions for this user before creating a new one
+    // This ensures that previous sessions are invalidated on login for security
+    let _ = state
+        .session_manager
+        .invalidate_user_sessions(user.id)
+        .map_err(|e| {
+            tracing::warn!("Failed to invalidate user sessions: {}", e);
+        });
+
     // Create session
     let session_token = state
         .session_manager
@@ -233,12 +412,38 @@ pub async fn github_device_poll(
     // Remove device code after successful authentication
     DEVICE_CODES.lock().unwrap().remove(&payload.device_code);
 
+    // Log successful GitHub login
+    let _ = state.audit_logger.log(
+        AuditEvent::new(AuditEventType::LoginSuccess)
+            .with_user_id(user.id)
+            .with_optional_ip_address(client_ip.clone())
+            .with_optional_user_agent(user_agent.clone())
+            .with_details(format!("GitHub OAuth login: {}", user.username)),
+    );
+
+    // Log device code used
+    let _ = state.audit_logger.log(
+        AuditEvent::new(AuditEventType::DeviceCodeUsed)
+            .with_user_id(user.id)
+            .with_optional_ip_address(client_ip)
+            .with_optional_user_agent(user_agent),
+    );
+
     tracing::info!("Created session for user {} ({})", user.username, user.id);
 
-    Ok(Json(LoginResponse {
+    // Create response with session cookie
+    let response_body = LoginResponse {
         user,
-        session_token,
-    }))
+        session_token: session_token.clone(),
+    };
+
+    let mut response = Json(response_body).into_response();
+    
+    // Set session cookie with Secure flag if HTTPS
+    let cookie = create_session_cookie(&session_token, https);
+    response.headers_mut().insert("Set-Cookie", cookie);
+
+    Ok(response)
 }
 
 /// GET /auth/validate - Validate session token

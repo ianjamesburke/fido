@@ -122,19 +122,23 @@ impl MockBackend {
         }
         
         // Sort posts
-        let sort_order = sort.as_deref().unwrap_or("newest");
+        let sort_order = sort.as_deref().unwrap_or("Newest");
         match sort_order {
-            "newest" => {
+            "Newest" => {
                 posts.sort_by(|a, b| b.created_at.cmp(&a.created_at));
             }
-            "oldest" => {
-                posts.sort_by(|a, b| a.created_at.cmp(&b.created_at));
-            }
-            "top" => {
+            "Popular" => {
                 posts.sort_by(|a, b| {
-                    let score_a = a.upvotes - a.downvotes;
-                    let score_b = b.upvotes - b.downvotes;
-                    score_b.cmp(&score_a)
+                    let score_a = a.upvotes;
+                    let score_b = b.upvotes;
+                    score_b.cmp(&score_a).then_with(|| b.created_at.cmp(&a.created_at))
+                });
+            }
+            "Controversial" => {
+                posts.sort_by(|a, b| {
+                    let controversy_a = (a.upvotes - a.downvotes).abs();
+                    let controversy_b = (b.upvotes - b.downvotes).abs();
+                    controversy_a.cmp(&controversy_b).then_with(|| b.created_at.cmp(&a.created_at))
                 });
             }
             _ => {

@@ -32,6 +32,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 config = { version = "0.15.19", features = ["toml"] }
 dotenv.workspace = true
+clap.workspace = true
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.31.0"
 regex = "1.10"

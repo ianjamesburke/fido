@@ -81,7 +81,7 @@ impl App {
             },
             dms_state: DMsState {
                 conversations: Vec::new(),
-                selected_conversation_index: None, // No conversation selected by default
+                selection: DMSelection::NewConversation, // Start with "New Conversation" selected
                 messages: Vec::new(),
                 loading: false,
                 error: None,
@@ -234,7 +234,7 @@ impl App {
             },
             dms_state: DMsState {
                 conversations: Vec::new(),
-                selected_conversation_index: None, // No conversation selected by default
+                selection: DMSelection::NewConversation, // Start with "New Conversation" selected
                 messages: Vec::new(),
                 loading: false,
                 error: None,
@@ -387,7 +387,7 @@ impl App {
             },
             dms_state: DMsState {
                 conversations: Vec::new(),
-                selected_conversation_index: None,
+                selection: DMSelection::NewConversation, // Start with "New Conversation" selected
                 messages: Vec::new(),
                 loading: false,
                 error: None,
@@ -698,7 +698,7 @@ impl App {
             .config
             .as_ref()
             .map(|c| c.sort_order.as_str().to_string())
-            .unwrap_or_else(|| "newest".to_string());
+            .unwrap_or_else(|| "Newest".to_string());
 
         let max_posts = self
             .settings_state
@@ -1320,7 +1320,7 @@ impl App {
             // Load user's posts
             match self
                 .api_client
-                .get_posts(Some(100), Some("newest".to_string()), None, None)
+                .get_posts(Some(100), Some("Newest".to_string()), None, None)
                 .await
             {
                 Ok(posts) => {
@@ -2235,9 +2235,9 @@ impl App {
                         .insert(convo.other_user_id, convo.unread_count as usize);
                 }
 
-                // Select first conversation if available
+                // Select first conversation if available, otherwise stay on NewConversation
                 if !self.dms_state.conversations.is_empty() {
-                    self.dms_state.selected_conversation_index = Some(0);
+                    self.dms_state.selection = DMSelection::Conversation(0);
                     self.dms_state.needs_message_load = true;
                 }
 
@@ -2259,11 +2259,11 @@ impl App {
             return Ok(());
         }
 
-        // Check if a conversation is selected (not the "New Conversation" button)
-        let selected_index = match self.dms_state.selected_conversation_index {
-            Some(usize::MAX) => return Ok(()), // "New Conversation" button selected, nothing to load
-            Some(index) => index,
-            None => return Ok(()), // No conversation selected, nothing to load
+        // Check if a conversation is selected (not the "New Conversation" button or pending draft)
+        let selected_index = match &self.dms_state.selection {
+            DMSelection::NewConversation => return Ok(()), // Nothing to load
+            DMSelection::PendingDraft => return Ok(()),    // Nothing to load yet
+            DMSelection::Conversation(index) => *index,
         };
 
         let conversation = &self.dms_state.conversations[selected_index];
@@ -2382,20 +2382,18 @@ impl App {
             pending_username.clone()
         } else {
             // Regular conversation - get from selected
-            let selected_index = match self.dms_state.selected_conversation_index {
-                Some(usize::MAX) => {
+            let selected_index = match &self.dms_state.selection {
+                DMSelection::NewConversation => {
                     self.dms_state.error =
-                        Some("Press Enter on 'New Conversation' to start a new chat.".to_string());
+                        Some("Press Enter or N to start a new conversation.".to_string());
                     return Ok(());
                 }
-                Some(index) => index,
-                None => {
-                    self.dms_state.error = Some(
-                        "No conversation selected. Use arrow keys to select a conversation."
-                            .to_string(),
-                    );
+                DMSelection::PendingDraft => {
+                    // This shouldn't happen since we check pending_conversation_username above
+                    self.dms_state.error = Some("No recipient selected.".to_string());
                     return Ok(());
                 }
+                DMSelection::Conversation(index) => *index,
             };
 
             if self.dms_state.conversations.is_empty() {
@@ -2424,7 +2422,7 @@ impl App {
                     self.load_conversations().await?;
                     // Select the new conversation (will be first)
                     if !self.dms_state.conversations.is_empty() {
-                        self.dms_state.selected_conversation_index = Some(0);
+                        self.dms_state.selection = DMSelection::Conversation(0);
                         self.dms_state.needs_message_load = true;
                     }
                 } else {
@@ -2432,7 +2430,7 @@ impl App {
                     self.load_conversation_messages().await?;
 
                     // Keep unread count at 0 for current conversation
-                    if let Some(index) = self.dms_state.selected_conversation_index {
+                    if let Some(index) = self.dms_state.selection.conversation_index() {
                         if index < self.dms_state.conversations.len() {
                             let other_user_id = self.dms_state.conversations[index].other_user_id;
                             self.dms_state.unread_counts.insert(other_user_id, 0);
@@ -2563,9 +2561,8 @@ impl App {
         self.close_new_conversation_modal();
         self.dms_state.messages.clear();
 
-        // Set selection to None so the pending conversation is selected in the UI
-        // (None means the pending conversation is active)
-        self.dms_state.selected_conversation_index = None;
+        // Set selection to PendingDraft so the pending conversation is selected in the UI
+        self.dms_state.selection = DMSelection::PendingDraft;
 
         // Switch to typing mode so user can immediately start composing
         self.input_mode = InputMode::Typing;
@@ -2601,7 +2598,7 @@ impl App {
             .position(|c| c.other_user_id == user_id)
         {
             // Conversation exists - select it
-            self.dms_state.selected_conversation_index = Some(index);
+            self.dms_state.selection = DMSelection::Conversation(index);
             self.dms_state.pending_conversation_username = None;
 
             // Load messages for this conversation
@@ -2617,7 +2614,7 @@ impl App {
             // Conversation doesn't exist - create new one
             self.dms_state.pending_conversation_username = Some(username);
             self.dms_state.messages.clear();
-            self.dms_state.selected_conversation_index = None;
+            self.dms_state.selection = DMSelection::PendingDraft;
 
             // Switch to typing mode so user can start composing
             self.input_mode = InputMode::Typing;
@@ -2897,64 +2894,46 @@ impl App {
         match self.input_mode {
             InputMode::Navigation => {
                 match key.code {
-                    // Navigation
+                    // Navigation using the new DMSelection enum methods
                     KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
-                        match self.dms_state.selected_conversation_index {
-                            None => {
-                                // No selection, select "New Conversation" button (index usize::MAX)
-                                self.dms_state.selected_conversation_index = Some(usize::MAX);
-                            }
-                            Some(usize::MAX) => {
-                                // On "New Conversation" button, move to first conversation
-                                if !self.dms_state.conversations.is_empty() {
-                                    self.dms_state.selected_conversation_index = Some(0);
-                                }
-                            }
-                            Some(index) => {
-                                // Move down if not at bottom
-                                if index < self.dms_state.conversations.len().saturating_sub(1) {
-                                    self.dms_state.selected_conversation_index = Some(index + 1);
-                                }
-                            }
-                        }
+                        self.dms_state.navigate_down();
                     }
                     KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => {
-                        match self.dms_state.selected_conversation_index {
-                            None => {
-                                // No selection, select last conversation or "New Conversation" button
-                                if !self.dms_state.conversations.is_empty() {
-                                    self.dms_state.selected_conversation_index =
-                                        Some(self.dms_state.conversations.len() - 1);
-                                } else {
-                                    self.dms_state.selected_conversation_index = Some(usize::MAX);
-                                }
-                            }
-                            Some(0) => {
-                                // At first conversation, move to "New Conversation" button
-                                self.dms_state.selected_conversation_index = Some(usize::MAX);
-                            }
-                            Some(usize::MAX) => {
-                                // At "New Conversation" button, can't go higher
-                            }
-                            Some(index) => {
-                                // Move up
-                                self.dms_state.selected_conversation_index = Some(index - 1);
-                            }
-                        }
+                        self.dms_state.navigate_up();
+                    }
+                    // 'N' key opens new conversation modal directly (shortcut)
+                    KeyCode::Char('n') | KeyCode::Char('N') => {
+                        self.dms_state.show_new_conversation_modal = true;
+                        self.dms_state.new_conversation_username.clear();
+                        self.dms_state.new_conversation_search_query.clear();
+                        self.dms_state.new_conversation_selected_index = 0;
+                        self.input_mode = InputMode::Typing;
                     }
                     KeyCode::Enter => {
-                        // If "New Conversation" button is selected, open modal
-                        // Note: Actual modal opening with data fetch happens in main.rs event loop
-                        if self.dms_state.selected_conversation_index == Some(usize::MAX) {
-                            // Set a flag to trigger async modal opening in main loop
-                            self.dms_state.show_new_conversation_modal = true;
-                            self.dms_state.new_conversation_username.clear();
-                            self.input_mode = InputMode::Typing;
+                        match &self.dms_state.selection {
+                            DMSelection::NewConversation => {
+                                // Open new conversation modal
+                                self.dms_state.show_new_conversation_modal = true;
+                                self.dms_state.new_conversation_username.clear();
+                                self.dms_state.new_conversation_search_query.clear();
+                                self.dms_state.new_conversation_selected_index = 0;
+                                self.input_mode = InputMode::Typing;
+                            }
+                            DMSelection::PendingDraft => {
+                                // Focus on message input for the pending draft
+                                self.input_mode = InputMode::Typing;
+                            }
+                            DMSelection::Conversation(idx) => {
+                                // Select this conversation and load messages
+                                if *idx < self.dms_state.conversations.len() {
+                                    self.dms_state.needs_message_load = true;
+                                    self.input_mode = InputMode::Typing;
+                                }
+                            }
                         }
                     }
-
                     _ => {
-                        // Any other key starts typing mode
+                        // Any other key starts typing mode (for message input)
                         self.input_mode = InputMode::Typing;
                         self.handle_dm_input(key);
                         // Trigger message load if not already loaded for this conversation

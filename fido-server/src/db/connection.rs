@@ -86,10 +86,23 @@ impl Database {
                 user_id TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 expires_at TEXT NOT NULL,
+                last_activity TEXT,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
             CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);",
+        );
+
+        // Migration: Add last_activity column to sessions table if it doesn't exist
+        // Default value is set to created_at for existing sessions
+        let _ = conn.execute(
+            "ALTER TABLE sessions ADD COLUMN last_activity TEXT",
+            [],
+        );
+        // Update existing sessions to set last_activity = created_at where NULL
+        let _ = conn.execute(
+            "UPDATE sessions SET last_activity = created_at WHERE last_activity IS NULL",
+            [],
         );
 
         // Add GitHub authentication fields to users table
@@ -222,6 +235,10 @@ mod tests {
         assert!(columns.contains(&"user_id".to_string()));
         assert!(columns.contains(&"created_at".to_string()));
         assert!(columns.contains(&"expires_at".to_string()));
+        assert!(
+            columns.contains(&"last_activity".to_string()),
+            "sessions table should have last_activity column"
+        );
 
         // Verify indexes on sessions table
         let mut stmt = conn

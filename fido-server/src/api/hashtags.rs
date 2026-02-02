@@ -9,8 +9,34 @@ use uuid::Uuid;
 use crate::{
     api::{ApiError, ApiResult},
     db::repositories::HashtagRepository,
+    security::validation::validate_hashtag,
+    security::{AuditEvent, AuditEventType},
     state::AppState,
 };
+
+/// Helper function to extract client IP address from headers
+fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
+    // Check X-Forwarded-For first (for proxied requests)
+    headers
+        .get("X-Forwarded-For")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
+        .or_else(|| {
+            // Fall back to X-Real-IP
+            headers
+                .get("X-Real-IP")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string())
+        })
+}
+
+/// Helper function to extract User-Agent from headers
+fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("User-Agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+}
 
 /// Extract user ID from session token header
 fn get_user_from_headers(state: &AppState, headers: &HeaderMap) -> Result<Uuid, ApiError> {
@@ -79,6 +105,21 @@ pub async fn follow_hashtag(
     headers: HeaderMap,
     Json(req): Json<FollowHashtagRequest>,
 ) -> ApiResult<StatusCode> {
+    let client_ip = extract_client_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
+
+    // Validate hashtag name
+    if let Err(e) = validate_hashtag(&req.name) {
+        // Log validation failure
+        let _ = state.audit_logger.log(
+            AuditEvent::new(AuditEventType::ValidationFailure)
+                .with_optional_ip_address(client_ip)
+                .with_optional_user_agent(user_agent)
+                .with_details(format!("Hashtag follow validation failed: {}", e)),
+        );
+        return Err(ApiError::BadRequest(e.to_string()));
+    }
+
     let user_id = get_user_from_headers(&state, &headers)?;
 
     let hashtag_repo = HashtagRepository::new(state.db.pool.clone());
@@ -95,6 +136,21 @@ pub async fn unfollow_hashtag(
     headers: HeaderMap,
     Path(name): Path<String>,
 ) -> ApiResult<StatusCode> {
+    let client_ip = extract_client_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
+
+    // Validate hashtag name
+    if let Err(e) = validate_hashtag(&name) {
+        // Log validation failure
+        let _ = state.audit_logger.log(
+            AuditEvent::new(AuditEventType::ValidationFailure)
+                .with_optional_ip_address(client_ip)
+                .with_optional_user_agent(user_agent)
+                .with_details(format!("Hashtag unfollow validation failed: {}", e)),
+        );
+        return Err(ApiError::BadRequest(e.to_string()));
+    }
+
     let user_id = get_user_from_headers(&state, &headers)?;
 
     let hashtag_repo = HashtagRepository::new(state.db.pool.clone());
@@ -108,8 +164,26 @@ pub async fn unfollow_hashtag(
 /// GET /hashtags/search?q=query - Search hashtags
 pub async fn search_hashtags(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Query(query): Query<SearchQuery>,
 ) -> ApiResult<Json<Vec<HashtagResponse>>> {
+    let client_ip = extract_client_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
+
+    // Validate search query as a hashtag (if not empty)
+    if !query.q.is_empty() {
+        if let Err(e) = validate_hashtag(&query.q) {
+            // Log validation failure
+            let _ = state.audit_logger.log(
+                AuditEvent::new(AuditEventType::ValidationFailure)
+                    .with_optional_ip_address(client_ip)
+                    .with_optional_user_agent(user_agent)
+                    .with_details(format!("Hashtag search validation failed: {}", e)),
+            );
+            return Err(ApiError::BadRequest(e.to_string()));
+        }
+    }
+
     let hashtag_repo = HashtagRepository::new(state.db.pool.clone());
     let hashtags = hashtag_repo
         .search(&query.q, 20)

@@ -538,20 +538,16 @@ pub fn get_action_bar_text(app: &App) -> &'static str {
         }
         crate::app::Tab::DMs => {
             // Check if user can compose (active conversation or pending draft)
-            let has_active_conversation = app
-                .dms_state
-                .selected_conversation_index
-                .filter(|&idx| idx != usize::MAX)
-                .is_some();
+            let has_active_conversation = app.dms_state.selection.conversation_index().is_some();
             let has_pending_draft = app.dms_state.pending_conversation_username.is_some();
             let can_compose = has_active_conversation || has_pending_draft;
 
-            if app.dms_state.selected_conversation_index == Some(usize::MAX) {
-                "Enter: Start New Conversation | ↑/↓/j/k: Navigate | Esc: Back"
+            if app.dms_state.selection.is_new_conversation() {
+                "Enter/N: Start New Conversation | ↑/↓/j/k: Navigate | Esc: Back"
             } else if can_compose {
                 "↑/↓/j/k: Navigate | Type to compose | Enter: Send | Esc: Clear"
             } else {
-                "↑/↓/j/k: Navigate | Enter: Select conversation | n: New Conversation"
+                "↑/↓/j/k: Navigate | Enter: Select conversation | N: New Conversation"
             }
         }
         crate::app::Tab::Profile => "e: Edit Bio | f: Friends",
@@ -1024,7 +1020,7 @@ pub fn render_conversations_list(frame: &mut Frame, app: &App, area: Rect) {
     lines.push(Line::from(""));
 
     // Add "New Conversation" button at the top
-    let new_convo_selected = app.dms_state.selected_conversation_index == Some(usize::MAX);
+    let new_convo_selected = app.dms_state.selection.is_new_conversation();
     let new_convo_style = if new_convo_selected {
         Style::default()
             .fg(theme.success)
@@ -1039,7 +1035,7 @@ pub fn render_conversations_list(frame: &mut Frame, app: &App, area: Rect) {
         Span::styled("+ New Conversation", new_convo_style),
     ]));
     lines.push(Line::from(Span::styled(
-        "  Press Enter to start",
+        "  Press Enter or N to start",
         Style::default().fg(theme.text_dim),
     )));
     lines.push(Line::from(""));
@@ -1051,7 +1047,7 @@ pub fn render_conversations_list(frame: &mut Frame, app: &App, area: Rect) {
 
     // Show pending conversation at the top of the list if it exists
     if let Some(pending_username) = &app.dms_state.pending_conversation_username {
-        let is_selected = app.dms_state.selected_conversation_index.is_none();
+        let is_selected = app.dms_state.selection.is_pending_draft();
 
         let style = if is_selected {
             Style::default()
@@ -1088,7 +1084,7 @@ pub fn render_conversations_list(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     for (i, convo) in app.dms_state.conversations.iter().enumerate() {
-        let is_selected = app.dms_state.selected_conversation_index == Some(i);
+        let is_selected = app.dms_state.selection.conversation_index() == Some(i);
 
         let style = if is_selected {
             Style::default()
@@ -1185,10 +1181,8 @@ pub fn render_messages(frame: &mut Frame, app: &mut App, area: Rect) {
         return;
     }
 
-    // Check if a conversation is selected (or if "New Conversation" button is selected)
-    if app.dms_state.selected_conversation_index.is_none()
-        || app.dms_state.selected_conversation_index == Some(usize::MAX)
-    {
+    // Check if a conversation is selected (show placeholder if on NewConversation button)
+    if app.dms_state.selection.is_new_conversation() {
         let empty_text = vec![
             Line::from(""),
             Line::from(Span::styled(
@@ -1289,15 +1283,14 @@ pub fn render_message_input(frame: &mut Frame, app: &mut App, area: Rect) {
 
     // Check if conversation is selected and user can type
     let can_type = app.dms_state.pending_conversation_username.is_some()
-        || (app.dms_state.selected_conversation_index.is_some()
-            && app.dms_state.selected_conversation_index != Some(usize::MAX));
+        || app.dms_state.selection.conversation_index().is_some();
 
     if !can_type {
         // Show placeholder when no conversation is selected
-        let placeholder = if app.dms_state.selected_conversation_index.is_none() {
-            "Select a conversation to send messages"
+        let placeholder = if app.dms_state.selection.is_new_conversation() {
+            "Press Enter or N to start a new conversation"
         } else {
-            "Press Enter on 'New Conversation' to start"
+            "Select a conversation to send messages"
         };
 
         let input = Paragraph::new(placeholder)

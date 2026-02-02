@@ -34,6 +34,8 @@ pub struct User {
     #[serde(with = "datetime_format")]
     pub join_date: DateTime<Utc>,
     pub is_test_user: bool,
+    #[serde(default)]
+    pub is_admin: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

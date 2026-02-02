@@ -13,6 +13,7 @@ pub fn create_test_users() -> Vec<User> {
             bio: Some("Welcome to Fido! This is the default demo account.".to_string()),
             join_date: now,
             is_test_user: true,
+            is_admin: false,
         },
         User {
             id: Uuid::new_v4(),
@@ -20,6 +21,7 @@ pub fn create_test_users() -> Vec<User> {
             bio: Some("Rust enthusiast 🦀 | Building fast, safe systems".to_string()),
             join_date: now,
             is_test_user: true,
+            is_admin: true, // alice is admin for testing
         },
         User {
             id: Uuid::new_v4(),
@@ -27,6 +29,7 @@ pub fn create_test_users() -> Vec<User> {
             bio: Some("Terminal lover 💻 | Vim or die".to_string()),
             join_date: now,
             is_test_user: true,
+            is_admin: false,
         },
         User {
             id: Uuid::new_v4(),
@@ -34,6 +37,7 @@ pub fn create_test_users() -> Vec<User> {
             bio: Some("Open source contributor 🌍 | Coffee-driven development".to_string()),
             join_date: now,
             is_test_user: true,
+            is_admin: false,
         },
     ]
 }

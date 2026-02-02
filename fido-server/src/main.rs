@@ -14,14 +14,29 @@ use axum::{
     routing::{delete, get, post, put},
     Router,
 };
+use clap::Parser;
 use rate_limit::RateLimiter;
 use state::AppState;
 use std::net::SocketAddr;
+use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+/// Fido Server - Terminal social platform API
+#[derive(Parser, Debug)]
+#[command(name = "fido-server")]
+#[command(about = "Fido API server", long_about = None)]
+struct Args {
+    /// Reset the database (delete and recreate with fresh test data)
+    #[arg(long)]
+    reset_db: bool,
+}
+
 #[tokio::main]
 async fn main() {
+    // Parse command-line arguments
+    let args = Args::parse();
+
     // Load environment variables from .env file
     dotenv::dotenv().ok();
 
@@ -120,6 +135,21 @@ async fn main() {
         }
     }
 
+    // Handle database reset if requested
+    if args.reset_db {
+        tracing::warn!("Database reset requested - deleting existing database");
+        if std::path::Path::new(&settings.database.path).exists() {
+            if let Err(e) = std::fs::remove_file(&settings.database.path) {
+                tracing::error!("Failed to delete database file: {}", e);
+                eprintln!("FATAL: Failed to delete database file: {}", e);
+                std::process::exit(1);
+            }
+            tracing::info!("Deleted existing database: {}", settings.database.path);
+        } else {
+            tracing::info!("No existing database to delete");
+        }
+    }
+
     // Initialize database with detailed error handling
     tracing::info!("Creating database connection...");
     let db = match db::Database::new(&settings.database.path) {
@@ -142,14 +172,14 @@ async fn main() {
     }
     tracing::info!("Database schema initialized successfully");
 
-    // Always seed test data for development
+    // Seed test data for development (non-fatal if it fails)
     tracing::info!("Seeding test data...");
     if let Err(e) = db.seed_test_data() {
-        tracing::error!("Failed to seed test data: {}", e);
-        eprintln!("FATAL: Failed to seed test data: {}", e);
-        std::process::exit(1);
+        tracing::warn!("Failed to seed test data (non-fatal): {}", e);
+        tracing::info!("Continuing without test data - database may already be populated");
+    } else {
+        tracing::info!("Test data seeded successfully");
     }
-    tracing::info!("Test data seeded successfully");
 
     tracing::info!("Database initialized successfully");
 
@@ -203,7 +233,7 @@ async fn main() {
     // Create global rate limiter: 100 requests per minute per user
     let rate_limiter = RateLimiter::new(100, 60);
 
-    // Build router
+    // Build router - API routes take precedence over static files
     let app = Router::new()
         // Health check
         .route("/health", get(health_check))
@@ -211,7 +241,18 @@ async fn main() {
         .route("/users/test", get(api::auth::list_test_users))
         .route("/auth/login", post(api::auth::login))
         .route("/auth/logout", post(api::auth::logout))
-        .route("/auth/cleanup-sessions", post(api::auth::cleanup_sessions))
+        // Admin-only authentication routes (protected by require_admin middleware)
+        .merge(
+            Router::new()
+                .route("/auth/cleanup-sessions", post(api::auth::cleanup_sessions))
+                .route_layer(middleware::from_fn_with_state(state.clone(), security::admin::require_admin))
+        )
+        // Admin-only configuration routes (protected by require_admin middleware)
+        .merge(
+            Router::new()
+                .route("/admin/config/validate", get(api::admin::validate_config))
+                .route_layer(middleware::from_fn_with_state(state.clone(), security::admin::require_admin))
+        )
         // GitHub Device Flow routes
         .route("/auth/github/device", post(api::auth::github_device_flow))
         .route(
@@ -277,12 +318,16 @@ async fn main() {
         .route("/social/following", get(api::friends::get_following_list))
         .route("/social/followers", get(api::friends::get_followers_list))
         .route("/social/mutual", get(api::friends::get_mutual_friends_list))
-        .with_state(state)
-        .layer(middleware::from_fn(rate_limit::rate_limit_middleware))
+        .with_state(state.clone())
+        .layer(middleware::from_fn_with_state(state, rate_limit::rate_limit_middleware))
         .layer(axum::Extension(rate_limiter))
         .layer(cors)
-        // Serve static files from web directory (must be last)
-        .fallback_service(ServeDir::new("/web"));
+        // Security headers middleware - adds X-Content-Type-Options, X-Frame-Options, etc.
+        .layer(middleware::from_fn(security::headers::create_security_headers_layer(security_config.environment)))
+        // Request body size limit: 1MB (1024 * 1024 bytes)
+        .layer(RequestBodyLimitLayer::new(1024 * 1024))
+        // Serve static files from web directory - only for unmatched routes
+        .fallback_service(ServeDir::new("../web"));
 
     // Start server
     let addr_str = format!("{}:{}", settings.server.host, settings.server.port);

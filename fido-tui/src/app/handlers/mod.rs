@@ -13,10 +13,16 @@ pub use settings::handle_settings_keys;
 
 use crate::app::state::{App, InputMode, Screen, Tab};
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
     if key.kind != KeyEventKind::Press {
+        return Ok(());
+    }
+
+    // Priority 0: Ctrl+C always quits (highest priority, works everywhere)
+    if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+        app.running = false;
         return Ok(());
     }
 

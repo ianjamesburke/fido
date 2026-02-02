@@ -181,10 +181,41 @@ pub struct SettingsState {
     pub pending_tab: Option<Tab>,
 }
 
+/// DM selection state - cleaner than Option<usize> with magic values
+#[derive(Debug, Clone, PartialEq)]
+pub enum DMSelection {
+    /// "New Conversation" button is selected
+    NewConversation,
+    /// A pending draft conversation (not yet sent)
+    PendingDraft,
+    /// An existing conversation at the given index
+    Conversation(usize),
+}
+
+impl DMSelection {
+    /// Check if the "New Conversation" button is selected
+    pub fn is_new_conversation(&self) -> bool {
+        matches!(self, DMSelection::NewConversation)
+    }
+
+    /// Check if a pending draft is selected
+    pub fn is_pending_draft(&self) -> bool {
+        matches!(self, DMSelection::PendingDraft)
+    }
+
+    /// Get the conversation index if one is selected
+    pub fn conversation_index(&self) -> Option<usize> {
+        match self {
+            DMSelection::Conversation(idx) => Some(*idx),
+            _ => None,
+        }
+    }
+}
+
 /// DMs tab state
 pub struct DMsState {
     pub conversations: Vec<Conversation>,
-    pub selected_conversation_index: Option<usize>, // None = no conversation selected
+    pub selection: DMSelection, // Clean enum-based selection
     pub messages: Vec<fido_types::DirectMessage>,
     pub loading: bool,
     pub error: Option<String>,
@@ -211,6 +242,70 @@ pub struct DMsState {
     pub new_conversation_search_mode: bool,
     /// Search query for new conversation modal
     pub new_conversation_search_query: String,
+}
+
+impl DMsState {
+    /// Navigate down in the conversation list
+    pub fn navigate_down(&mut self) {
+        match &self.selection {
+            DMSelection::NewConversation => {
+                // From "New Conversation", go to pending draft or first conversation
+                if self.pending_conversation_username.is_some() {
+                    self.selection = DMSelection::PendingDraft;
+                } else if !self.conversations.is_empty() {
+                    self.selection = DMSelection::Conversation(0);
+                }
+                // If no conversations, stay on NewConversation
+            }
+            DMSelection::PendingDraft => {
+                // From pending draft, go to first conversation
+                if !self.conversations.is_empty() {
+                    self.selection = DMSelection::Conversation(0);
+                }
+            }
+            DMSelection::Conversation(idx) => {
+                // Move to next conversation if not at end
+                if *idx < self.conversations.len().saturating_sub(1) {
+                    self.selection = DMSelection::Conversation(idx + 1);
+                }
+            }
+        }
+    }
+
+    /// Navigate up in the conversation list
+    pub fn navigate_up(&mut self) {
+        match &self.selection {
+            DMSelection::NewConversation => {
+                // Already at top, do nothing
+            }
+            DMSelection::PendingDraft => {
+                // Go back to "New Conversation"
+                self.selection = DMSelection::NewConversation;
+            }
+            DMSelection::Conversation(idx) => {
+                if *idx == 0 {
+                    // At first conversation, go to pending draft or "New Conversation"
+                    if self.pending_conversation_username.is_some() {
+                        self.selection = DMSelection::PendingDraft;
+                    } else {
+                        self.selection = DMSelection::NewConversation;
+                    }
+                } else {
+                    self.selection = DMSelection::Conversation(idx - 1);
+                }
+            }
+        }
+    }
+
+    /// Clear pending draft and reset selection appropriately
+    pub fn clear_pending_draft(&mut self) {
+        self.pending_conversation_username = None;
+        self.message_input.clear();
+        // If we were on the draft, move to NewConversation
+        if self.selection.is_pending_draft() {
+            self.selection = DMSelection::NewConversation;
+        }
+    }
 }
 
 /// Conversation summary

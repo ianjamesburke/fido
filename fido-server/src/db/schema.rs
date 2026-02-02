@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT UNIQUE NOT NULL,
     bio TEXT,
     join_date TEXT NOT NULL,
-    is_test_user INTEGER NOT NULL DEFAULT 0
+    is_test_user INTEGER NOT NULL DEFAULT 0,
+    is_admin INTEGER NOT NULL DEFAULT 0
 );
 
 -- Posts table
@@ -164,6 +165,22 @@ CREATE TABLE IF NOT EXISTS dm_rate_limits (
 -- Create index for efficient rate limit lookups
 CREATE INDEX IF NOT EXISTS idx_post_rate_limits_user ON post_rate_limits(user_id);
 CREATE INDEX IF NOT EXISTS idx_dm_rate_limits_user ON dm_rate_limits(user_id);
+
+-- Audit logs table for security event tracking
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    user_id TEXT,
+    ip_address TEXT,
+    user_agent TEXT,
+    details TEXT,
+    timestamp TEXT NOT NULL
+);
+
+-- Indexes for efficient audit log queries
+CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_event_type ON audit_logs(event_type);
 "#;
 
 /// Test data for development and testing
@@ -178,15 +195,16 @@ pub const TEST_DATA: &str = r#"
 -- TEST USERS
 -- ============================================================================
 -- Insert test users with diverse profiles
-INSERT OR IGNORE INTO users (id, username, bio, join_date, is_test_user) VALUES
-    ('550e8400-e29b-41d4-a716-446655440001', 'alice', 'Rust enthusiast and terminal lover 🦀', '2024-01-01T00:00:00Z', 1),
-    ('550e8400-e29b-41d4-a716-446655440002', 'bob', 'Terminal UI designer and developer 🎨', '2024-01-02T00:00:00Z', 1),
-    ('550e8400-e29b-41d4-a716-446655440003', 'charlie', 'SQLite advocate and database expert 💾', '2024-01-03T00:00:00Z', 1),
-    ('550e8400-e29b-41d4-a716-446655440004', 'diana', 'Open source maintainer | Coffee addict ☕', '2024-01-04T00:00:00Z', 1),
-    ('550e8400-e29b-41d4-a716-446655440005', 'eve', 'DevOps engineer | Automation enthusiast 🤖', '2024-01-05T00:00:00Z', 1),
-    ('550e8400-e29b-41d4-a716-446655440006', 'frank', 'Systems programmer | Low-level wizard ⚡', '2024-01-06T00:00:00Z', 1),
-    ('550e8400-e29b-41d4-a716-446655440007', 'grace', 'Security researcher | Bug bounty hunter 🔒', '2024-01-07T00:00:00Z', 1),
-    ('550e8400-e29b-41d4-a716-446655440008', 'hank', 'Performance optimization nerd | Benchmarking 📊', '2024-01-08T00:00:00Z', 1);
+-- Note: alice is set as admin (is_admin = 1) for testing admin functionality
+INSERT OR IGNORE INTO users (id, username, bio, join_date, is_test_user, is_admin) VALUES
+    ('550e8400-e29b-41d4-a716-446655440001', 'alice', 'Rust enthusiast and terminal lover 🦀', '2024-01-01T00:00:00Z', 1, 1),
+    ('550e8400-e29b-41d4-a716-446655440002', 'bob', 'Terminal UI designer and developer 🎨', '2024-01-02T00:00:00Z', 1, 0),
+    ('550e8400-e29b-41d4-a716-446655440003', 'charlie', 'SQLite advocate and database expert 💾', '2024-01-03T00:00:00Z', 1, 0),
+    ('550e8400-e29b-41d4-a716-446655440004', 'diana', 'Open source maintainer | Coffee addict ☕', '2024-01-04T00:00:00Z', 1, 0),
+    ('550e8400-e29b-41d4-a716-446655440005', 'eve', 'DevOps engineer | Automation enthusiast 🤖', '2024-01-05T00:00:00Z', 1, 0),
+    ('550e8400-e29b-41d4-a716-446655440006', 'frank', 'Systems programmer | Low-level wizard ⚡', '2024-01-06T00:00:00Z', 1, 0),
+    ('550e8400-e29b-41d4-a716-446655440007', 'grace', 'Security researcher | Bug bounty hunter 🔒', '2024-01-07T00:00:00Z', 1, 0),
+    ('550e8400-e29b-41d4-a716-446655440008', 'hank', 'Performance optimization nerd | Benchmarking 📊', '2024-01-08T00:00:00Z', 1, 0);
 
 -- ============================================================================
 -- USER CONFIGURATIONS

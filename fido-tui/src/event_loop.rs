@@ -1,4 +1,4 @@
-use crate::app::{App, FilterTab, InputMode, PostFilter, Screen, Tab};
+use crate::app::{App, DMSelection, FilterTab, InputMode, PostFilter, Screen, Tab};
 use crate::auth::AuthFlow;
 use crate::log_reply;
 use crate::{log_key_event, ui};
@@ -9,7 +9,7 @@ use std::time::Duration;
 pub struct EventLoop {
     modal_tracker: ModalStateTracker,
     last_tab: Tab,
-    last_dm_conversation_index: Option<usize>,
+    last_dm_selection: DMSelection,
     last_terminal_size: (u16, u16),
     last_device_poll: std::time::Instant,
 }
@@ -19,7 +19,7 @@ impl EventLoop {
         Self {
             modal_tracker: ModalStateTracker::new(),
             last_tab: Tab::Posts, // Default starting tab
-            last_dm_conversation_index: None,
+            last_dm_selection: DMSelection::NewConversation,
             last_terminal_size: (0, 0),
             last_device_poll: std::time::Instant::now(),
         }
@@ -187,13 +187,12 @@ impl EventLoop {
             return Ok(());
         }
 
-        let needs_load = app.dms_state.selected_conversation_index
-            != self.last_dm_conversation_index
+        let needs_load = app.dms_state.selection != self.last_dm_selection
             || app.dms_state.needs_message_load;
 
         if needs_load && !app.dms_state.conversations.is_empty() {
             app.load_conversation_messages().await?;
-            self.last_dm_conversation_index = app.dms_state.selected_conversation_index;
+            self.last_dm_selection = app.dms_state.selection.clone();
             app.dms_state.needs_message_load = false;
         }
 
@@ -283,6 +282,16 @@ impl EventLoop {
         key: crossterm::event::KeyEvent,
         auth_flow: &mut AuthFlow,
     ) -> Result<()> {
+        // Ctrl+C always quits immediately (highest priority)
+        if key.code == KeyCode::Char('c')
+            && key
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL)
+        {
+            app.running = false;
+            return Ok(());
+        }
+
         // Handle the async key events that were previously in main.rs
         match key.code {
             KeyCode::Char('l') if app.current_screen == Screen::Auth => {
