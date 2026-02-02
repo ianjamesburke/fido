@@ -36,6 +36,25 @@ impl PostRepository {
         Ok(())
     }
 
+    /// Update post content by ID
+    pub fn update_content(&self, post_id: &Uuid, content: &str) -> Result<()> {
+        let conn = self.pool.get()?;
+        conn.execute(
+            "UPDATE posts SET content = ? WHERE id = ?",
+            (content, post_id.to_string()),
+        )
+        .context("Failed to update post content")?;
+        Ok(())
+    }
+
+    /// Delete a post by ID (replies and related rows cascade via FK)
+    pub fn delete(&self, post_id: &Uuid) -> Result<()> {
+        let conn = self.pool.get()?;
+        conn.execute("DELETE FROM posts WHERE id = ?", [post_id.to_string()])
+            .context("Failed to delete post")?;
+        Ok(())
+    }
+
     /// Get posts with sorting and limit
     /// 
     /// # SQL Injection Safety

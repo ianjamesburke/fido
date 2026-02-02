@@ -15,6 +15,7 @@ use crate::{
     http::{extract_client_ip, extract_user_agent, AuthenticatedUser, OptionalUser},
     security::validation::validate_post_content,
     security::{AuditEvent, AuditEventType},
+    services::posts::PostService,
     state::AppState,
 };
 use fido_types::{CreatePostRequest, Post, SortOrder, VoteDirection, VoteRequest};
@@ -104,10 +105,7 @@ pub async fn get_posts(
     OptionalUser(user_id): OptionalUser,
     Query(query): Query<GetPostsQuery>,
 ) -> ApiResult<Json<Vec<Post>>> {
-    let pool = state.db.pool.clone();
-    let post_repo = PostRepository::new(pool.clone());
-    let hashtag_repo = HashtagRepository::new(pool.clone());
-    let vote_repo = VoteRepository::new(pool);
+    let service = PostService::new(state.db.pool.clone());
 
     // Parse and validate sort order - reject invalid values
     let sort_order = if let Some(sort_str) = query.sort.as_deref() {
@@ -121,53 +119,13 @@ pub async fn get_posts(
         SortOrder::Newest
     };
 
-    // Get posts (filtered by hashtag and/or username if specified)
-    let mut posts = match (&query.hashtag, &query.username) {
-        (Some(hashtag), Some(username)) => {
-            // Both filters: posts must match both criteria
-            post_repo
-                .get_posts_by_hashtag_and_username(hashtag, username, sort_order, query.limit)
-                .map_err(|e| ApiError::InternalError(e.to_string()))?
-        }
-        (Some(hashtag), None) => {
-            // Only hashtag filter
-            post_repo
-                .get_posts_by_hashtag(hashtag, sort_order, query.limit)
-                .map_err(|e| ApiError::InternalError(e.to_string()))?
-        }
-        (None, Some(username)) => {
-            // Only username filter
-            post_repo
-                .get_posts_by_username(username, sort_order, query.limit)
-                .map_err(|e| ApiError::InternalError(e.to_string()))?
-        }
-        (None, None) => {
-            // No filters
-            post_repo
-                .get_posts(sort_order, query.limit)
-                .map_err(|e| ApiError::InternalError(e.to_string()))?
-        }
-    };
-
-    // Track activity if viewing filtered posts and user is authenticated
-    if let (Some(ref hashtag), Some(uid)) = (&query.hashtag, user_id) {
-        // Update last interaction timestamp for this hashtag
-        let _ = hashtag_repo.increment_activity(&uid, hashtag);
-    }
-
-    // Populate hashtags and user votes for each post
-    for post in &mut posts {
-        post.hashtags = hashtag_repo
-            .get_by_post(&post.id)
-            .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-        // If user is authenticated, check their vote on this post
-        if let Some(uid) = user_id {
-            if let Ok(Some(vote)) = vote_repo.get_vote(&uid, &post.id) {
-                post.user_vote = Some(vote.direction.as_str().to_string());
-            }
-        }
-    }
+    let posts = service.get_posts(
+        sort_order,
+        query.limit,
+        query.hashtag.as_deref(),
+        query.username.as_deref(),
+        user_id,
+    )?;
 
     Ok(Json(posts))
 }
@@ -314,35 +272,8 @@ pub async fn get_replies(
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
 
-    let pool = state.db.pool.clone();
-    let post_repo = PostRepository::new(pool.clone());
-    let hashtag_repo = HashtagRepository::new(pool.clone());
-    let vote_repo = VoteRepository::new(pool);
-
-    // Verify post exists
-    post_repo
-        .get_by_id(&post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
-
-    // Get replies
-    let mut replies = post_repo
-        .get_replies(&post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    // Populate hashtags and user votes for each reply
-    for reply in &mut replies {
-        reply.hashtags = hashtag_repo
-            .get_by_post(&reply.id)
-            .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-        // If user is authenticated, check their vote on this reply
-        if let Some(uid) = user_id {
-            if let Ok(Some(vote)) = vote_repo.get_vote(&uid, &reply.id) {
-                reply.user_vote = Some(vote.direction.as_str().to_string());
-            }
-        }
-    }
+    let service = PostService::new(state.db.pool.clone());
+    let replies = service.get_replies(&post_id, user_id)?;
 
     Ok(Json(replies))
 }
@@ -526,24 +457,14 @@ pub async fn update_post(
     post.hashtags = new_hashtags.clone();
 
     // Update post in database
-    let conn = state
-        .db
-        .pool
-        .get()
+    post_repo
+        .update_content(&post_id, &payload.content)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
 
-    conn.execute(
-        "UPDATE posts SET content = ? WHERE id = ?",
-        (payload.content, post_id.to_string()),
-    )
-    .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
     // Update hashtags (delete old ones and insert new ones)
-    conn.execute(
-        "DELETE FROM hashtags WHERE post_id = ?",
-        [post_id.to_string()],
-    )
-    .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    hashtag_repo
+        .delete_by_post(&post_id)
+        .map_err(|e| ApiError::InternalError(e.to_string()))?;
 
     if !new_hashtags.is_empty() {
         hashtag_repo
@@ -577,13 +498,8 @@ pub async fn delete_post(
         .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
 
     // Delete post (cascade will handle replies, hashtags, and votes)
-    let conn = state
-        .db
-        .pool
-        .get()
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    conn.execute("DELETE FROM posts WHERE id = ?", [post_id.to_string()])
+    post_repo
+        .delete(&post_id)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
 
     Ok(Json(serde_json::json!({
@@ -603,28 +519,8 @@ pub async fn get_post(
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
 
-    let pool = state.db.pool.clone();
-    let post_repo = PostRepository::new(pool.clone());
-    let hashtag_repo = HashtagRepository::new(pool.clone());
-    let vote_repo = VoteRepository::new(pool);
-
-    // Get post
-    let mut post = post_repo
-        .get_by_id(&post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
-
-    // Populate hashtags
-    post.hashtags = hashtag_repo
-        .get_by_post(&post.id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    // Try to get authenticated user (optional)
-    if let Some(user_id) = user_id {
-        if let Ok(Some(vote)) = vote_repo.get_vote(&user_id, &post.id) {
-            post.user_vote = Some(vote.direction.as_str().to_string());
-        }
-    }
+    let service = PostService::new(state.db.pool.clone());
+    let post = service.get_post(&post_id, user_id)?;
 
     Ok(Json(post))
 }
@@ -639,46 +535,8 @@ pub async fn get_thread(
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
 
-    let pool = state.db.pool.clone();
-    let post_repo = PostRepository::new(pool.clone());
-    let hashtag_repo = HashtagRepository::new(pool.clone());
-    let vote_repo = VoteRepository::new(pool);
-
-    // Get the root post
-    let mut root_post = post_repo
-        .get_by_id(&post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
-
-    // Populate hashtags for root post
-    root_post.hashtags = hashtag_repo
-        .get_by_post(&root_post.id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    // Try to get authenticated user (optional)
-    if let Some(uid) = user_id {
-        if let Ok(Some(vote)) = vote_repo.get_vote(&uid, &root_post.id) {
-            root_post.user_vote = Some(vote.direction.as_str().to_string());
-        }
-    }
-
-    // Get all replies recursively
-    let mut replies = post_repo
-        .get_replies(&post_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    // Populate hashtags and user votes for each reply
-    for reply in &mut replies {
-        reply.hashtags = hashtag_repo
-            .get_by_post(&reply.id)
-            .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-        if let Some(uid) = user_id {
-            if let Ok(Some(vote)) = vote_repo.get_vote(&uid, &reply.id) {
-                reply.user_vote = Some(vote.direction.as_str().to_string());
-            }
-        }
-    }
+    let service = PostService::new(state.db.pool.clone());
+    let (root_post, replies) = service.get_thread_parts(&post_id, user_id)?;
 
     // Return root post with all replies
     Ok(Json(serde_json::json!({

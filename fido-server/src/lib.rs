@@ -10,6 +10,7 @@ pub mod mention;
 pub mod oauth;
 pub mod rate_limit;
 pub mod security;
+pub mod services;
 pub mod session;
 pub mod state;
 
