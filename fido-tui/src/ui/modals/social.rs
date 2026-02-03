@@ -34,6 +34,34 @@ impl UserListItem for crate::app::UserSearchResult {
     }
 }
 
+impl UserListItem for crate::app::UserInfo {
+    fn username(&self) -> &str {
+        &self.username
+    }
+
+    fn follower_count(&self) -> Option<usize> {
+        Some(self.follower_count)
+    }
+
+    fn following_count(&self) -> Option<usize> {
+        Some(self.following_count)
+    }
+}
+
+impl<'a> UserListItem for &'a crate::app::UserInfo {
+    fn username(&self) -> &str {
+        &self.username
+    }
+
+    fn follower_count(&self) -> Option<usize> {
+        Some(self.follower_count)
+    }
+
+    fn following_count(&self) -> Option<usize> {
+        Some(self.following_count)
+    }
+}
+
 /// Render social connections modal (Following/Followers/Mutual Friends)
 pub fn render_friends_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);

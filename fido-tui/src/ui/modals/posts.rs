@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{ListItem, Paragraph},
     Frame,
 };
 use uuid::Uuid;
@@ -172,21 +172,17 @@ pub fn render_full_post_modal(frame: &mut Frame, app: &mut App, area: Rect) {
         Some(p) => p,
         None => {
             // Show error if no post found
-            let error_block = Block::default()
-                .title(" Error ")
-                .borders(Borders::ALL)
-                .border_style(
+            let config = ModalConfig::new(" Error ")
+                .with_size(60, 35)
+                .with_border_color(theme.error);
+            let inner = render_modal_container(frame, area, &config, &theme);
+
+            let error_text = Paragraph::new("❌ Thread not found")
+                .style(
                     Style::default()
                         .fg(theme.error)
                         .add_modifier(Modifier::BOLD),
                 )
-                .style(Style::default().bg(theme.background));
-
-            let inner = error_block.inner(modal_area);
-            frame.render_widget(error_block, modal_area);
-
-            let error_text = Paragraph::new("❌ Thread not found")
-                .style(Style::default().fg(theme.error))
                 .alignment(Alignment::Center);
             frame.render_widget(error_text, inner);
             return;

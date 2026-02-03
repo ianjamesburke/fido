@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Paragraph},
+    widgets::{Block, Borders, Paragraph},
     Frame,
 };
 
@@ -102,7 +102,8 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
         Some(ComposerMode::Reply { .. }) => 56, // 30% smaller than 80%
         _ => 80,
     };
-    let config = ModalConfig::new(&format!(" {} ", title)).with_size(70, height_percent);
+    let title_text = format!(" {} ", title);
+    let config = ModalConfig::new(&title_text).with_size(70, height_percent);
     let inner = render_modal_container(frame, area, &config, &theme);
 
     // Create modal layout

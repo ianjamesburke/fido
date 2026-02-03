@@ -4,7 +4,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::backend::CrosstermBackend;
-use std::io::{self, Stdout, Write};
+use std::io::{self, IsTerminal, Stdout, Write};
 
 pub type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
 pub type Tui = Terminal;
@@ -12,8 +12,15 @@ pub type Tui = Terminal;
 /// Initialize the terminal
 /// Note: Mouse capture is intentionally NOT enabled for keyboard-only navigation
 pub fn init() -> Result<Tui> {
+    let mut stdout = io::stdout();
+    if !stdout.is_terminal() {
+        return Err(anyhow::anyhow!(
+            "Fido TUI must run in an interactive terminal (TTY). Stdout is not a TTY."
+        ));
+    }
+
     enable_raw_mode()?;
-    execute!(io::stdout(), EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen)?;
 
     // Explicitly disable mouse tracking with ANSI escape sequences
     // This prevents the terminal from sending mouse events entirely
@@ -21,13 +28,13 @@ pub fn init() -> Result<Tui> {
     print!("\x1b[?1002l"); // Disable cell motion mouse tracking
     print!("\x1b[?1003l"); // Disable all motion mouse tracking
     print!("\x1b[?1006l"); // Disable SGR extended mouse mode
-    io::stdout().flush()?;
+    stdout.flush()?;
 
     // Windows-specific: Disable mouse input at the console level
     #[cfg(windows)]
     disable_windows_mouse_input()?;
 
-    let backend = CrosstermBackend::new(io::stdout());
+    let backend = CrosstermBackend::new(stdout);
     let terminal = ratatui::Terminal::new(backend)?;
     Ok(terminal)
 }

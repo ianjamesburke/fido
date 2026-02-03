@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, ListItem, Paragraph, Wrap},
     Frame,
 };
 
@@ -229,6 +229,7 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
 /// Render the main screen with tabs
 pub fn render_main_screen(frame: &mut Frame, app: &mut App) {
     let layout = main_layout(frame, app);
+    let area = frame.area();
 
     // Render tab header
     render_tab_header(frame, app, layout.header);
@@ -682,7 +683,7 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
     };
 
     let posts_widget = styled_list(items, &theme, None)
-        .block(Block::default().borders(Borders::ALL).title(title))
+        .block(Block::default().borders(Borders::ALL).title(title));
 
     frame.render_stateful_widget(posts_widget, posts_area, &mut app.posts_state.list_state);
 
@@ -1340,7 +1341,7 @@ pub fn render_user_posts(frame: &mut Frame, app: &mut App, area: Rect) {
         .collect();
 
     let posts_widget = styled_list(items, &theme, None)
-        .block(Block::default().borders(Borders::ALL).title("Your Posts"))
+        .block(Block::default().borders(Borders::ALL).title("Your Posts"));
 
     frame.render_stateful_widget(posts_widget, area, &mut app.profile_state.list_state);
 }

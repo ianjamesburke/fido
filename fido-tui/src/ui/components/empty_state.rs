@@ -9,7 +9,12 @@ use ratatui::{
 use crate::ui::theme::ThemeColors;
 
 /// Render a centered empty state message.
-pub fn render_empty_state(frame: &mut Frame, area: Rect, text: impl Into<Text>, theme: &ThemeColors) {
+pub fn render_empty_state<'a>(
+    frame: &mut Frame,
+    area: Rect,
+    text: impl Into<Text<'a>>,
+    theme: &ThemeColors,
+) {
     let empty = Paragraph::new(text)
         .alignment(Alignment::Center)
         .style(Style::default().fg(theme.text_dim));
@@ -17,10 +22,10 @@ pub fn render_empty_state(frame: &mut Frame, area: Rect, text: impl Into<Text>, 
 }
 
 /// Render a centered empty state with a standard bordered block.
-pub fn render_empty_state_block(
+pub fn render_empty_state_block<'a>(
     frame: &mut Frame,
     area: Rect,
-    text: impl Into<Text>,
+    text: impl Into<Text<'a>>,
     theme: &ThemeColors,
     title: &str,
 ) {
