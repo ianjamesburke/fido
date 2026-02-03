@@ -15,3 +15,7 @@ tui:
 # Start TUI connected to local server
 tui-local:
     cargo run --bin fido -- --server http://localhost:3000
+
+# Run full test suite
+test:
+    cargo test --workspace
