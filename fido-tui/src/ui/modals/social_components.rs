@@ -11,87 +11,30 @@
 //! ```rust
 //! use super::social_components::*;
 //!
-//! let config = SocialModalConfig::new(" Friends ")
+//! let config = ModalConfig::new(" Friends ")
 //!     .with_size(70, 80);
-//! let inner = create_modal_container(frame, area, &config, &theme);
+//! let inner = render_modal_container(frame, area, &config, &theme);
 //!
 //! let search_config = SearchBarConfig {
 //!     query: &app.search_query,
 //!     is_active: app.search_mode,
 //!     placeholder: "Press / to search",
+//!     mode: SearchBarMode::Slash,
 //! };
 //! render_search_bar(frame, search_area, &search_config, &theme);
 //! ```
 use ratatui::{
     layout::{Alignment, Rect},
     style::{Modifier, Style},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, ListItem, ListState, Paragraph},
     Frame,
 };
 
+use super::super::components::list::styled_list;
+pub use crate::ui::components::modal::{render_modal_container, ModalConfig};
+pub use crate::ui::components::search_bar::{render_search_bar, SearchBarConfig, SearchBarMode};
+pub use crate::ui::components::tab_bar::{render_tab_bar, TabBarConfig};
 use super::super::theme::ThemeColors;
-use super::utils::centered_rect;
-
-/// Configuration for rendering a social modal
-#[derive(Clone)]
-pub struct SocialModalConfig<'a> {
-    pub title: &'a str,
-    pub width_percent: u16,
-    pub height_percent: u16,
-}
-
-impl<'a> Default for SocialModalConfig<'a> {
-    fn default() -> Self {
-        Self {
-            title: " Modal ",
-            width_percent: 70,
-            height_percent: 80,
-        }
-    }
-}
-
-impl<'a> SocialModalConfig<'a> {
-    /// Builder pattern for cleaner configuration
-    pub fn new(title: &'a str) -> Self {
-        Self {
-            title,
-            ..Default::default()
-        }
-    }
-
-    pub fn with_size(mut self, width_percent: u16, height_percent: u16) -> Self {
-        self.width_percent = width_percent;
-        self.height_percent = height_percent;
-        self
-    }
-}
-
-/// Create and render the outer modal container
-pub fn create_modal_container(
-    frame: &mut Frame,
-    area: Rect,
-    config: &SocialModalConfig,
-    theme: &ThemeColors,
-) -> Rect {
-    let modal_area = centered_rect(config.width_percent, config.height_percent, area);
-
-    frame.render_widget(ratatui::widgets::Clear, modal_area);
-
-    let block = Block::default()
-        .title(config.title)
-        .borders(Borders::ALL)
-        .border_style(
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        )
-        .style(Style::default().bg(theme.background));
-
-    let inner = block.inner(modal_area);
-    frame.render_widget(block, modal_area);
-
-    inner
-}
 
 /// Render a loading state
 pub fn render_loading_state(frame: &mut Frame, area: Rect, message: &str, theme: &ThemeColors) {
@@ -101,61 +44,10 @@ pub fn render_loading_state(frame: &mut Frame, area: Rect, message: &str, theme:
     frame.render_widget(loading, area);
 }
 
-/// Configuration for search bar rendering
-pub struct SearchBarConfig<'a> {
-    pub query: &'a str,
-    pub is_active: bool,
-    pub placeholder: &'a str,
-}
-
-/// Render a search bar
-pub fn render_search_bar(
-    frame: &mut Frame,
-    area: Rect,
-    config: &SearchBarConfig,
-    theme: &ThemeColors,
-) {
-    let search_text = if config.is_active {
-        format!("/{}", config.query)
-    } else if !config.query.is_empty() {
-        format!("Filter: {}", config.query)
-    } else {
-        config.placeholder.to_string()
-    };
-
-    let search_bar = Paragraph::new(search_text)
-        .style(Style::default().fg(if config.is_active {
-            theme.accent
-        } else {
-            theme.text_dim
-        }))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
-        );
-
-    frame.render_widget(search_bar, area);
-}
-
-/// Render an empty state message
-pub fn render_empty_state(frame: &mut Frame, area: Rect, message: &str, theme: &ThemeColors) {
-    let empty = Paragraph::new(message)
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(theme.text_dim));
-    frame.render_widget(empty, area);
-}
-
 /// Configuration for user list rendering
 pub struct UserListConfig {
     pub selected_index: usize,
     pub show_stats: bool,
-}
-
-/// Configuration for tab bar rendering
-pub struct TabBarConfig<'a> {
-    pub tabs: &'a [&'a str],
-    pub selected_index: usize,
 }
 
 /// User info for rendering in lists
@@ -233,13 +125,12 @@ pub fn render_user_list<T: UserListItem>(
         })
         .collect();
 
-    let list = List::new(items)
+    let list = styled_list(items, theme, Some(">> "))
         .highlight_style(
             Style::default()
                 .bg(theme.highlight_bg)
                 .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol(">> ");
+        );
 
     let mut list_state = ListState::default();
     // Safer bounds checking - only select if we have items
@@ -248,42 +139,6 @@ pub fn render_user_list<T: UserListItem>(
     }
 
     frame.render_stateful_widget(list, area, &mut list_state);
-}
-
-/// Render a tab bar with consistent styling
-pub fn render_tab_bar(frame: &mut Frame, area: Rect, config: &TabBarConfig, theme: &ThemeColors) {
-    use ratatui::text::{Line, Span};
-
-    let mut tab_spans = Vec::new();
-
-    for (i, &tab_name) in config.tabs.iter().enumerate() {
-        if i > 0 {
-            tab_spans.push(Span::raw(" | "));
-        }
-
-        if i == config.selected_index {
-            tab_spans.push(Span::styled(
-                format!(" [{}] ", tab_name),
-                Style::default()
-                    .fg(theme.accent)
-                    .add_modifier(Modifier::BOLD),
-            ));
-        } else {
-            tab_spans.push(Span::styled(
-                format!("  {}  ", tab_name),
-                Style::default().fg(theme.text_dim),
-            ));
-        }
-    }
-
-    let tab_bar = Paragraph::new(Line::from(tab_spans))
-        .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
-        );
-    frame.render_widget(tab_bar, area);
 }
 
 /// Render a footer with shortcuts

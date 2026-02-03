@@ -6,6 +6,13 @@ use ratatui::{
     Frame,
 };
 
+use super::components::action_bar::action_bar_text;
+use super::components::banners::{render_error_banner, render_message_banner};
+use super::components::empty_state::render_empty_state_block;
+use super::components::footer::render_footer_with_style;
+use super::components::layout::{auth_layout, banner_layout, main_layout};
+use super::components::list::styled_list;
+use super::components::panel::render_panel_lines;
 use super::formatting::*;
 use super::modals::*;
 use super::theme::{get_theme_colors, ThemeColors};
@@ -13,47 +20,8 @@ use crate::app::App;
 use crate::{log_modal_state, log_rendering};
 
 pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
-    let area = frame.area();
     let theme = get_theme_colors(app);
-
-    // If in demo mode, add a banner at the top
-    let chunks = if app.is_demo_mode {
-        Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3), // Demo banner
-                Constraint::Length(3), // Header
-                Constraint::Min(0),    // Content
-                Constraint::Length(3), // Footer
-            ])
-            .split(area)
-    } else {
-        Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3), // Header
-                Constraint::Min(0),    // Content
-                Constraint::Length(3), // Footer
-            ])
-            .split(area)
-    };
-
-    let (header_chunk, content_chunk, footer_chunk) = if app.is_demo_mode {
-        // Render demo banner
-        let demo_banner = Paragraph::new("🎮 DEMO MODE - Data is temporary and will be lost on refresh")
-            .style(
-                Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .alignment(Alignment::Center);
-        frame.render_widget(demo_banner, chunks[0]);
-        
-        (chunks[1], chunks[2], chunks[3])
-    } else {
-        (chunks[0], chunks[1], chunks[2])
-    };
+    let layout = auth_layout(frame, app);
 
     // Header
     let header = Paragraph::new("Fido - Terminal Social Platform")
@@ -64,7 +32,7 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
         )
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
-    frame.render_widget(header, header_chunk);
+    frame.render_widget(header, layout.header);
 
     // Main content - ASCII logo
     let mut lines = vec![Line::from("")];
@@ -230,7 +198,7 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
             .borders(Borders::ALL)
             .title("Authentication"),
     );
-    frame.render_widget(content, content_chunk);
+    frame.render_widget(content, layout.content);
 
     // Footer
     let footer_text = if app.auth_state.github_auth_in_progress {
@@ -249,91 +217,39 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
         }
     };
 
-    let footer = Paragraph::new(footer_text)
-        .style(Style::default().fg(Color::White))
-        .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL));
-    frame.render_widget(footer, footer_chunk);
+    render_footer_with_style(
+        frame,
+        layout.footer,
+        footer_text,
+        &theme,
+        Style::default().fg(Color::White),
+    );
 }
 
 /// Render the main screen with tabs
 pub fn render_main_screen(frame: &mut Frame, app: &mut App) {
-    let area = frame.area();
-
-    // Adaptive layout: reduce footer sizes on small terminals
-    let (header_height, footer_height) = if area.height < 30 {
-        (3u16, 2u16) // Compact mode for small terminals
-    } else {
-        (3u16, 3u16) // Normal mode
-    };
-
-    // Check if update banner should be shown
-    let show_update_banner = app.update_available.is_some();
-
-    let chunks = if show_update_banner {
-        Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(1),             // Update banner
-                Constraint::Length(header_height), // Tab header
-                Constraint::Min(0),                // Content (flexible)
-                Constraint::Length(1),             // Page-specific actions
-                Constraint::Length(footer_height), // Global footer
-            ])
-            .split(area)
-    } else {
-        Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(header_height), // Tab header
-                Constraint::Min(0),                // Content (flexible)
-                Constraint::Length(1),             // Page-specific actions
-                Constraint::Length(footer_height), // Global footer
-            ])
-            .split(area)
-    };
-
-    // Render update banner if available
-    let (header_chunk, content_chunk, actions_chunk, footer_chunk) = if show_update_banner {
-        if let Some(version) = &app.update_available {
-            let banner = Paragraph::new(format!(
-                "🆕 Update available: v{} → Run: fido --update",
-                version
-            ))
-            .style(
-                Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .alignment(Alignment::Center);
-            frame.render_widget(banner, chunks[0]);
-        }
-        (chunks[1], chunks[2], chunks[3], chunks[4])
-    } else {
-        (chunks[0], chunks[1], chunks[2], chunks[3])
-    };
+    let layout = main_layout(frame, app);
 
     // Render tab header
-    render_tab_header(frame, app, header_chunk);
+    render_tab_header(frame, app, layout.header);
 
     // Render tab content
     match app.current_tab {
         crate::app::Tab::Posts => {
             // Always render the feed
-            render_posts_tab_with_data(frame, app, content_chunk);
+            render_posts_tab_with_data(frame, app, layout.content);
             // Modal is rendered later at the top level (after all tabs)
         }
-        crate::app::Tab::DMs => render_dms_tab(frame, app, content_chunk),
-        crate::app::Tab::Profile => render_profile_tab(frame, app, content_chunk),
-        crate::app::Tab::Settings => render_settings_tab(frame, app, content_chunk),
+        crate::app::Tab::DMs => render_dms_tab(frame, app, layout.content),
+        crate::app::Tab::Profile => render_profile_tab(frame, app, layout.content),
+        crate::app::Tab::Settings => render_settings_tab(frame, app, layout.content),
     }
 
     // Render page-specific actions bar (NEW)
-    render_page_actions(frame, app, actions_chunk);
+    render_page_actions(frame, app, layout.actions);
 
     // Render global footer
-    render_global_footer(frame, app, footer_chunk);
+    render_global_footer(frame, app, layout.footer);
 
     // Render modals (in priority order - LAST rendered = TOP of stack)
 
@@ -522,39 +438,6 @@ pub fn render_tab_header(frame: &mut Frame, app: &mut App, area: Rect) {
 }
 
 /// Get context-appropriate action text for the current view
-pub fn get_action_bar_text(app: &App) -> &'static str {
-    // Don't show page actions when modal is open (modal has its own footer)
-    if app.viewing_post_detail {
-        if let Some(detail_state) = &app.post_detail_state {
-            if detail_state.show_full_post_modal {
-                return ""; // Empty - modal has its own footer
-            }
-        }
-    }
-
-    match app.current_tab {
-        crate::app::Tab::Posts => {
-            "u/d: Vote | n: Post | f: Filter | s: Search | Space: View | p: Profile"
-        }
-        crate::app::Tab::DMs => {
-            // Check if user can compose (active conversation or pending draft)
-            let has_active_conversation = app.dms_state.selection.conversation_index().is_some();
-            let has_pending_draft = app.dms_state.pending_conversation_username.is_some();
-            let can_compose = has_active_conversation || has_pending_draft;
-
-            if app.dms_state.selection.is_new_conversation() {
-                "Enter/N: Start New Conversation | ↑/↓/j/k: Navigate | Esc: Back"
-            } else if can_compose {
-                "↑/↓/j/k: Navigate | Type to compose | Enter: Send | Esc: Clear"
-            } else {
-                "↑/↓/j/k: Navigate | Enter: Select conversation | N: New Conversation"
-            }
-        }
-        crate::app::Tab::Profile => "e: Edit Bio | f: Friends",
-        crate::app::Tab::Settings => "←/→/h/l: Change | s: Save",
-    }
-}
-
 /// Render page-specific actions bar (centered, with wrapping support)
 pub fn render_page_actions(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
@@ -567,7 +450,7 @@ pub fn render_page_actions(frame: &mut Frame, app: &mut App, area: Rect) {
     let background = Block::default().style(Style::default().bg(theme.background));
     frame.render_widget(background, area);
 
-    let text = get_action_bar_text(app);
+    let text = action_bar_text(app);
     let widget = Paragraph::new(text)
         .style(Style::default().fg(theme.text).bg(theme.background))
         .alignment(Alignment::Center)
@@ -582,16 +465,13 @@ pub fn render_global_footer(frame: &mut Frame, app: &mut App, area: Rect) {
     // Clear the area first to prevent text bleeding
     frame.render_widget(Clear, area);
 
-    let footer =
-        Paragraph::new("Tab: Next | Shift+Tab: Previous | Shift+L: Logout | ?: Help | q/Esc: Quit | ↑/↓/j/k: Navigate")
-            .style(Style::default().fg(theme.text_dim).bg(theme.background))
-            .alignment(Alignment::Center)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(theme.border)),
-            );
-    frame.render_widget(footer, area);
+    render_footer_with_style(
+        frame,
+        area,
+        "Tab: Next | Shift+Tab: Previous | Shift+L: Logout | ?: Help | q/Esc: Quit | ↑/↓/j/k: Navigate",
+        &theme,
+        Style::default().fg(theme.text_dim),
+    );
 }
 
 /// Render Posts tab with global feed
@@ -607,98 +487,36 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
     let has_error = app.posts_state.error.is_some() && !app.composer_state.is_open();
 
     // Layout: Message banner (if present), Error banner (if present), posts feed
-    let chunks = match (has_message, has_error) {
-        (true, true) => {
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(3), // Message banner
-                    Constraint::Length(3), // Error banner
-                    Constraint::Min(0),    // Posts feed
-                ])
-                .split(area)
-        }
-        (true, false) => {
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(3), // Message banner
-                    Constraint::Min(0),    // Posts feed
-                ])
-                .split(area)
-        }
-        (false, true) => {
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(3), // Error banner
-                    Constraint::Min(0),    // Posts feed
-                ])
-                .split(area)
-        }
-        (false, false) => {
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Min(0), // Posts feed
-                ])
-                .split(area)
-        }
-    };
-
-    let mut chunk_idx = 0;
+    let layout = banner_layout(area, has_message, has_error);
 
     // Message banner (success messages - auto-clear after 3 seconds)
     if let Some((message, _)) = &app.posts_state.message {
-        let message_banner = Paragraph::new(message.clone())
-            .style(
-                Style::default()
-                    .fg(theme.success)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .alignment(Alignment::Center)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Message")
-                    .border_style(Style::default().fg(theme.border))
-                    .style(Style::default().bg(theme.background)),
-            );
-        frame.render_widget(message_banner, chunks[chunk_idx]);
-        chunk_idx += 1;
+        if let Some(area) = layout.message {
+            render_message_banner(frame, area, message, &theme);
+        }
     }
 
     // Error banner (if present and not suppressed by composer)
     if has_error {
         if let Some(error) = &app.posts_state.error {
-            let error_banner = Paragraph::new(error.clone())
-                .style(
-                    Style::default()
-                        .fg(theme.error)
-                        .add_modifier(Modifier::BOLD),
-                )
-                .alignment(Alignment::Center)
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .title("Error")
-                        .border_style(Style::default().fg(theme.border))
-                        .style(Style::default().bg(theme.background)),
-                );
-            frame.render_widget(error_banner, chunks[chunk_idx]);
-            chunk_idx += 1;
+            if let Some(area) = layout.error {
+                render_error_banner(frame, area, error, &theme);
+            }
         }
     }
 
     // Main posts area (no inline compose box - use 'n' to open modal)
-    let posts_area = chunks[chunk_idx];
+    let posts_area = layout.content;
 
     // Only show full-page loading on initial load (when there are no posts yet)
     if app.posts_state.loading && app.posts_state.posts.is_empty() {
-        let loading = Paragraph::new(create_loading_display("Loading posts...", &theme))
-            .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).title("Global Feed"));
-        frame.render_widget(loading, posts_area);
+        render_panel_lines(
+            frame,
+            posts_area,
+            "Global Feed",
+            create_loading_display("Loading posts...", &theme),
+            &theme,
+        );
 
         // Render filter modal if open (even when loading)
         if app.posts_state.show_filter_modal {
@@ -863,9 +681,8 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
         }
     };
 
-    let posts_widget = List::new(items)
+    let posts_widget = styled_list(items, &theme, None)
         .block(Block::default().borders(Borders::ALL).title(title))
-        .highlight_style(Style::default().bg(theme.highlight_bg));
 
     frame.render_stateful_widget(posts_widget, posts_area, &mut app.posts_state.list_state);
 
@@ -963,29 +780,20 @@ pub fn render_dms_tab(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
 
     if app.dms_state.loading {
-        let loading = Paragraph::new(create_loading_display("Loading conversations...", &theme))
-            .alignment(Alignment::Center)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Direct Messages"),
-            );
-        frame.render_widget(loading, area);
+        render_panel_lines(
+            frame,
+            area,
+            "Direct Messages",
+            create_loading_display("Loading conversations...", &theme),
+            &theme,
+        );
         return;
     }
 
     if let Some(error) = &app.dms_state.error {
         let error_lines =
             create_error_display(error, Some("Press Esc to go back to conversations"), &theme);
-
-        let error_msg = Paragraph::new(error_lines)
-            .alignment(Alignment::Center)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Direct Messages"),
-            );
-        frame.render_widget(error_msg, area);
+        render_panel_lines(frame, area, "Direct Messages", error_lines, &theme);
         return;
     }
 
@@ -1210,11 +1018,13 @@ pub fn render_messages(frame: &mut Frame, app: &mut App, area: Rect) {
     }
 
     if app.dms_state.messages.is_empty() {
-        let empty = Paragraph::new("No messages yet. Start the conversation!")
-            .style(Style::default().fg(theme.text_dim))
-            .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).title("Messages"));
-        frame.render_widget(empty, area);
+        render_empty_state_block(
+            frame,
+            area,
+            "No messages yet. Start the conversation!",
+            &theme,
+            "Messages",
+        );
         return;
     }
 
@@ -1336,38 +1146,19 @@ pub fn render_profile_tab(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
 
     if app.profile_state.loading {
-        let loading = Paragraph::new(vec![
-            Line::from(""),
-            Line::from(Span::styled(
-                "⟳ Loading profile...",
-                Style::default()
-                    .fg(theme.warning)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                "Please wait",
-                Style::default().fg(theme.text_dim),
-            )),
-        ])
-        .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Profile")
-                .border_style(Style::default().fg(theme.border))
-                .style(Style::default().bg(theme.background)),
+        render_panel_lines(
+            frame,
+            area,
+            "Profile",
+            create_loading_display("Loading profile...", &theme),
+            &theme,
         );
-        frame.render_widget(loading, area);
         return;
     }
 
     if let Some(error) = &app.profile_state.error {
-        let error_msg = Paragraph::new(error.clone())
-            .style(Style::default().fg(theme.error))
-            .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).title("Profile"));
-        frame.render_widget(error_msg, area);
+        let error_lines = create_error_display(error, None, &theme);
+        render_panel_lines(frame, area, "Profile", error_lines, &theme);
         return;
     }
 
@@ -1386,11 +1177,7 @@ pub fn render_profile_tab(frame: &mut Frame, app: &mut App, area: Rect) {
         // User posts
         render_user_posts(frame, app, chunks[1]);
     } else {
-        let empty = Paragraph::new("No profile data")
-            .style(Style::default().fg(theme.text_dim))
-            .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).title("Profile"));
-        frame.render_widget(empty, area);
+        render_empty_state_block(frame, area, "No profile data", &theme, "Profile");
     }
 }
 
@@ -1476,17 +1263,7 @@ pub fn render_user_posts(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
 
     if app.profile_state.user_posts.is_empty() {
-        let empty = Paragraph::new("No posts yet")
-            .style(Style::default().fg(theme.text_dim))
-            .alignment(Alignment::Center)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Your Posts")
-                    .border_style(Style::default().fg(theme.border))
-                    .style(Style::default().bg(theme.background)),
-            );
-        frame.render_widget(empty, area);
+        render_empty_state_block(frame, area, "No posts yet", &theme, "Your Posts");
         return;
     }
 
@@ -1562,9 +1339,8 @@ pub fn render_user_posts(frame: &mut Frame, app: &mut App, area: Rect) {
         })
         .collect();
 
-    let posts_widget = List::new(items)
+    let posts_widget = styled_list(items, &theme, None)
         .block(Block::default().borders(Borders::ALL).title("Your Posts"))
-        .highlight_style(Style::default().bg(theme.highlight_bg));
 
     frame.render_stateful_widget(posts_widget, area, &mut app.profile_state.list_state);
 }
@@ -1574,23 +1350,13 @@ pub fn render_settings_tab(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
 
     if app.settings_state.loading {
-        let loading = Paragraph::new(vec![
-            Line::from(""),
-            Line::from(Span::styled(
-                "⟳ Loading settings...",
-                Style::default()
-                    .fg(theme.warning)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                "Please wait",
-                Style::default().fg(theme.text_dim),
-            )),
-        ])
-        .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).title("Settings"));
-        frame.render_widget(loading, area);
+        render_panel_lines(
+            frame,
+            area,
+            "Settings",
+            create_loading_display("Loading settings...", &theme),
+            &theme,
+        );
         return;
     }
 
@@ -1717,10 +1483,6 @@ pub fn render_settings_tab(frame: &mut Frame, app: &mut App, area: Rect) {
             Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title("Settings"));
         frame.render_widget(settings_widget, chunks[1]);
     } else {
-        let empty = Paragraph::new("No settings loaded")
-            .style(Style::default().fg(theme.text_dim))
-            .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).title("Settings"));
-        frame.render_widget(empty, chunks[1]);
+        render_empty_state_block(frame, chunks[1], "No settings loaded", &theme, "Settings");
     }
 }

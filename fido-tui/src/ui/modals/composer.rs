@@ -2,12 +2,12 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
+    widgets::{Block, Paragraph},
     Frame,
 };
 
+use super::super::components::modal::{render_modal_container, ModalConfig};
 use super::super::theme::get_theme_colors;
-use super::utils::centered_rect;
 use crate::app::App;
 
 /// Render unified composer modal (new post, reply, edit post, edit bio)
@@ -102,23 +102,8 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
         Some(ComposerMode::Reply { .. }) => 56, // 30% smaller than 80%
         _ => 80,
     };
-    let modal_area = centered_rect(70, height_percent, area);
-
-    // Clear background (always clear to ensure clean rendering)
-    frame.render_widget(Clear, modal_area);
-
-    let outer_block = Block::default()
-        .title(format!(" {} ", title))
-        .borders(Borders::ALL)
-        .border_style(
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        )
-        .style(Style::default().bg(theme.background));
-
-    let inner = outer_block.inner(modal_area);
-    frame.render_widget(outer_block, modal_area);
+    let config = ModalConfig::new(&format!(" {} ", title)).with_size(70, height_percent);
+    let inner = render_modal_container(frame, area, &config, &theme);
 
     // Create modal layout
     let mut constraints = if has_context {

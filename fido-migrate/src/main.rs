@@ -539,7 +539,7 @@ mod tests {
             // Should not panic
             let result = extract_hashtags(content);
             // Result should be a valid vector (even if empty)
-            assert!(result.len() >= 0);
+            let _ = result;
         }
     }
 

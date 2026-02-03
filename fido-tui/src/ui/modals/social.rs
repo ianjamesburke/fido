@@ -2,13 +2,15 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
 };
 
+use super::super::components::empty_state::render_empty_state;
+use super::super::components::footer::render_footer;
+use super::super::components::search_bar::{render_search_bar, SearchBarConfig, SearchBarMode};
 use super::super::theme::get_theme_colors;
 use super::social_components::*;
-use super::utils::centered_rect;
 use crate::app::App;
 
 // Implement UserListItem for existing types
@@ -26,25 +28,21 @@ impl UserListItem for crate::api::SocialUserInfo {
     }
 }
 
+impl UserListItem for crate::app::UserSearchResult {
+    fn username(&self) -> &str {
+        &self.username
+    }
+}
+
 /// Render social connections modal (Following/Followers/Mutual Friends)
 pub fn render_friends_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
 
-    use super::social_components::*;
-
-    let config = SocialModalConfig {
-        title: " Social Connections ",
-        width_percent: 70,
-        height_percent: 80,
-    };
-
-    let inner = create_modal_container(frame, area, &config, &theme);
+    let config = ModalConfig::new(" Social Connections ").with_size(70, 80);
+    let inner = render_modal_container(frame, area, &config, &theme);
 
     if app.friends_state.loading {
-        let loading = Paragraph::new("Loading...")
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(theme.warning));
-        frame.render_widget(loading, inner);
+        render_loading_state(frame, inner, "Loading...", &theme);
         return;
     }
 
@@ -65,87 +63,20 @@ pub fn render_friends_modal(frame: &mut Frame, app: &mut App, area: Rect) {
         crate::app::SocialTab::Followers => 1,
         crate::app::SocialTab::MutualFriends => 2,
     };
-
-    // Build tab bar as a single line with spans
-    let mut tab_spans = Vec::new();
-
-    // Following tab
-    if selected_tab_index == 0 {
-        tab_spans.push(Span::styled(
-            " [Following] ",
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        ));
-    } else {
-        tab_spans.push(Span::styled(
-            "  Following  ",
-            Style::default().fg(theme.text_dim),
-        ));
-    }
-    tab_spans.push(Span::raw(" | "));
-
-    // Followers tab
-    if selected_tab_index == 1 {
-        tab_spans.push(Span::styled(
-            " [Followers] ",
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        ));
-    } else {
-        tab_spans.push(Span::styled(
-            "  Followers  ",
-            Style::default().fg(theme.text_dim),
-        ));
-    }
-    tab_spans.push(Span::raw(" | "));
-
-    // Mutual Friends tab
-    if selected_tab_index == 2 {
-        tab_spans.push(Span::styled(
-            " [Mutual Friends] ",
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        ));
-    } else {
-        tab_spans.push(Span::styled(
-            "  Mutual Friends  ",
-            Style::default().fg(theme.text_dim),
-        ));
-    }
-
-    let tab_bar = Paragraph::new(Line::from(tab_spans))
-        .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
-        );
-    frame.render_widget(tab_bar, chunks[0]);
+    let tab_config = TabBarConfig {
+        tabs: &["Following", "Followers", "Mutual Friends"],
+        selected_index: selected_tab_index,
+    };
+    render_tab_bar(frame, chunks[0], &tab_config, &theme);
 
     // Render search bar
-    let search_text = if app.friends_state.search_mode {
-        format!("/{}", app.friends_state.search_query)
-    } else if !app.friends_state.search_query.is_empty() {
-        format!("Filter: {}", app.friends_state.search_query)
-    } else {
-        "Press / to search".to_string()
+    let search_config = SearchBarConfig {
+        query: &app.friends_state.search_query,
+        is_active: app.friends_state.search_mode,
+        placeholder: "Press / to search",
+        mode: SearchBarMode::Slash,
     };
-
-    let search_bar = Paragraph::new(search_text)
-        .style(Style::default().fg(if app.friends_state.search_mode {
-            theme.accent
-        } else {
-            theme.text_dim
-        }))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
-        );
-    frame.render_widget(search_bar, chunks[1]);
+    render_search_bar(frame, chunks[1], &search_config, &theme);
 
     // Get filtered user list
     let filtered_users = app.get_filtered_social_list();
@@ -161,39 +92,13 @@ pub fn render_friends_modal(frame: &mut Frame, app: &mut App, area: Rect) {
             "No users match your search"
         };
 
-        let empty = Paragraph::new(empty_msg)
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(theme.text_dim));
-        frame.render_widget(empty, chunks[2]);
+        render_empty_state(frame, chunks[2], empty_msg, &theme);
     } else {
-        // Build user list
-        let items: Vec<ListItem> = filtered_users
-            .iter()
-            .map(|user| {
-                let content = format!(
-                    "@{}  {} followers | {} following",
-                    user.username, user.follower_count, user.following_count
-                );
-                ListItem::new(content)
-            })
-            .collect();
-
-        let list = List::new(items)
-            .highlight_style(
-                Style::default()
-                    .bg(theme.highlight_bg)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .highlight_symbol(">> ");
-
-        let mut list_state = ListState::default();
-        list_state.select(Some(
-            app.friends_state
-                .selected_index
-                .min(filtered_users.len().saturating_sub(1)),
-        ));
-
-        frame.render_stateful_widget(list, chunks[2], &mut list_state);
+        let list_config = UserListConfig {
+            selected_index: app.friends_state.selected_index,
+            show_stats: true,
+        };
+        render_user_list(frame, chunks[2], &filtered_users, &list_config, &theme);
     }
 
     // Render footer with context-sensitive shortcuts
@@ -203,15 +108,7 @@ pub fn render_friends_modal(frame: &mut Frame, app: &mut App, area: Rect) {
         "↑/↓/j/k: Navigate | p: View Profile | f: Follow/Unfollow | /: Search | Tab: Switch | Esc: Close"
     };
 
-    let footer = Paragraph::new(footer_text)
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(theme.text))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
-        );
-    frame.render_widget(footer, chunks[3]);
+    render_footer(frame, chunks[3], footer_text, &theme);
 }
 
 /// Render user profile view modal
@@ -223,24 +120,8 @@ pub fn render_user_profile_view(frame: &mut Frame, app: &App, area: Rect) {
         None => return,
     };
 
-    // Create centered modal area (60% width, 70% height)
-    let modal_area = centered_rect(60, 70, area);
-
-    // Clear background
-    frame.render_widget(Clear, modal_area);
-
-    let block = Block::default()
-        .title(" User Profile ")
-        .borders(Borders::ALL)
-        .border_style(
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        )
-        .style(Style::default().bg(theme.background));
-
-    let inner = block.inner(modal_area);
-    frame.render_widget(block, modal_area);
+    let config = ModalConfig::new(" User Profile ").with_size(60, 70);
+    let inner = render_modal_container(frame, area, &config, &theme);
 
     // Split inner modal into sections
     let modal_chunks = Layout::default()
@@ -338,39 +219,15 @@ pub fn render_user_profile_view(frame: &mut Frame, app: &App, area: Rect) {
         crate::app::RelationshipStatus::None => "f: Follow/Unfollow | Esc: Cancel",
     };
 
-    let actions = Paragraph::new(actions_text)
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(theme.text))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
-        );
-    frame.render_widget(actions, modal_chunks[4]);
+    render_footer(frame, modal_chunks[4], actions_text, &theme);
 }
 
 /// Render new conversation modal (matches friends modal design)
 pub fn render_new_conversation_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
 
-    // Create centered modal area (70% width, 80% height) - same as friends modal
-    let modal_area = centered_rect(70, 80, area);
-
-    // Clear background
-    frame.render_widget(Clear, modal_area);
-
-    let block = Block::default()
-        .title(" New Conversation ")
-        .borders(Borders::ALL)
-        .border_style(
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        )
-        .style(Style::default().bg(theme.background));
-
-    let inner = block.inner(modal_area);
-    frame.render_widget(block, modal_area);
+    let config = ModalConfig::new(" New Conversation ").with_size(70, 80);
+    let inner = render_modal_container(frame, area, &config, &theme);
 
     // Split into sections (same layout as friends modal)
     let chunks = Layout::default()
@@ -383,28 +240,13 @@ pub fn render_new_conversation_modal(frame: &mut Frame, app: &mut App, area: Rec
         .split(inner);
 
     // Render search bar
-    let search_text = if app.dms_state.new_conversation_search_mode {
-        format!("/{}", app.dms_state.new_conversation_search_query)
-    } else if !app.dms_state.new_conversation_search_query.is_empty() {
-        format!("Filter: {}", app.dms_state.new_conversation_search_query)
-    } else {
-        "Press / to search".to_string()
+    let search_config = SearchBarConfig {
+        query: &app.dms_state.new_conversation_search_query,
+        is_active: app.dms_state.new_conversation_search_mode,
+        placeholder: "Press / to search",
+        mode: SearchBarMode::Slash,
     };
-
-    let search_bar = Paragraph::new(search_text)
-        .style(
-            Style::default().fg(if app.dms_state.new_conversation_search_mode {
-                theme.accent
-            } else {
-                theme.text_dim
-            }),
-        )
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
-        );
-    frame.render_widget(search_bar, chunks[0]);
+    render_search_bar(frame, chunks[0], &search_config, &theme);
 
     // Get filtered user list
     let filtered_users = app.get_filtered_mutual_friends();
@@ -416,39 +258,13 @@ pub fn render_new_conversation_modal(frame: &mut Frame, app: &mut App, area: Rec
             "No users match your search"
         };
 
-        let empty = Paragraph::new(empty_msg)
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(theme.text_dim));
-        frame.render_widget(empty, chunks[1]);
+        render_empty_state(frame, chunks[1], empty_msg, &theme);
     } else {
-        // Build user list (same format as friends modal)
-        let items: Vec<ListItem> = filtered_users
-            .iter()
-            .map(|user| {
-                let content = format!(
-                    "@{}  {} followers | {} following",
-                    user.username, user.follower_count, user.following_count
-                );
-                ListItem::new(content)
-            })
-            .collect();
-
-        let list = List::new(items)
-            .highlight_style(
-                Style::default()
-                    .bg(theme.highlight_bg)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .highlight_symbol(">> ");
-
-        let mut list_state = ListState::default();
-        list_state.select(Some(
-            app.dms_state
-                .new_conversation_selected_index
-                .min(filtered_users.len().saturating_sub(1)),
-        ));
-
-        frame.render_stateful_widget(list, chunks[1], &mut list_state);
+        let list_config = UserListConfig {
+            selected_index: app.dms_state.new_conversation_selected_index,
+            show_stats: true,
+        };
+        render_user_list(frame, chunks[1], &filtered_users, &list_config, &theme);
     }
 
     // Render footer with context-sensitive shortcuts
@@ -458,35 +274,17 @@ pub fn render_new_conversation_modal(frame: &mut Frame, app: &mut App, area: Rec
         "↑/↓/j/k: Navigate | Enter: Start Conversation | /: Search | Esc: Close"
     };
 
-    let footer = Paragraph::new(footer_text)
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(theme.text))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
-        );
-    frame.render_widget(footer, chunks[2]);
+    render_footer(frame, chunks[2], footer_text, &theme);
 }
 
 /// Render DM error modal
 pub fn render_dm_error_modal(frame: &mut Frame, app: &App, area: Rect) {
     let theme = get_theme_colors(app);
 
-    // Create centered modal area (50% width, 30% height)
-    let modal_area = centered_rect(50, 30, area);
-
-    // Clear background
-    frame.render_widget(Clear, modal_area);
-
-    let block = Block::default()
-        .title("Error")
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.error))
-        .style(Style::default().bg(theme.background));
-
-    let inner = block.inner(modal_area);
-    frame.render_widget(block, modal_area);
+    let config = ModalConfig::new("Error")
+        .with_size(50, 30)
+        .with_border_color(theme.error);
+    let inner = render_modal_container(frame, area, &config, &theme);
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -504,44 +302,19 @@ pub fn render_dm_error_modal(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(message, chunks[0]);
 
     // Footer
-    let footer = Paragraph::new("Enter: Add Friend | Esc: Cancel")
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(theme.text))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
-        );
-    frame.render_widget(footer, chunks[1]);
+    render_footer(frame, chunks[1], "Enter: Add Friend | Esc: Cancel", &theme);
 }
 
 /// Render user search modal using shared components
 pub fn render_user_search_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
 
-    // Create modal container using shared component
-    let modal_area = centered_rect(70, 80, area);
-    frame.render_widget(Clear, modal_area);
-
-    let block = Block::default()
-        .title(" Search Users ")
-        .borders(Borders::ALL)
-        .border_style(
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        )
-        .style(Style::default().bg(theme.background));
-
-    let inner = block.inner(modal_area);
-    frame.render_widget(block, modal_area);
+    let config = ModalConfig::new(" Search Users ").with_size(70, 80);
+    let inner = render_modal_container(frame, area, &config, &theme);
 
     // Handle loading state
     if app.user_search_state.loading {
-        let loading = Paragraph::new("Searching...")
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(theme.warning));
-        frame.render_widget(loading, inner);
+        render_loading_state(frame, inner, "Searching...", &theme);
         return;
     }
 
@@ -556,20 +329,13 @@ pub fn render_user_search_modal(frame: &mut Frame, app: &mut App, area: Rect) {
         .split(inner);
 
     // Render search bar
-    let search_text = if app.user_search_state.search_query.is_empty() {
-        "Type to search users...".to_string()
-    } else {
-        format!("Search: {}", app.user_search_state.search_query)
+    let search_config = SearchBarConfig {
+        query: &app.user_search_state.search_query,
+        is_active: true,
+        placeholder: "Type to search users...",
+        mode: SearchBarMode::Search,
     };
-
-    let search_bar = Paragraph::new(search_text)
-        .style(Style::default().fg(theme.accent))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
-        );
-    frame.render_widget(search_bar, chunks[0]);
+    render_search_bar(frame, chunks[0], &search_config, &theme);
 
     // Render user list or empty state
     let results = &app.user_search_state.search_results;
@@ -582,51 +348,20 @@ pub fn render_user_search_modal(frame: &mut Frame, app: &mut App, area: Rect) {
             "No users found matching your search"
         };
 
-        let empty = Paragraph::new(empty_msg)
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(theme.text_dim));
-        frame.render_widget(empty, chunks[1]);
+        render_empty_state(frame, chunks[1], empty_msg, &theme);
     } else {
-        // Build user list - simplified without stats
-        let items: Vec<ListItem> = results
-            .iter()
-            .map(|user| ListItem::new(format!("@{}", user.username)))
-            .collect();
-
-        let list = List::new(items)
-            .highlight_style(
-                Style::default()
-                    .bg(theme.highlight_bg)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .highlight_symbol(">> ");
-
-        let mut list_state = ListState::default();
-        list_state.select(Some(
-            app.user_search_state
-                .selected_index
-                .min(results.len().saturating_sub(1)),
-        ));
-
-        frame.render_stateful_widget(list, chunks[1], &mut list_state);
+        let list_config = UserListConfig {
+            selected_index: app.user_search_state.selected_index,
+            show_stats: false,
+        };
+        render_user_list(frame, chunks[1], results, &list_config, &theme);
     }
 
     // Render footer
-    let footer =
-        Paragraph::new("↑/↓/j/k: Navigate | Enter: View Profile | d: Send DM | Esc: Close")
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(theme.text))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(theme.border)),
-            );
-    frame.render_widget(footer, chunks[2]);
+    render_footer(
+        frame,
+        chunks[2],
+        "↑/↓/j/k: Navigate | Enter: View Profile | d: Send DM | Esc: Close",
+        &theme,
+    );
 }
-
-// TODO: Refactor all social modals to use shared components from social_components.rs
-// This will reduce code duplication by ~280 lines across:
-// - render_friends_modal
-// - render_new_conversation_modal
-// - render_user_search_modal
-// See social_refactored_example.rs for the pattern

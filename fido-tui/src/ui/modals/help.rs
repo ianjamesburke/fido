@@ -2,23 +2,20 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
+    widgets::Paragraph,
     Frame,
 };
 
+use super::super::components::modal::{render_modal_container, ModalConfig};
 use super::super::theme::get_theme_colors;
-use super::utils::centered_rect;
 use crate::app::App;
 
 /// Render help modal
 pub fn render_help_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
 
-    // Create centered modal area (80% width, 85% height)
-    let modal_area = centered_rect(80, 85, area);
-
-    // Clear background
-    frame.render_widget(Clear, modal_area);
+    let config = ModalConfig::new(" Keyboard Shortcuts ").with_size(80, 85);
+    let inner = render_modal_container(frame, area, &config, &theme);
 
     // Get context-specific shortcuts
     let shortcuts = get_shortcuts_for_context(app);
@@ -46,32 +43,20 @@ pub fn render_help_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     }
 
     let help_content = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(
-                    Style::default()
-                        .fg(theme.accent)
-                        .add_modifier(Modifier::BOLD),
-                )
-                .title(" Keyboard Shortcuts ")
-                .title_alignment(Alignment::Center)
-                .style(Style::default().bg(theme.background)),
-        )
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(theme.text))
         .wrap(ratatui::widgets::Wrap { trim: false });
-
-    frame.render_widget(help_content, modal_area);
+    frame.render_widget(help_content, inner);
 }
 
 /// Render save confirmation modal
 pub fn render_save_confirmation_modal(frame: &mut Frame, app: &App, area: Rect) {
     let theme = get_theme_colors(app);
 
-    // Create centered modal area (50% width, 25% height)
-    let modal_area = centered_rect(50, 25, area);
-
-    // Clear background
-    frame.render_widget(Clear, modal_area);
+    let config = ModalConfig::new(" Unsaved Changes ")
+        .with_size(50, 25)
+        .with_border_color(theme.warning);
+    let inner = render_modal_container(frame, area, &config, &theme);
 
     // Create content with message and instructions together
     let content = vec![
@@ -113,19 +98,10 @@ pub fn render_save_confirmation_modal(frame: &mut Frame, app: &App, area: Rect) 
         ]),
     ];
 
-    let modal = Paragraph::new(content).alignment(Alignment::Center).block(
-        Block::default()
-            .title(" Unsaved Changes ")
-            .borders(Borders::ALL)
-            .border_style(
-                Style::default()
-                    .fg(theme.warning)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .style(Style::default().bg(theme.background)),
-    );
-
-    frame.render_widget(modal, modal_area);
+    let modal = Paragraph::new(content)
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(theme.text));
+    frame.render_widget(modal, inner);
 }
 
 /// Get shortcuts relevant to current context

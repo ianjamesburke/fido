@@ -1,5 +1,6 @@
 // UI module - split into cohesive submodules for maintainability
 mod formatting;
+mod components;
 mod modals;
 mod tabs;
 pub mod theme;

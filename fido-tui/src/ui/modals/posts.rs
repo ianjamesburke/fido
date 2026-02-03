@@ -3,14 +3,16 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
 };
 use uuid::Uuid;
 
+use super::super::components::modal::{render_modal_container, ModalConfig};
+use super::super::components::footer::render_footer;
+use super::super::components::list::styled_list;
 use super::super::formatting::*;
 use super::super::theme::get_theme_colors;
-use super::utils::centered_rect;
 use crate::app::App;
 
 /// Render delete confirmation modal (matches unsaved changes modal style)
@@ -29,11 +31,10 @@ pub fn render_delete_confirmation_modal(frame: &mut Frame, app: &mut App, area: 
         None => return,
     };
 
-    // Create centered modal area (50% width, 35% height) - sized to show all content including shortcuts
-    let modal_area = centered_rect(50, 35, area);
-
-    // Clear background
-    frame.render_widget(Clear, modal_area);
+    let config = ModalConfig::new(" Delete Post ")
+        .with_size(50, 35)
+        .with_border_color(theme.warning);
+    let inner = render_modal_container(frame, area, &config, &theme);
 
     // Get post being deleted info
     let post_being_deleted = detail_state.get_deletable_post();
@@ -119,19 +120,10 @@ pub fn render_delete_confirmation_modal(frame: &mut Frame, app: &mut App, area: 
         Span::styled(": Cancel", Style::default().fg(theme.text)),
     ]));
 
-    let modal = Paragraph::new(content).alignment(Alignment::Center).block(
-        Block::default()
-            .title(" Delete Post ")
-            .borders(Borders::ALL)
-            .border_style(
-                Style::default()
-                    .fg(theme.warning)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .style(Style::default().bg(theme.background)),
-    );
-
-    frame.render_widget(modal, modal_area);
+    let modal = Paragraph::new(content)
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(theme.text));
+    frame.render_widget(modal, inner);
 }
 
 /// Render full post modal (for viewing complete nested reply content with thread tree)
@@ -144,26 +136,10 @@ pub fn render_full_post_modal(frame: &mut Frame, app: &mut App, area: Rect) {
         None => return,
     };
 
-    // Create centered modal area (90% width, 80% height to avoid overlapping header)
-    let modal_area = centered_rect(90, 80, area);
-
-    // Clear background
-    frame.render_widget(Clear, modal_area);
-
     // Show loading spinner if loading
     if detail_state.loading {
-        let loading_block = Block::default()
-            .title(" Loading Thread... ")
-            .borders(Borders::ALL)
-            .border_style(
-                Style::default()
-                    .fg(theme.accent)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .style(Style::default().bg(theme.background));
-
-        let inner = loading_block.inner(modal_area);
-        frame.render_widget(loading_block, modal_area);
+        let config = ModalConfig::new(" Loading Thread... ").with_size(90, 80);
+        let inner = render_modal_container(frame, area, &config, &theme);
 
         let loading_text = Paragraph::new("⏳ Loading thread data...")
             .style(Style::default().fg(theme.text))
@@ -236,18 +212,8 @@ pub fn render_full_post_modal(frame: &mut Frame, app: &mut App, area: Rect) {
         modal_replies.len()
     );
 
-    let block = Block::default()
-        .title(title_text)
-        .borders(Borders::ALL)
-        .border_style(
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        )
-        .style(Style::default().bg(theme.background));
-
-    let inner = block.inner(modal_area);
-    frame.render_widget(block, modal_area);
+    let config = ModalConfig::new(&title_text).with_size(90, 80);
+    let inner = render_modal_container(frame, area, &config, &theme);
 
     // Create modal layout
     let modal_chunks = Layout::default()
@@ -586,8 +552,7 @@ pub fn render_full_post_modal(frame: &mut Frame, app: &mut App, area: Rect) {
         }
 
         // Render as scrollable list
-        let replies_list =
-            List::new(all_items).highlight_style(Style::default().bg(theme.highlight_bg));
+        let replies_list = styled_list(all_items, &theme, None);
 
         frame.render_stateful_widget(
             replies_list,
@@ -598,15 +563,7 @@ pub fn render_full_post_modal(frame: &mut Frame, app: &mut App, area: Rect) {
 
     // Footer with keyboard shortcuts (context-sensitive and detailed)
     let footer_text = "↑/↓/j/k: Navigate | Space: Expand/Collapse | u/d: Vote | r: Reply | x: Delete | p: View Profile | Esc: Close";
-    let footer = Paragraph::new(footer_text)
-        .style(Style::default().fg(theme.text))
-        .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
-        );
-    frame.render_widget(footer, modal_chunks[1]);
+    render_footer(frame, modal_chunks[1], footer_text, &theme);
 }
 
 /// Check if a reply is a descendant of a given post

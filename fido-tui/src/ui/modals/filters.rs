@@ -2,12 +2,14 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
+    widgets::{Block, Borders, Paragraph},
     Frame,
 };
 
+use super::super::components::footer::render_footer;
+use super::super::components::modal::{render_modal_container, ModalConfig};
+use super::super::components::tab_bar::{render_tab_bar, TabBarConfig};
 use super::super::theme::get_theme_colors;
-use super::utils::centered_rect;
 use crate::app::App;
 
 /// Render filter modal
@@ -18,30 +20,8 @@ pub fn render_filter_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let background = Block::default().style(Style::default().bg(theme.background));
     frame.render_widget(background, area);
 
-    // Create centered modal (70% width, 80% height)
-    let modal_area = centered_rect(70, 80, area);
-
-    // Clear the modal area
-    frame.render_widget(Clear, modal_area);
-
-    // Add outer border with accent color
-    let outer_block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        )
-        .title(" Filter Posts ")
-        .title_style(
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        )
-        .style(Style::default().bg(theme.background));
-
-    let inner = outer_block.inner(modal_area);
-    frame.render_widget(outer_block, modal_area);
+    let config = ModalConfig::new(" Filter Posts ").with_size(70, 80);
+    let inner = render_modal_container(frame, area, &config, &theme);
 
     // Modal layout
     let modal_chunks = Layout::default()
@@ -53,69 +33,18 @@ pub fn render_filter_modal(frame: &mut Frame, app: &mut App, area: Rect) {
         ])
         .split(inner);
 
-    // Tab selector - match social modal style
+    // Tab selector - match shared tab style
     let selected_tab_idx = match app.posts_state.filter_modal_state.selected_tab {
         crate::app::FilterTab::All => 0,
         crate::app::FilterTab::Hashtags => 1,
         crate::app::FilterTab::Users => 2,
     };
 
-    let mut tab_spans = Vec::new();
-
-    // All tab
-    if selected_tab_idx == 0 {
-        tab_spans.push(Span::styled(
-            " [All] ",
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        ));
-    } else {
-        tab_spans.push(Span::styled("  All  ", Style::default().fg(theme.text_dim)));
-    }
-    tab_spans.push(Span::raw(" | "));
-
-    // Hashtags tab
-    if selected_tab_idx == 1 {
-        tab_spans.push(Span::styled(
-            " [Hashtags] ",
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        ));
-    } else {
-        tab_spans.push(Span::styled(
-            "  Hashtags  ",
-            Style::default().fg(theme.text_dim),
-        ));
-    }
-    tab_spans.push(Span::raw(" | "));
-
-    // Users tab
-    if selected_tab_idx == 2 {
-        tab_spans.push(Span::styled(
-            " [Users] ",
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        ));
-    } else {
-        tab_spans.push(Span::styled(
-            "  Users  ",
-            Style::default().fg(theme.text_dim),
-        ));
-    }
-
-    let tab_widget = Paragraph::new(Line::from(tab_spans))
-        .alignment(Alignment::Center)
-        .style(Style::default().bg(theme.background))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border))
-                .style(Style::default().bg(theme.background)),
-        );
-    frame.render_widget(tab_widget, modal_chunks[0]);
+    let tab_config = TabBarConfig {
+        tabs: &["All", "Hashtags", "Users"],
+        selected_index: selected_tab_idx,
+    };
+    render_tab_bar(frame, modal_chunks[0], &tab_config, &theme);
 
     // Content based on selected tab
     let content_lines: Vec<Line> = if app.posts_state.filter_modal_state.search_mode {
@@ -374,14 +303,5 @@ pub fn render_filter_modal(frame: &mut Frame, app: &mut App, area: Rect) {
         }
     };
 
-    let instructions = Paragraph::new(instructions_text)
-        .style(Style::default().fg(theme.text).bg(theme.background))
-        .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border))
-                .style(Style::default().bg(theme.background)),
-        );
-    frame.render_widget(instructions, modal_chunks[2]);
+    render_footer(frame, modal_chunks[2], instructions_text, &theme);
 }

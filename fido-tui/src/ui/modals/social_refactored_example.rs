@@ -15,17 +15,16 @@ use ratatui::{
 use crate::app::App;
 use super::super::theme::get_theme_colors;
 use super::social_components::*;
+use crate::ui::components::search_bar::{render_search_bar, SearchBarConfig, SearchBarMode};
+use crate::ui::components::empty_state::render_empty_state;
 
 /// Render user search modal (REFACTORED VERSION)
 pub fn render_user_search_modal_refactored(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
 
     // Create modal container
-    let config = SocialModalConfig {
-        title: " Search Users ",
-        ..Default::default()
-    };
-    let inner = create_modal_container(frame, area, &config, &theme);
+    let config = ModalConfig::new(" Search Users ");
+    let inner = render_modal_container(frame, area, &config, &theme);
 
     // Handle loading state
     if app.user_search_state.loading {
@@ -48,6 +47,7 @@ pub fn render_user_search_modal_refactored(frame: &mut Frame, app: &mut App, are
         query: &app.user_search_state.search_query,
         is_active: true, // Always active in search modal
         placeholder: "Type to search users...",
+        mode: SearchBarMode::Search,
     };
     render_search_bar(frame, chunks[0], &search_config, &theme);
 

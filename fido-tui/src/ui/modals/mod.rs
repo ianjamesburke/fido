@@ -5,7 +5,6 @@ mod help;
 mod posts;
 mod social;
 mod social_components;
-mod utils;
 
 // Re-export all public functions
 pub use composer::*;
