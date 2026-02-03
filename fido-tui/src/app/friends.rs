@@ -41,7 +41,6 @@ impl App {
         self.friends_state.following = following
             .into_iter()
             .map(|u| UserInfo {
-                id: u.id,
                 username: u.username,
                 follower_count: u.follower_count,
                 following_count: u.following_count,
@@ -51,7 +50,6 @@ impl App {
         self.friends_state.followers = followers
             .into_iter()
             .map(|u| UserInfo {
-                id: u.id,
                 username: u.username,
                 follower_count: u.follower_count,
                 following_count: u.following_count,
@@ -61,7 +59,6 @@ impl App {
         self.friends_state.mutual_friends = mutual
             .into_iter()
             .map(|u| UserInfo {
-                id: u.id,
                 username: u.username,
                 follower_count: u.follower_count,
                 following_count: u.following_count,

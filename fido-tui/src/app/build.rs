@@ -71,7 +71,6 @@ impl App {
                     show_add_hashtag_input: false,
                     add_hashtag_input: String::new(),
                 },
-                sort_order: "Newest".to_string(),
                 at_end_of_feed: false,
             },
             profile_state: ProfileState {
@@ -90,7 +89,6 @@ impl App {
                 messages: Vec::new(),
                 loading: false,
                 error: None,
-                message_input: String::new(),
                 message_textarea: {
                     let mut textarea = TextArea::default();
                     textarea.set_cursor_line_style(Style::default());
@@ -99,7 +97,6 @@ impl App {
                     textarea.set_hard_tab_indent(true);
                     textarea
                 },
-                messages_scroll_offset: 0,
                 show_new_conversation_modal: false,
                 new_conversation_username: String::new(),
                 pending_conversation_username: None,

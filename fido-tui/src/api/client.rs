@@ -248,15 +248,6 @@ impl ApiClient {
         self.handle_response(response).await
     }
 
-    /// Update a post
-    pub async fn update_post(&self, post_id: Uuid, content: String) -> ApiResult<Post> {
-        let url = format!("{}/posts/{}", self.base_url, post_id);
-        let request = UpdatePostRequest { content };
-        let req = self.add_auth_header(self.client.put(&url).json(&request));
-        let response = req.send().await?;
-        self.handle_response(response).await
-    }
-
     /// Delete a post
     pub async fn delete_post(&self, post_id: Uuid) -> ApiResult<serde_json::Value> {
         let url = format!("{}/posts/{}", self.base_url, post_id);
@@ -270,17 +261,6 @@ impl ApiClient {
     /// Get user profile (own profile - legacy)
     pub async fn get_profile(&self, user_id: Uuid) -> ApiResult<UserProfile> {
         let url = format!("{}/users/{}/profile", self.base_url, user_id);
-        let req = self.add_auth_header(self.client.get(&url));
-        let response = req.send().await?;
-        self.handle_response(response).await
-    }
-
-    /// Get user profile view (for viewing any user's profile with relationship status)
-    pub async fn get_user_profile_view(
-        &self,
-        user_id: String,
-    ) -> ApiResult<fido_types::UserProfileView> {
-        let url = format!("{}/users/{}/profile-view", self.base_url, user_id);
         let req = self.add_auth_header(self.client.get(&url));
         let response = req.send().await?;
         self.handle_response(response).await
@@ -378,50 +358,7 @@ impl ApiClient {
         Ok(())
     }
 
-    /// Unfollow a hashtag
-    pub async fn unfollow_hashtag(&self, name: String) -> ApiResult<()> {
-        let url = self.build_url(&format!("/hashtags/follow/{}", name));
-        let req = self.add_auth_header(self.client.delete(&url));
-        let response = req.send().await?;
-        let _: serde_json::Value = self.handle_response(response).await?;
-        Ok(())
-    }
-
-    /// Search hashtags
-    pub async fn search_hashtags(&self, query: String) -> ApiResult<Vec<String>> {
-        let url = format!(
-            "{}/hashtags/search?q={}",
-            self.base_url,
-            urlencoding::encode(&query)
-        );
-        let req = self.client.get(&url);
-        let response = req.send().await?;
-        let hashtags: Vec<serde_json::Value> = self.handle_response(response).await?;
-        Ok(hashtags
-            .into_iter()
-            .filter_map(|h| h.get("name").and_then(|n| n.as_str()).map(String::from))
-            .collect())
-    }
-
     // Social endpoints
-
-    /// Follow a user
-    pub async fn follow_user(&self, user_id: String) -> ApiResult<()> {
-        let url = format!("{}/users/{}/follow", self.base_url, user_id);
-        let req = self.add_auth_header(self.client.post(&url));
-        let response = req.send().await?;
-        response.error_for_status()?;
-        Ok(())
-    }
-
-    /// Unfollow a user
-    pub async fn unfollow_user(&self, user_id: String) -> ApiResult<()> {
-        let url = format!("{}/users/{}/follow", self.base_url, user_id);
-        let req = self.add_auth_header(self.client.delete(&url));
-        let response = req.send().await?;
-        response.error_for_status()?;
-        Ok(())
-    }
 
     /// Get following list
     pub async fn get_following_list(&self) -> ApiResult<Vec<SocialUserInfo>> {
@@ -519,7 +456,6 @@ impl Default for ApiClient {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct SocialUserInfo {
-    pub id: String,
     pub username: String,
     pub follower_count: usize,
     pub following_count: usize,
@@ -527,7 +463,6 @@ pub struct SocialUserInfo {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct UserSearchResult {
-    pub id: String,
     pub username: String,
 }
 
@@ -536,7 +471,6 @@ pub struct GitHubDeviceFlowResponse {
     pub device_code: String,
     pub user_code: String,
     pub verification_uri: String,
-    pub expires_in: i64,
     pub interval: i64,
 }
 
@@ -549,9 +483,4 @@ pub struct DevicePollRequest {
 pub struct ValidateSessionResponse {
     pub user: fido_types::User,
     pub valid: bool,
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct SessionPollResponse {
-    pub session_token: Option<String>,
 }

@@ -200,10 +200,6 @@ impl SessionStore {
         Ok(())
     }
 
-    /// Returns the path to the session file.
-    pub fn path(&self) -> &PathBuf {
-        &self.file_path
-    }
 }
 
 #[cfg(test)]

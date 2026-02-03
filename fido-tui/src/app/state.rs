@@ -41,9 +41,6 @@ pub enum ComposerMode {
         parent_author: String,
         parent_content: String,
     },
-    EditPost {
-        post_id: Uuid,
-    },
     EditBio,
 }
 
@@ -104,7 +101,6 @@ pub enum SocialTab {
 /// User information for social lists
 #[derive(Debug, Clone)]
 pub struct UserInfo {
-    pub id: String,
     pub username: String,
     pub follower_count: usize,
     pub following_count: usize,
@@ -135,7 +131,6 @@ pub struct UserSearchState {
 
 #[derive(Debug, Clone)]
 pub struct UserSearchResult {
-    pub id: String,
     pub username: String,
 }
 
@@ -219,9 +214,7 @@ pub struct DMsState {
     pub messages: Vec<fido_types::DirectMessage>,
     pub loading: bool,
     pub error: Option<String>,
-    pub message_input: String, // Deprecated - kept for compatibility, use message_textarea instead
     pub message_textarea: TextArea<'static>, // TextArea for message input
-    pub messages_scroll_offset: usize, // Scroll offset for message history
     pub show_new_conversation_modal: bool,
     pub new_conversation_username: String,
     pub pending_conversation_username: Option<String>, // Username for new conversation not yet created
@@ -297,15 +290,6 @@ impl DMsState {
         }
     }
 
-    /// Clear pending draft and reset selection appropriately
-    pub fn clear_pending_draft(&mut self) {
-        self.pending_conversation_username = None;
-        self.message_input.clear();
-        // If we were on the draft, move to NewConversation
-        if self.selection.is_pending_draft() {
-            self.selection = DMSelection::NewConversation;
-        }
-    }
 }
 
 /// Conversation summary
@@ -314,7 +298,6 @@ pub struct Conversation {
     pub other_user_id: uuid::Uuid,
     pub other_username: String,
     pub last_message: String,
-    pub last_message_time: chrono::DateTime<chrono::Utc>,
     pub unread_count: i32,
 }
 
@@ -332,25 +315,11 @@ pub struct ProfileState {
 
 /// User profile view state (for viewing other users' profiles)
 pub struct UserProfileViewState {
-    pub user_id: String,
     pub username: String,
     pub bio: Option<String>,
-    pub join_date: String,
     pub follower_count: usize,
     pub following_count: usize,
     pub post_count: usize,
-    pub relationship: RelationshipStatus,
-    pub loading: bool,
-    pub error: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum RelationshipStatus {
-    Self_,
-    MutualFriends,
-    Following,
-    FollowsYou,
-    None,
 }
 
 /// Filter type for posts
@@ -443,8 +412,6 @@ pub struct PostsState {
     pub show_filter_modal: bool,
     /// Filter modal state
     pub filter_modal_state: FilterModalState,
-    /// Current sort order display
-    pub sort_order: String,
     /// Track if at end of feed (for "End of Feed" indicator)
     pub at_end_of_feed: bool,
 }
@@ -517,8 +484,6 @@ pub struct PostDetailState {
     pub reply_content: String,
     pub show_delete_confirmation: bool,
     pub previous_feed_position: Option<usize>,
-    /// Track which posts are expanded (post_id -> is_expanded)
-    pub expanded_posts: std::collections::HashMap<Uuid, bool>,
     /// Show full post modal
     pub show_full_post_modal: bool,
     /// Post ID for full post modal

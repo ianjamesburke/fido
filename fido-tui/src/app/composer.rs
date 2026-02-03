@@ -51,19 +51,6 @@ impl App {
         log_reply!("open_composer_reply: Reply composer opened, input_mode set to Typing");
     }
 
-    /// Open composer for editing post
-    pub fn open_composer_edit_post(&mut self, post_id: Uuid, current_content: String) {
-        self.composer_state.mode = Some(ComposerMode::EditPost { post_id });
-        let mut textarea = TextArea::from(current_content.lines());
-        // Enable hard tab indent for better wrapping behavior
-        textarea.set_hard_tab_indent(true);
-        // Set styles immediately to avoid rendering glitches
-        self.apply_composer_styling(&mut textarea);
-        self.composer_state.textarea = textarea;
-        self.composer_state.max_chars = 280;
-        self.input_mode = InputMode::Typing;
-    }
-
     /// Open composer for editing bio
     pub fn open_composer_edit_bio(&mut self, current_bio: String) {
         self.composer_state.mode = Some(ComposerMode::EditBio);
@@ -162,12 +149,6 @@ impl App {
                             Some("Validation Error: Cannot post empty reply.".to_string());
                     }
                 }
-                Some(ComposerMode::EditPost { .. }) => {
-                    if let Some(detail_state) = &mut self.post_detail_state {
-                        detail_state.error =
-                            Some("Validation Error: Cannot save empty post.".to_string());
-                    }
-                }
                 Some(ComposerMode::EditBio) => {
                     self.profile_state.error =
                         Some("Validation Error: Bio cannot be empty.".to_string());
@@ -188,7 +169,7 @@ impl App {
                 Some(ComposerMode::NewPost) => {
                     self.posts_state.error = Some(error_msg);
                 }
-                Some(ComposerMode::Reply { .. }) | Some(ComposerMode::EditPost { .. }) => {
+                Some(ComposerMode::Reply { .. }) => {
                     if let Some(detail_state) = &mut self.post_detail_state {
                         detail_state.error = Some(error_msg);
                     }
@@ -331,23 +312,6 @@ impl App {
                     }
                     Err(e) => {
                         log_reply!("submit_composer: Reply failed with error: {}", e);
-                        if let Some(detail_state) = &mut self.post_detail_state {
-                            detail_state.error = Some(categorize_error(&e.to_string()));
-                        }
-                    }
-                }
-            }
-            Some(ComposerMode::EditPost { post_id }) => {
-                let post_id = *post_id;
-                if let Some(detail_state) = &mut self.post_detail_state {
-                    detail_state.error = None;
-                }
-                match self.api_client.update_post(post_id, parsed_content).await {
-                    Ok(_) => {
-                        self.close_composer();
-                        self.load_post_detail(post_id).await?;
-                    }
-                    Err(e) => {
                         if let Some(detail_state) = &mut self.post_detail_state {
                             detail_state.error = Some(categorize_error(&e.to_string()));
                         }

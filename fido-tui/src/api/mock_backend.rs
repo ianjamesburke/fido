@@ -695,27 +695,6 @@ impl MockBackend {
         Ok(())
     }
 
-    /// Unfollow a hashtag
-    pub async fn unfollow_hashtag(&mut self, hashtag: String) -> ApiResult<()> {
-        // Require authentication
-        let current_user = self.require_auth()?;
-        let user_id = current_user.id;
-        
-        // Normalize hashtag (lowercase, remove # if present)
-        let normalized_tag = hashtag.trim_start_matches('#').to_lowercase();
-        
-        let mut data = self.data.lock().unwrap();
-        
-        // Find and remove the hashtag
-        if let Some(pos) = data.followed_hashtags.iter()
-            .position(|(uid, tag)| uid == &user_id && tag == &normalized_tag)
-        {
-            data.followed_hashtags.remove(pos);
-            Ok(())
-        } else {
-            Err(ApiError::NotFound("Not following this hashtag".to_string()))
-        }
-    }
 }
 
 impl MockData {

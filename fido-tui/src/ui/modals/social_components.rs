@@ -26,13 +26,12 @@
 use ratatui::{
     layout::{Alignment, Rect},
     style::{Modifier, Style},
-    widgets::{Block, Borders, ListItem, ListState, Paragraph},
+    widgets::{ListItem, ListState, Paragraph},
     Frame,
 };
 
 use super::super::components::list::styled_list;
 pub use crate::ui::components::modal::{render_modal_container, ModalConfig};
-pub use crate::ui::components::search_bar::{render_search_bar, SearchBarConfig, SearchBarMode};
 pub use crate::ui::components::tab_bar::{render_tab_bar, TabBarConfig};
 use super::super::theme::ThemeColors;
 
@@ -60,34 +59,7 @@ pub trait UserListItem {
         None
     }
 
-    /// Optional display name override
-    fn display_name(&self) -> String {
-        format!("@{}", self.username())
-    }
 }
-
-/// Result type for modal operations
-pub type ModalResult<T> = Result<T, ModalError>;
-
-/// Errors that can occur in modal operations
-#[derive(Debug)]
-pub enum ModalError {
-    InvalidIndex(usize),
-    EmptyList,
-    RenderError(String),
-}
-
-impl std::fmt::Display for ModalError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ModalError::InvalidIndex(idx) => write!(f, "Invalid index: {}", idx),
-            ModalError::EmptyList => write!(f, "Cannot operate on empty list"),
-            ModalError::RenderError(msg) => write!(f, "Render error: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for ModalError {}
 
 /// Render a user list with consistent styling
 pub fn render_user_list<T: UserListItem>(
@@ -139,17 +111,4 @@ pub fn render_user_list<T: UserListItem>(
     }
 
     frame.render_stateful_widget(list, area, &mut list_state);
-}
-
-/// Render a footer with shortcuts
-pub fn render_modal_footer(frame: &mut Frame, area: Rect, shortcuts: &str, theme: &ThemeColors) {
-    let footer = Paragraph::new(shortcuts)
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(theme.text))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
-        );
-    frame.render_widget(footer, area);
 }

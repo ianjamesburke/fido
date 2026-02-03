@@ -133,16 +133,6 @@ impl Backend {
         }
     }
 
-    pub async fn update_post(&mut self, post_id: Uuid, content: String) -> ApiResult<Post> {
-        match self {
-            Backend::Api(client) => client.update_post(post_id, content).await,
-            Backend::Mock(_) => {
-                // MockBackend doesn't support update_post
-                Err(super::ApiError::Api("Post editing not supported in demo mode".to_string()))
-            }
-        }
-    }
-
     pub async fn delete_post(&mut self, post_id: Uuid) -> ApiResult<serde_json::Value> {
         match self {
             Backend::Api(client) => client.delete_post(post_id).await,
@@ -159,16 +149,6 @@ impl Backend {
         match self {
             Backend::Api(client) => client.get_profile(user_id).await,
             Backend::Mock(mock) => mock.get_profile(user_id).await,
-        }
-    }
-
-    pub async fn get_user_profile_view(&self, user_id: String) -> ApiResult<UserProfileView> {
-        match self {
-            Backend::Api(client) => client.get_user_profile_view(user_id).await,
-            Backend::Mock(_) => {
-                // MockBackend doesn't support user_profile_view
-                Err(super::ApiError::Api("User profile view not supported in demo mode".to_string()))
-            }
         }
     }
 
@@ -255,44 +235,7 @@ impl Backend {
         }
     }
 
-    pub async fn unfollow_hashtag(&mut self, name: String) -> ApiResult<()> {
-        match self {
-            Backend::Api(client) => client.unfollow_hashtag(name).await,
-            Backend::Mock(mock) => mock.unfollow_hashtag(name).await,
-        }
-    }
-
-    pub async fn search_hashtags(&self, query: String) -> ApiResult<Vec<String>> {
-        match self {
-            Backend::Api(client) => client.search_hashtags(query).await,
-            Backend::Mock(_) => {
-                // MockBackend doesn't support hashtag search
-                Ok(Vec::new())
-            }
-        }
-    }
-
     // Social endpoints
-
-    pub async fn follow_user(&self, user_id: String) -> ApiResult<()> {
-        match self {
-            Backend::Api(client) => client.follow_user(user_id).await,
-            Backend::Mock(_) => {
-                // MockBackend doesn't support following users
-                Err(super::ApiError::Api("Following users not supported in demo mode".to_string()))
-            }
-        }
-    }
-
-    pub async fn unfollow_user(&self, user_id: String) -> ApiResult<()> {
-        match self {
-            Backend::Api(client) => client.unfollow_user(user_id).await,
-            Backend::Mock(_) => {
-                // MockBackend doesn't support unfollowing users
-                Err(super::ApiError::Api("Unfollowing users not supported in demo mode".to_string()))
-            }
-        }
-    }
 
     pub async fn get_following_list(&self) -> ApiResult<Vec<super::client::SocialUserInfo>> {
         match self {

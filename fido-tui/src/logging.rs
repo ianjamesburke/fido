@@ -27,12 +27,8 @@ pub struct LogFeatures {
     pub key_events: bool,
     /// Log rendering operations
     pub rendering: bool,
-    /// Log API calls
-    pub api_calls: bool,
     /// Log settings changes
     pub settings: bool,
-    /// Log general debug messages
-    pub general: bool,
 }
 
 impl Default for LogConfig {
@@ -54,9 +50,7 @@ impl Default for LogFeatures {
             modal_state: true,
             key_events: true,
             rendering: true,
-            api_calls: true,
             settings: true,
-            general: true,
         }
     }
 }
@@ -70,23 +64,6 @@ impl LogConfig {
         }
     }
 
-    /// Create a minimal log configuration (only errors and warnings)
-    pub fn minimal() -> Self {
-        Self {
-            enabled: true,
-            level: LevelFilter::Warn,
-            features: LogFeatures {
-                modal_state: false,
-                key_events: false,
-                rendering: false,
-                api_calls: false,
-                settings: false,
-                general: false,
-            },
-            ..Default::default()
-        }
-    }
-
     /// Create a verbose log configuration (all features enabled)
     pub fn verbose() -> Self {
         Self {
@@ -96,9 +73,7 @@ impl LogConfig {
                 modal_state: true,
                 key_events: true,
                 rendering: true,
-                api_calls: true,
                 settings: true,
-                general: true,
             },
             ..Default::default()
         }
@@ -174,32 +149,12 @@ macro_rules! log_rendering {
     };
 }
 
-/// Macro for logging API calls
-#[macro_export]
-macro_rules! log_api_call {
-    ($config:expr, $($arg:tt)*) => {
-        if $config.enabled && $config.features.api_calls {
-            log::debug!(target: "api_calls", $($arg)*);
-        }
-    };
-}
-
 /// Macro for logging settings changes
 #[macro_export]
 macro_rules! log_settings {
     ($config:expr, $($arg:tt)*) => {
         if $config.enabled && $config.features.settings {
             log::debug!(target: "settings", $($arg)*);
-        }
-    };
-}
-
-/// Macro for general debug logging
-#[macro_export]
-macro_rules! log_debug {
-    ($config:expr, $($arg:tt)*) => {
-        if $config.enabled && $config.features.general {
-            log::debug!(target: "general", $($arg)*);
         }
     };
 }

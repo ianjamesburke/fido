@@ -586,7 +586,6 @@ struct ReplyNode {
     post: Post,
     depth: usize,
     children: Vec<ReplyNode>,
-    flat_index: usize,
 }
 
 /// Flatten tree for rendering with expansion state
@@ -637,16 +636,12 @@ fn build_reply_tree_from_root(root: &Post, replies: &[Post]) -> Vec<ReplyNode> {
         post: &Post,
         depth: usize,
         children_map: &HashMap<Uuid, Vec<&Post>>,
-        flat_index: &mut usize,
     ) -> ReplyNode {
-        let current_index = *flat_index;
-        *flat_index += 1;
-
         let children = children_map
             .get(&post.id)
             .map(|kids| {
                 kids.iter()
-                    .map(|child| build_node(child, depth + 1, children_map, flat_index))
+                    .map(|child| build_node(child, depth + 1, children_map))
                     .collect()
             })
             .unwrap_or_default();
@@ -655,17 +650,15 @@ fn build_reply_tree_from_root(root: &Post, replies: &[Post]) -> Vec<ReplyNode> {
             post: post.clone(),
             depth,
             children,
-            flat_index: current_index,
         }
     }
 
     // Get direct children of root
-    let mut flat_index = 0;
     children_map
         .get(&root.id)
         .map(|kids| {
             kids.iter()
-                .map(|child| build_node(child, 0, &children_map, &mut flat_index))
+                .map(|child| build_node(child, 0, &children_map))
                 .collect()
         })
         .unwrap_or_default()

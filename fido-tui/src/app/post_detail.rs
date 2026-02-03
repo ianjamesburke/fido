@@ -30,7 +30,6 @@ impl App {
             reply_content: String::new(),
             show_delete_confirmation: false,
             previous_feed_position: previous_position,
-            expanded_posts: std::collections::HashMap::new(),
             show_full_post_modal: true,        // Open modal directly
             full_post_modal_id: Some(post_id), // Set the post ID for modal
             modal_list_state,
@@ -61,7 +60,6 @@ impl App {
                 reply_content: String::new(),
                 show_delete_confirmation: false,
                 previous_feed_position: self.posts_state.list_state.selected(),
-                expanded_posts: std::collections::HashMap::new(),
                 show_full_post_modal: true,
                 full_post_modal_id: Some(post_id),
                 modal_list_state,
@@ -481,14 +479,6 @@ impl App {
         Ok(())
     }
 
-    pub fn open_reply_composer(&mut self) {
-        if let Some(detail_state) = &mut self.post_detail_state {
-            detail_state.show_reply_composer = true;
-            detail_state.reply_content.clear();
-            self.input_mode = InputMode::Typing;
-        }
-    }
-
     pub fn close_reply_composer(&mut self) {
         if let Some(detail_state) = &mut self.post_detail_state {
             detail_state.show_reply_composer = false;
@@ -511,87 +501,6 @@ impl App {
         }
     }
 
-    pub async fn submit_reply(&mut self) -> Result<()> {
-        let detail_state = match &mut self.post_detail_state {
-            Some(state) => state,
-            None => return Ok(()),
-        };
-        let trimmed = detail_state.reply_content.trim();
-        if trimmed.is_empty() {
-            detail_state.error = Some(
-                "Validation Error: Cannot post empty reply. Type something first!".to_string(),
-            );
-            return Ok(());
-        }
-        let char_count = crate::emoji::count_characters(&detail_state.reply_content);
-        if char_count > 280 {
-            detail_state.error = Some(format!(
-                "Validation Error: Reply exceeds 280 characters (current: {})",
-                char_count
-            ));
-            return Ok(());
-        }
-        let parent_post_id = match &detail_state.post {
-            Some(post) => post.id,
-            None => return Ok(()),
-        };
-        detail_state.error = None;
-        let content = crate::emoji::parse_emoji_shortcodes(&detail_state.reply_content);
-        match self.api_client.create_reply(parent_post_id, content).await {
-            Ok(new_reply) => {
-                if let Some(detail_state) = &mut self.post_detail_state {
-                    detail_state.replies.push(new_reply);
-                    if let Some(post) = &mut detail_state.post {
-                        post.reply_count += 1;
-                    }
-                }
-                self.close_reply_composer();
-            }
-            Err(e) => {
-                if let Some(detail_state) = &mut self.post_detail_state {
-                    detail_state.error = Some(categorize_error(&e.to_string()));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    /// Get author ID from selected post in feed
-    pub fn get_selected_post_author_id(&self) -> Option<String> {
-        let selected = self.posts_state.list_state.selected()?;
-        self.posts_state
-            .posts
-            .get(selected)
-            .map(|p| p.author_id.to_string())
-    }
-
-    /// Get author ID from post detail view (main post or selected reply)
-    pub fn get_post_detail_author_id(&self) -> Option<String> {
-        let detail_state = self.post_detail_state.as_ref()?;
-
-        if let Some(selected_idx) = detail_state.reply_list_state.selected() {
-            // Get direct replies to find the selected one
-            let direct_replies: Vec<&Post> = detail_state
-                .replies
-                .iter()
-                .filter(|reply| {
-                    if let Some(parent_id) = reply.parent_post_id {
-                        !detail_state.replies.iter().any(|r| r.id == parent_id)
-                    } else {
-                        false
-                    }
-                })
-                .collect();
-
-            direct_replies
-                .get(selected_idx)
-                .map(|r| r.author_id.to_string())
-        } else {
-            // Get author from main post
-            detail_state.post.as_ref().map(|p| p.author_id.to_string())
-        }
-    }
-
     /// Close user profile view
     pub fn close_user_profile_view(&mut self) {
         self.user_profile_view = None;
@@ -600,36 +509,6 @@ impl App {
         if self.friends_state.return_to_modal_after_profile {
             self.friends_state.show_friends_modal = true;
             self.friends_state.return_to_modal_after_profile = false;
-        }
-    }
-
-    /// Toggle expansion of selected reply (for nested replies)
-    pub fn toggle_reply_expansion(&mut self) {
-        if let Some(detail_state) = &mut self.post_detail_state {
-            if let Some(selected_idx) = detail_state.reply_list_state.selected() {
-                // Get direct replies to find the selected one
-                let direct_replies: Vec<&Post> = detail_state
-                    .replies
-                    .iter()
-                    .filter(|reply| {
-                        if let Some(parent_id) = reply.parent_post_id {
-                            !detail_state.replies.iter().any(|r| r.id == parent_id)
-                        } else {
-                            false
-                        }
-                    })
-                    .collect();
-
-                if let Some(reply) = direct_replies.get(selected_idx) {
-                    let post_id = reply.id;
-                    let is_expanded = detail_state
-                        .expanded_posts
-                        .get(&post_id)
-                        .copied()
-                        .unwrap_or(false);
-                    detail_state.expanded_posts.insert(post_id, !is_expanded);
-                }
-            }
         }
     }
 
@@ -674,105 +553,6 @@ impl App {
         // Since we're using modal-first approach, closing the modal means
         // closing the entire post detail view and returning to feed
         self.close_post_detail();
-    }
-
-    /// Get the currently selected post in the modal based on flattened tree
-    pub(crate) fn get_selected_post_in_modal(&self) -> Option<Post> {
-        let detail_state = self.post_detail_state.as_ref()?;
-        let selected_idx = detail_state.modal_list_state.selected()?;
-
-        if selected_idx == 0 {
-            // Root post
-            let root_id = detail_state.full_post_modal_id?;
-            if let Some(post) = &detail_state.post {
-                if post.id == root_id {
-                    return Some(post.clone());
-                }
-            }
-            return detail_state
-                .replies
-                .iter()
-                .find(|r| r.id == root_id)
-                .cloned();
-        }
-
-        // Find in flattened tree (selected_idx - 1 because root is index 0)
-        let root_id = detail_state.full_post_modal_id?;
-        let root_post = if let Some(post) = &detail_state.post {
-            if post.id == root_id {
-                post.clone()
-            } else {
-                detail_state
-                    .replies
-                    .iter()
-                    .find(|r| r.id == root_id)?
-                    .clone()
-            }
-        } else {
-            return None;
-        };
-
-        // Filter replies to descendants
-        let modal_replies: Vec<Post> = detail_state
-            .replies
-            .iter()
-            .filter(|reply| {
-                reply.id != root_post.id
-                    && is_descendant_of_post(reply, &root_post.id, &detail_state.replies)
-            })
-            .cloned()
-            .collect();
-
-        // Build and flatten tree
-        let flattened = self.flatten_modal_tree(
-            &root_post,
-            &modal_replies,
-            &detail_state.modal_expanded_posts,
-        );
-
-        // Get the post at selected_idx - 1
-        flattened.get(selected_idx - 1).cloned()
-    }
-
-    /// Flatten modal tree for selection
-    fn flatten_modal_tree(
-        &self,
-        root: &Post,
-        replies: &[Post],
-        expanded: &std::collections::HashMap<Uuid, bool>,
-    ) -> Vec<Post> {
-        use std::collections::HashMap;
-
-        let mut children_map: HashMap<Uuid, Vec<&Post>> = HashMap::new();
-        for reply in replies {
-            if let Some(parent_id) = reply.parent_post_id {
-                children_map.entry(parent_id).or_default().push(reply);
-            }
-        }
-
-        let mut result = Vec::new();
-
-        fn collect_visible(
-            post_id: &Uuid,
-            children_map: &HashMap<Uuid, Vec<&Post>>,
-            expanded: &HashMap<Uuid, bool>,
-            result: &mut Vec<Post>,
-        ) {
-            if let Some(children) = children_map.get(post_id) {
-                for child in children {
-                    result.push((*child).clone());
-                    if expanded.get(&child.id).copied().unwrap_or(false) {
-                        collect_visible(&child.id, children_map, expanded, result);
-                    }
-                }
-            }
-        }
-
-        if expanded.get(&root.id).copied().unwrap_or(false) {
-            collect_visible(&root.id, &children_map, expanded, &mut result);
-        }
-
-        result
     }
 
     /// Navigate down in modal
@@ -1249,20 +1029,4 @@ impl App {
         }
         Ok(())
     }
-}
-
-fn is_descendant_of_post(reply: &Post, ancestor_id: &Uuid, all_replies: &[Post]) -> bool {
-    let mut current_parent = reply.parent_post_id;
-
-    while let Some(parent_id) = current_parent {
-        if parent_id == *ancestor_id {
-            return true;
-        }
-        current_parent = all_replies
-            .iter()
-            .find(|r| r.id == parent_id)
-            .and_then(|r| r.parent_post_id);
-    }
-
-    false
 }

@@ -46,25 +46,6 @@ impl App {
         }
     }
 
-    /// Unfollow a hashtag by name
-    pub async fn unfollow_hashtag(&mut self, name: &str) -> Result<()> {
-        self.hashtags_state.error = None;
-
-        match self.api_client.unfollow_hashtag(name.to_string()).await {
-            Ok(_) => {
-                // Reload hashtags list
-                self.load_hashtags().await?;
-                // Also reload filter modal data to update the filter list
-                self.load_filter_modal_data().await?;
-                Ok(())
-            }
-            Err(e) => {
-                self.hashtags_state.error = Some(format!("Failed to unfollow hashtag: {}", e));
-                Err(e.into())
-            }
-        }
-    }
-
     /// Close hashtags modal
     pub fn close_hashtags_modal(&mut self) {
         self.hashtags_state.show_hashtags_modal = false;

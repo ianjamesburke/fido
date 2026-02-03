@@ -213,14 +213,8 @@ pub fn render_user_profile_view(frame: &mut Frame, app: &App, area: Rect) {
         );
     frame.render_widget(bio, modal_chunks[1]);
 
-    // Render relationship status
-    let (status_text, status_color) = match &profile.relationship {
-        crate::app::RelationshipStatus::Self_ => ("This is you", theme.accent),
-        crate::app::RelationshipStatus::MutualFriends => ("Mutual Friends", theme.success),
-        crate::app::RelationshipStatus::Following => ("Following", theme.primary),
-        crate::app::RelationshipStatus::FollowsYou => ("Follows You", theme.warning),
-        crate::app::RelationshipStatus::None => ("Not Following", theme.text_dim),
-    };
+    // Render relationship status (only "None" is currently supported)
+    let (status_text, status_color) = ("Not Following", theme.text_dim);
 
     let status = Paragraph::new(Line::from(Span::styled(
         status_text,
@@ -236,18 +230,8 @@ pub fn render_user_profile_view(frame: &mut Frame, app: &App, area: Rect) {
     );
     frame.render_widget(status, modal_chunks[2]);
 
-    // Render actions footer with context-sensitive shortcuts
-    let actions_text = match &profile.relationship {
-        crate::app::RelationshipStatus::Self_ => "Esc: Cancel",
-        crate::app::RelationshipStatus::MutualFriends => {
-            "f: Follow/Unfollow | m: Message | Esc: Cancel"
-        }
-        crate::app::RelationshipStatus::Following => "f: Follow/Unfollow | Esc: Cancel",
-        crate::app::RelationshipStatus::FollowsYou => "f: Follow/Unfollow | Esc: Cancel",
-        crate::app::RelationshipStatus::None => "f: Follow/Unfollow | Esc: Cancel",
-    };
-
-    render_footer(frame, modal_chunks[4], actions_text, &theme);
+    // Render actions footer
+    render_footer(frame, modal_chunks[4], "Esc: Cancel", &theme);
 }
 
 /// Render new conversation modal (matches friends modal design)

@@ -646,7 +646,6 @@ fn test_dm_navigation_down_from_new_conversation() {
             other_user_id: uuid::Uuid::new_v4(),
             other_username: "user1".to_string(),
             last_message: "Hello".to_string(),
-            last_message_time: chrono::Utc::now(),
             unread_count: 0,
         },
     ];
@@ -673,7 +672,6 @@ fn test_dm_navigation_up_from_conversation() {
             other_user_id: uuid::Uuid::new_v4(),
             other_username: "user1".to_string(),
             last_message: "Hello".to_string(),
-            last_message_time: chrono::Utc::now(),
             unread_count: 0,
         },
     ];

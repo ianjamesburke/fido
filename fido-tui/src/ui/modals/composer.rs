@@ -10,7 +10,7 @@ use super::super::components::modal::{render_modal_container, ModalConfig};
 use super::super::theme::get_theme_colors;
 use crate::app::App;
 
-/// Render unified composer modal (new post, reply, edit post, edit bio)
+/// Render unified composer modal (new post, reply, edit bio)
 pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     use crate::app::ComposerMode;
 
@@ -68,13 +68,6 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
                     "Type to compose | Enter: Submit | Esc: Cancel",
                 )
             }
-            Some(ComposerMode::EditPost { .. }) => (
-                "Edit Post",
-                false,
-                vec![],
-                280,
-                "Type to edit | Enter: Submit | Esc: Cancel",
-            ),
             Some(ComposerMode::EditBio) => (
                 "Edit Bio",
                 false,
@@ -88,7 +81,7 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
     // Get error message if any
     let error_message = match &app.composer_state.mode {
         Some(ComposerMode::NewPost) => app.posts_state.error.clone(),
-        Some(ComposerMode::Reply { .. }) | Some(ComposerMode::EditPost { .. }) => {
+        Some(ComposerMode::Reply { .. }) => {
             app.post_detail_state.as_ref().and_then(|s| s.error.clone())
         }
         Some(ComposerMode::EditBio) => app.profile_state.error.clone(),

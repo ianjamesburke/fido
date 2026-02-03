@@ -14,10 +14,6 @@ pub fn log_reply_event(message: &str) {
     }
 }
 
-pub fn clear_reply_log() {
-    let _ = std::fs::remove_file("fido_reply_debug.log");
-}
-
 #[macro_export]
 macro_rules! log_reply {
     ($($arg:tt)*) => {{

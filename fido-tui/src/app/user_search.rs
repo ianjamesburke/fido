@@ -77,7 +77,6 @@ impl App {
                 self.user_search_state.search_results = results
                     .into_iter()
                     .map(|r| UserSearchResult {
-                        id: r.id,
                         username: r.username,
                     })
                     .collect();
@@ -109,29 +108,4 @@ impl App {
         };
     }
 
-    /// View selected user profile from search
-    pub fn user_search_view_profile(&mut self) -> Option<String> {
-        if let Some(user) = self
-            .user_search_state
-            .search_results
-            .get(self.user_search_state.selected_index)
-        {
-            Some(user.id.clone())
-        } else {
-            None
-        }
-    }
-
-    /// Start DM with selected user from search
-    pub fn user_search_start_dm(&mut self) -> Option<String> {
-        if let Some(user) = self
-            .user_search_state
-            .search_results
-            .get(self.user_search_state.selected_index)
-        {
-            Some(user.username.clone())
-        } else {
-            None
-        }
-    }
 }

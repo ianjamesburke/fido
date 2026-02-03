@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
-use crate::app::{handlers, App, Tab};
+use crate::app::{handlers, App};
 
 impl App {
     /// Toggle help modal
@@ -29,11 +29,6 @@ impl App {
                 }
             }
         }
-    }
-
-    /// Check if we need to load data when switching tabs
-    pub fn needs_tab_data_load(&self) -> bool {
-        matches!(self.current_tab, Tab::Profile | Tab::DMs | Tab::Settings)
     }
 
     /// Handle keyboard events with priority-based Escape handling

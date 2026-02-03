@@ -43,11 +43,6 @@ impl App {
                             other_user_id: c.get("other_user_id")?.as_str()?.parse().ok()?,
                             other_username: c.get("other_username")?.as_str()?.to_string(),
                             last_message: c.get("last_message")?.as_str()?.to_string(),
-                            last_message_time: c
-                                .get("last_message_time")?
-                                .as_str()?
-                                .parse()
-                                .ok()?,
                             unread_count: c.get("unread_count")?.as_i64()? as i32,
                         })
                     })
@@ -297,7 +292,6 @@ impl App {
                 self.dms_state.available_mutual_friends = friends
                     .into_iter()
                     .map(|f| UserInfo {
-                        id: f.id,
                         username: f.username,
                         follower_count: f.follower_count,
                         following_count: f.following_count,
@@ -338,32 +332,6 @@ impl App {
         }
     }
 
-    /// Check if a username is a mutual friend (can be messaged)
-    ///
-    /// Returns `true` if the username exists in the available mutual friends list,
-    /// which means the user can initiate a DM conversation with them.
-    ///
-    /// # Arguments
-    /// * `username` - The username to check (case-sensitive)
-    fn is_mutual_friend(&self, username: &str) -> bool {
-        self.dms_state
-            .available_mutual_friends
-            .iter()
-            .any(|u| u.username == username)
-    }
-
-    /// Add character to new conversation username
-    pub fn add_char_to_new_conversation(&mut self, c: char) {
-        if self.dms_state.new_conversation_username.len() < 50 {
-            self.dms_state.new_conversation_username.push(c);
-        }
-    }
-
-    /// Remove character from new conversation username
-    pub fn remove_char_from_new_conversation(&mut self) {
-        self.dms_state.new_conversation_username.pop();
-    }
-
     /// Start new conversation (just prepare, don't send anything yet)
     pub async fn start_new_conversation(&mut self) -> Result<()> {
         // Get the selected user from the filtered list
@@ -392,59 +360,6 @@ impl App {
 
         // Switch to typing mode so user can immediately start composing
         self.input_mode = InputMode::Typing;
-
-        Ok(())
-    }
-
-    /// Open existing conversation or create new one (from profile view)
-    pub async fn open_or_create_dm_conversation(
-        &mut self,
-        username: String,
-        user_id_str: String,
-    ) -> Result<()> {
-        // Parse user ID
-        let user_id = match Uuid::parse_str(&user_id_str) {
-            Ok(id) => id,
-            Err(_) => {
-                self.dms_state.error = Some("Invalid user ID".to_string());
-                return Ok(());
-            }
-        };
-
-        // Load conversations if not already loaded
-        if self.dms_state.conversations.is_empty() {
-            self.load_conversations().await?;
-        }
-
-        // Check if conversation already exists
-        if let Some(index) = self
-            .dms_state
-            .conversations
-            .iter()
-            .position(|c| c.other_user_id == user_id)
-        {
-            // Conversation exists - select it
-            self.dms_state.selection = DMSelection::Conversation(index);
-            self.dms_state.pending_conversation_username = None;
-
-            // Load messages for this conversation
-            self.dms_state.needs_message_load = true;
-            self.load_conversation_messages().await?;
-
-            // Mark as read
-            self.mark_conversation_as_read(user_id).await?;
-
-            // Switch to typing mode
-            self.input_mode = InputMode::Typing;
-        } else {
-            // Conversation doesn't exist - create new one
-            self.dms_state.pending_conversation_username = Some(username);
-            self.dms_state.messages.clear();
-            self.dms_state.selection = DMSelection::PendingDraft;
-
-            // Switch to typing mode so user can start composing
-            self.input_mode = InputMode::Typing;
-        }
 
         Ok(())
     }
