@@ -1,11 +1,10 @@
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
-use rusqlite::OptionalExtension;
+use rusqlite::{params, OptionalExtension};
 use uuid::Uuid;
 
 use fido_types::{Post, SortOrder};
 
-use crate::db::DbPool;
+use crate::db::{row, DbPool};
 
 pub struct PostRepository {
     pool: DbPool,
@@ -92,25 +91,7 @@ impl PostRepository {
         let mut stmt = conn.prepare(&query)?;
 
         let posts = stmt
-            .query_map([limit], |row| {
-                let parent_post_id_str: Option<String> = row.get(7)?;
-                let reply_to_user_id_str: Option<String> = row.get(9)?;
-                Ok(Post {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                    author_username: row.get(2)?,
-                    content: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                    upvotes: row.get(5)?,
-                    downvotes: row.get(6)?,
-                    hashtags: Vec::new(), // Will be populated separately
-                    user_vote: None,      // Will be populated by API layer if user is authenticated
-                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_count: row.get(8)?,
-                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_to_username: row.get(10)?,
-                })
-            })?
+            .query_map([limit], map_post_row)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(posts)
@@ -132,25 +113,7 @@ impl PostRepository {
         )?;
 
         let posts = stmt
-            .query_map([user_id.to_string()], |row| {
-                let parent_post_id_str: Option<String> = row.get(7)?;
-                let reply_to_user_id_str: Option<String> = row.get(9)?;
-                Ok(Post {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                    author_username: row.get(2)?,
-                    content: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                    upvotes: row.get(5)?,
-                    downvotes: row.get(6)?,
-                    hashtags: Vec::new(),
-                    user_vote: None, // Will be populated by API layer if user is authenticated
-                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_count: row.get(8)?,
-                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_to_username: row.get(10)?,
-                })
-            })?
+            .query_map([user_id.to_string()], map_post_row)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(posts)
@@ -170,25 +133,7 @@ impl PostRepository {
         )?;
 
         let post = stmt
-            .query_row([post_id.to_string()], |row| {
-                let parent_post_id_str: Option<String> = row.get(7)?;
-                let reply_to_user_id_str: Option<String> = row.get(9)?;
-                Ok(Post {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                    author_username: row.get(2)?,
-                    content: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                    upvotes: row.get(5)?,
-                    downvotes: row.get(6)?,
-                    hashtags: Vec::new(),
-                    user_vote: None, // Will be populated by API layer if user is authenticated
-                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_count: row.get(8)?,
-                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_to_username: row.get(10)?,
-                })
-            })
+            .query_row([post_id.to_string()], map_post_row)
             .optional()?;
 
         Ok(post)
@@ -274,25 +219,7 @@ impl PostRepository {
         )?;
 
         let replies = stmt
-            .query_map([parent_post_id.to_string()], |row| {
-                let parent_post_id_str: Option<String> = row.get(7)?;
-                let reply_to_user_id_str: Option<String> = row.get(9)?;
-                Ok(Post {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                    author_username: row.get(2)?,
-                    content: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                    upvotes: row.get(5)?,
-                    downvotes: row.get(6)?,
-                    hashtags: Vec::new(),
-                    user_vote: None,
-                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_count: row.get(8)?,
-                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_to_username: row.get(10)?,
-                })
-            })?
+            .query_map([parent_post_id.to_string()], map_post_row)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(replies)
@@ -354,25 +281,7 @@ impl PostRepository {
         let mut stmt = conn.prepare(&query)?;
 
         let posts = stmt
-            .query_map([hashtag_name, &limit.to_string()], |row| {
-                let parent_post_id_str: Option<String> = row.get(7)?;
-                let reply_to_user_id_str: Option<String> = row.get(9)?;
-                Ok(Post {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                    author_username: row.get(2)?,
-                    content: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                    upvotes: row.get(5)?,
-                    downvotes: row.get(6)?,
-                    hashtags: Vec::new(), // Will be populated separately
-                    user_vote: None,      // Will be populated by API layer if user is authenticated
-                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_count: row.get(8)?,
-                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_to_username: row.get(10)?,
-                })
-            })?
+            .query_map(params![hashtag_name, limit], map_post_row)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(posts)
@@ -420,25 +329,7 @@ impl PostRepository {
         let mut stmt = conn.prepare(&query)?;
 
         let posts = stmt
-            .query_map([username, &limit.to_string()], |row| {
-                let parent_post_id_str: Option<String> = row.get(7)?;
-                let reply_to_user_id_str: Option<String> = row.get(9)?;
-                Ok(Post {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                    author_username: row.get(2)?,
-                    content: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                    upvotes: row.get(5)?,
-                    downvotes: row.get(6)?,
-                    hashtags: Vec::new(), // Will be populated separately
-                    user_vote: None,      // Will be populated by API layer if user is authenticated
-                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_count: row.get(8)?,
-                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_to_username: row.get(10)?,
-                })
-            })?
+            .query_map(params![username, limit], map_post_row)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(posts)
@@ -489,27 +380,33 @@ impl PostRepository {
         let mut stmt = conn.prepare(&query)?;
 
         let posts = stmt
-            .query_map([hashtag_name, username, &limit.to_string()], |row| {
-                let parent_post_id_str: Option<String> = row.get(7)?;
-                let reply_to_user_id_str: Option<String> = row.get(9)?;
-                Ok(Post {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    author_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                    author_username: row.get(2)?,
-                    content: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
-                    upvotes: row.get(5)?,
-                    downvotes: row.get(6)?,
-                    hashtags: Vec::new(), // Will be populated separately
-                    user_vote: None,      // Will be populated by API layer if user is authenticated
-                    parent_post_id: parent_post_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_count: row.get(8)?,
-                    reply_to_user_id: reply_to_user_id_str.and_then(|s| Uuid::parse_str(&s).ok()),
-                    reply_to_username: row.get(10)?,
-                })
-            })?
+            .query_map(params![hashtag_name, username, limit], map_post_row)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(posts)
     }
+}
+
+fn map_post_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Post> {
+    let id_str: String = row.get(0)?;
+    let author_id_str: String = row.get(1)?;
+    let created_at_str: String = row.get(4)?;
+    let parent_post_id_str: Option<String> = row.get(7)?;
+    let reply_to_user_id_str: Option<String> = row.get(9)?;
+
+    Ok(Post {
+        id: row::parse_uuid(&id_str, 0)?,
+        author_id: row::parse_uuid(&author_id_str, 1)?,
+        author_username: row.get(2)?,
+        content: row.get(3)?,
+        created_at: row::parse_datetime(&created_at_str, 4)?,
+        upvotes: row.get(5)?,
+        downvotes: row.get(6)?,
+        hashtags: Vec::new(), // Will be populated separately
+        user_vote: None,      // Will be populated by API layer if user is authenticated
+        parent_post_id: row::parse_optional_uuid(parent_post_id_str.as_deref(), 7)?,
+        reply_count: row.get(8)?,
+        reply_to_user_id: row::parse_optional_uuid(reply_to_user_id_str.as_deref(), 9)?,
+        reply_to_username: row.get(10)?,
+    })
 }

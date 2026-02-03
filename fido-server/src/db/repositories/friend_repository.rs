@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-use crate::db::DbPool;
+use crate::db::{row, DbPool};
 
 pub struct FriendRepository {
     pool: DbPool,
@@ -64,7 +64,7 @@ impl FriendRepository {
         let following = stmt
             .query_map([user_id.to_string()], |row| {
                 let following_id: String = row.get(0)?;
-                Ok(Uuid::parse_str(&following_id).unwrap())
+                row::parse_uuid(&following_id, 0)
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -81,7 +81,7 @@ impl FriendRepository {
         let followers = stmt
             .query_map([user_id.to_string()], |row| {
                 let follower_id: String = row.get(0)?;
-                Ok(Uuid::parse_str(&follower_id).unwrap())
+                row::parse_uuid(&follower_id, 0)
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -104,7 +104,7 @@ impl FriendRepository {
         let friends = stmt
             .query_map([user_id.to_string()], |row| {
                 let friend_id: String = row.get(0)?;
-                Ok(Uuid::parse_str(&friend_id).unwrap())
+                row::parse_uuid(&friend_id, 0)
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -147,7 +147,7 @@ impl FriendRepository {
             .query_map([user_id.to_string()], |row| {
                 let friend_id: String = row.get(0)?;
                 let created_at: i64 = row.get(1)?;
-                Ok((Uuid::parse_str(&friend_id).unwrap(), created_at))
+                Ok((row::parse_uuid(&friend_id, 0)?, created_at))
             })?
             .collect::<Result<Vec<_>, _>>()?;
 

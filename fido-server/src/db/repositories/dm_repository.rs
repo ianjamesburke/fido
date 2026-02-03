@@ -1,10 +1,9 @@
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use fido_types::DirectMessage;
 
-use crate::db::DbPool;
+use crate::db::{row, DbPool};
 
 pub struct DirectMessageRepository {
     pool: DbPool,
@@ -55,14 +54,19 @@ impl DirectMessageRepository {
                     user1_id.to_string(),
                 ),
                 |row| {
+                    let id_str: String = row.get(0)?;
+                    let from_id_str: String = row.get(1)?;
+                    let to_id_str: String = row.get(2)?;
+                    let created_at_str: String = row.get(4)?;
+
                     Ok(DirectMessage {
-                        id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                        from_user_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                        to_user_id: Uuid::parse_str(&row.get::<_, String>(2)?).unwrap(),
+                        id: row::parse_uuid(&id_str, 0)?,
+                        from_user_id: row::parse_uuid(&from_id_str, 1)?,
+                        to_user_id: row::parse_uuid(&to_id_str, 2)?,
                         from_username: String::new(), // Will be populated by API layer
                         to_username: String::new(),   // Will be populated by API layer
                         content: row.get(3)?,
-                        created_at: row.get::<_, String>(4)?.parse::<DateTime<Utc>>().unwrap(),
+                        created_at: row::parse_datetime(&created_at_str, 4)?,
                         is_read: row.get::<_, i32>(5)? == 1,
                     })
                 },
@@ -101,7 +105,7 @@ impl DirectMessageRepository {
                 ),
                 |row| {
                     let id_str: String = row.get(0)?;
-                    Ok(Uuid::parse_str(&id_str).unwrap())
+                    Ok(row::parse_uuid(&id_str, 0)?)
                 },
             )?
             .collect::<Result<Vec<_>, _>>()?;

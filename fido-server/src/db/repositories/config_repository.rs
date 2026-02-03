@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use fido_types::{ColorScheme, SortOrder, UserConfig};
 
-use crate::db::DbPool;
+use crate::db::{row, DbPool};
 
 pub struct ConfigRepository {
     pool: DbPool,
@@ -29,8 +29,9 @@ impl ConfigRepository {
                 let color_scheme_str: String = row.get(1)?;
                 let sort_order_str: String = row.get(2)?;
 
+                let user_id_str: String = row.get(0)?;
                 Ok(UserConfig {
-                    user_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    user_id: row::parse_uuid(&user_id_str, 0)?,
                     color_scheme: ColorScheme::parse(&color_scheme_str).unwrap_or_default(),
                     sort_order: SortOrder::parse(&sort_order_str).unwrap_or_default(),
                     max_posts_display: row.get(3)?,

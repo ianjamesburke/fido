@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-use crate::db::DbPool;
+use crate::{db::DbPool, hashtag};
 
 pub struct HashtagRepository {
     pool: DbPool,
@@ -16,10 +16,7 @@ impl HashtagRepository {
     /// Extract hashtags from text (matches #word pattern with letters, numbers, underscores)
     #[allow(dead_code)]
     pub fn extract_hashtags(text: &str) -> Vec<String> {
-        let re = regex::Regex::new(r"#(\w+)").unwrap();
-        re.captures_iter(text)
-            .map(|cap| cap[1].to_lowercase())
-            .collect()
+        hashtag::extract_hashtags(text)
     }
 
     /// Store hashtags for a post (creates hashtag entries if needed)

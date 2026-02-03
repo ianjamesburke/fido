@@ -6,10 +6,10 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use crate::{
     api::{ApiError, ApiResult},
-    db::repositories::HashtagRepository,
     http::{extract_client_ip, extract_user_agent, AuthenticatedUser},
     security::validation::validate_hashtag,
     security::{AuditEvent, AuditEventType},
+    services::hashtags::HashtagService,
     state::AppState,
 };
 
@@ -36,19 +36,14 @@ pub async fn get_followed_hashtags(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<HashtagResponse>>> {
-    let hashtag_repo = HashtagRepository::new(state.db.pool.clone());
-    let hashtags = hashtag_repo
-        .get_followed_by_user(&user_id)
-        .map_err(|e| ApiError::InternalError(format!("Failed to get followed hashtags: {}", e)))?;
+    let service = HashtagService::sqlite(state.db.pool.clone());
+    let hashtags = service.get_followed_hashtags(&user_id)?;
 
     let mut response = Vec::new();
-    for name in hashtags {
-        let post_count = hashtag_repo
-            .get_post_count(&name)
-            .map_err(|e| ApiError::InternalError(format!("Failed to get post count: {}", e)))?;
+    for hashtag in hashtags {
         response.push(HashtagResponse {
-            name,
-            post_count: Some(post_count),
+            name: hashtag.name,
+            post_count: Some(hashtag.post_count),
         });
     }
 
@@ -82,10 +77,8 @@ pub async fn follow_hashtag(
         return Err(ApiError::BadRequest(e.to_string()));
     }
 
-    let hashtag_repo = HashtagRepository::new(state.db.pool.clone());
-    hashtag_repo
-        .follow_hashtag(&user_id, &req.name)
-        .map_err(|e| ApiError::InternalError(format!("Failed to follow hashtag: {}", e)))?;
+    let service = HashtagService::sqlite(state.db.pool.clone());
+    service.follow_hashtag(&user_id, &req.name)?;
 
     Ok(StatusCode::OK)
 }
@@ -112,10 +105,8 @@ pub async fn unfollow_hashtag(
         return Err(ApiError::BadRequest(e.to_string()));
     }
 
-    let hashtag_repo = HashtagRepository::new(state.db.pool.clone());
-    hashtag_repo
-        .unfollow_hashtag(&user_id, &name)
-        .map_err(|e| ApiError::InternalError(format!("Failed to unfollow hashtag: {}", e)))?;
+    let service = HashtagService::sqlite(state.db.pool.clone());
+    service.unfollow_hashtag(&user_id, &name)?;
 
     Ok(StatusCode::OK)
 }
@@ -143,19 +134,14 @@ pub async fn search_hashtags(
         }
     }
 
-    let hashtag_repo = HashtagRepository::new(state.db.pool.clone());
-    let hashtags = hashtag_repo
-        .search(&query.q, 20)
-        .map_err(|e| ApiError::InternalError(format!("Failed to search hashtags: {}", e)))?;
+    let service = HashtagService::sqlite(state.db.pool.clone());
+    let hashtags = service.search_hashtags(&query.q, 20)?;
 
     let mut response = Vec::new();
-    for name in hashtags {
-        let post_count = hashtag_repo
-            .get_post_count(&name)
-            .map_err(|e| ApiError::InternalError(format!("Failed to get post count: {}", e)))?;
+    for hashtag in hashtags {
         response.push(HashtagResponse {
-            name,
-            post_count: Some(post_count),
+            name: hashtag.name,
+            post_count: Some(hashtag.post_count),
         });
     }
 
@@ -167,16 +153,14 @@ pub async fn get_active_hashtags(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<ActiveHashtagResponse>>> {
-    let hashtag_repo = HashtagRepository::new(state.db.pool.clone());
-    let hashtags = hashtag_repo
-        .get_active_by_user(&user_id, 5)
-        .map_err(|e| ApiError::InternalError(format!("Failed to get active hashtags: {}", e)))?;
+    let service = HashtagService::sqlite(state.db.pool.clone());
+    let hashtags = service.get_active_hashtags(&user_id, 5)?;
 
     let response = hashtags
         .into_iter()
-        .map(|(name, count)| ActiveHashtagResponse {
-            name,
-            interaction_count: count,
+        .map(|hashtag| ActiveHashtagResponse {
+            name: hashtag.name,
+            interaction_count: hashtag.interaction_count,
         })
         .collect();
 

@@ -8,8 +8,8 @@ use uuid::Uuid;
 
 use crate::{
     api::{ApiError, ApiResult},
-    db::repositories::{FriendRepository, PostRepository, UserRepository},
     http::{AuthenticatedUser, OptionalUser},
+    services::friends::{FriendsService, RelationshipInfo},
     state::AppState,
 };
 
@@ -29,39 +29,18 @@ pub async fn search_users(
     State(state): State<AppState>,
     axum::extract::Query(query): axum::extract::Query<SearchQuery>,
 ) -> ApiResult<Json<Vec<UserSearchResponse>>> {
-    let user_repo = UserRepository::new(state.db.pool.clone());
+    let service = FriendsService::new(state.db.pool.clone());
+    let results = service.search_users(&query.q, 20)?;
 
-    // Simple search: get all users and filter by username substring
-    let all_users = user_repo
-        .list_all()
-        .map_err(|e| ApiError::InternalError(format!("Failed to search users: {}", e)))?;
-
-    let search_lower = query.q.to_lowercase();
-    let mut results: Vec<_> = all_users
-        .into_iter()
-        .filter(|u| u.username.to_lowercase().contains(&search_lower))
-        .map(|u| UserSearchResponse {
-            id: u.id.to_string(),
-            username: u.username,
-        })
-        .collect();
-
-    // Sort by username similarity (exact match first, then alphabetical)
-    results.sort_by(|a, b| {
-        let a_exact = a.username.to_lowercase() == search_lower;
-        let b_exact = b.username.to_lowercase() == search_lower;
-
-        match (a_exact, b_exact) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.username.cmp(&b.username),
-        }
-    });
-
-    // Limit to 20 results
-    results.truncate(20);
-
-    Ok(Json(results))
+    Ok(Json(
+        results
+            .into_iter()
+            .map(|u| UserSearchResponse {
+                id: u.id.to_string(),
+                username: u.username,
+            })
+            .collect(),
+    ))
 }
 
 /// GET /users/:id/profile - Get user profile with relationship status
@@ -100,67 +79,18 @@ pub async fn get_user_profile(
     let profile_user_id = Uuid::parse_str(&user_id_str)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
-    let user_repo = UserRepository::new(state.db.pool.clone());
-    let user = user_repo
-        .find_by_id(&profile_user_id)
-        .map_err(|e| ApiError::InternalError(format!("Failed to find user: {}", e)))?
-        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
-
-    let friend_repo = FriendRepository::new(state.db.pool.clone());
-    let post_repo = PostRepository::new(state.db.pool.clone());
-
-    let follower_count = friend_repo
-        .get_follower_count(&profile_user_id)
-        .unwrap_or(0);
-    let following_count = friend_repo
-        .get_following_count(&profile_user_id)
-        .unwrap_or(0);
-
-    // Count posts by this user
-    let post_count = post_repo
-        .get_posts(fido_types::SortOrder::Newest, 1000)
-        .map(|posts| {
-            posts
-                .iter()
-                .filter(|p| p.author_id == profile_user_id)
-                .count()
-        })
-        .unwrap_or(0);
-
-    // Determine relationship status
-    let relationship = if let Some(viewer) = viewer_id {
-        if viewer == profile_user_id {
-            RelationshipStatus::Self_
-        } else if friend_repo
-            .are_mutual_friends(&viewer, &profile_user_id)
-            .unwrap_or(false)
-        {
-            RelationshipStatus::MutualFriends
-        } else if friend_repo
-            .is_following(&viewer, &profile_user_id)
-            .unwrap_or(false)
-        {
-            RelationshipStatus::Following
-        } else if friend_repo
-            .is_following(&profile_user_id, &viewer)
-            .unwrap_or(false)
-        {
-            RelationshipStatus::FollowsYou
-        } else {
-            RelationshipStatus::None
-        }
-    } else {
-        RelationshipStatus::None
-    };
+    let service = FriendsService::new(state.db.pool.clone());
+    let profile = service.get_user_profile(viewer_id, &profile_user_id)?;
+    let relationship = map_relationship(&profile.relationship);
 
     Ok(Json(UserProfileResponse {
-        id: user.id.to_string(),
-        username: user.username,
-        bio: user.bio,
-        join_date: user.join_date.to_rfc3339(),
-        follower_count,
-        following_count,
-        post_count,
+        id: profile.id.to_string(),
+        username: profile.username,
+        bio: profile.bio,
+        join_date: profile.join_date.to_rfc3339(),
+        follower_count: profile.follower_count,
+        following_count: profile.following_count,
+        post_count: profile.post_count,
         relationship,
     }))
 }
@@ -174,21 +104,8 @@ pub async fn follow_user(
     let following_id = Uuid::parse_str(&user_id_str)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
-    if follower_id == following_id {
-        return Err(ApiError::BadRequest("Cannot follow yourself".to_string()));
-    }
-
-    // Verify user exists
-    let user_repo = UserRepository::new(state.db.pool.clone());
-    user_repo
-        .find_by_id(&following_id)
-        .map_err(|e| ApiError::InternalError(format!("Failed to find user: {}", e)))?
-        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
-
-    let friend_repo = FriendRepository::new(state.db.pool.clone());
-    friend_repo
-        .follow_user(&follower_id, &following_id)
-        .map_err(|e| ApiError::InternalError(format!("Failed to follow user: {}", e)))?;
+    let service = FriendsService::new(state.db.pool.clone());
+    service.follow_user(&follower_id, &following_id)?;
 
     Ok(StatusCode::OK)
 }
@@ -202,12 +119,10 @@ pub async fn unfollow_user(
     let following_id = Uuid::parse_str(&user_id_str)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
-    let friend_repo = FriendRepository::new(state.db.pool.clone());
-    let rows_deleted = friend_repo
-        .unfollow_user(&follower_id, &following_id)
-        .map_err(|e| ApiError::InternalError(format!("Failed to unfollow user: {}", e)))?;
+    let service = FriendsService::new(state.db.pool.clone());
+    let deleted = service.unfollow_user(&follower_id, &following_id)?;
 
-    if rows_deleted == 0 {
+    if !deleted {
         return Err(ApiError::NotFound("Not following this user".to_string()));
     }
 
@@ -227,29 +142,20 @@ pub async fn get_following_list(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<SocialUserResponse>>> {
-    let friend_repo = FriendRepository::new(state.db.pool.clone());
-    let user_repo = UserRepository::new(state.db.pool.clone());
+    let service = FriendsService::new(state.db.pool.clone());
+    let users = service.get_following_list(&user_id)?;
 
-    let following_ids = friend_repo
-        .get_following(&user_id)
-        .map_err(|e| ApiError::InternalError(format!("Failed to get following: {}", e)))?;
-
-    let mut users = Vec::new();
-    for user_id in following_ids {
-        if let Ok(Some(user)) = user_repo.find_by_id(&user_id) {
-            let follower_count = friend_repo.get_follower_count(&user_id).unwrap_or(0);
-            let following_count = friend_repo.get_following_count(&user_id).unwrap_or(0);
-
-            users.push(SocialUserResponse {
-                id: user.id.to_string(),
-                username: user.username,
-                follower_count,
-                following_count,
-            });
-        }
-    }
-
-    Ok(Json(users))
+    Ok(Json(
+        users
+            .into_iter()
+            .map(|u| SocialUserResponse {
+                id: u.id.to_string(),
+                username: u.username,
+                follower_count: u.follower_count,
+                following_count: u.following_count,
+            })
+            .collect(),
+    ))
 }
 
 /// GET /social/followers - Get list of users following the current user
@@ -257,29 +163,20 @@ pub async fn get_followers_list(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<SocialUserResponse>>> {
-    let friend_repo = FriendRepository::new(state.db.pool.clone());
-    let user_repo = UserRepository::new(state.db.pool.clone());
+    let service = FriendsService::new(state.db.pool.clone());
+    let users = service.get_followers_list(&user_id)?;
 
-    let follower_ids = friend_repo
-        .get_followers(&user_id)
-        .map_err(|e| ApiError::InternalError(format!("Failed to get followers: {}", e)))?;
-
-    let mut users = Vec::new();
-    for user_id in follower_ids {
-        if let Ok(Some(user)) = user_repo.find_by_id(&user_id) {
-            let follower_count = friend_repo.get_follower_count(&user_id).unwrap_or(0);
-            let following_count = friend_repo.get_following_count(&user_id).unwrap_or(0);
-
-            users.push(SocialUserResponse {
-                id: user.id.to_string(),
-                username: user.username,
-                follower_count,
-                following_count,
-            });
-        }
-    }
-
-    Ok(Json(users))
+    Ok(Json(
+        users
+            .into_iter()
+            .map(|u| SocialUserResponse {
+                id: u.id.to_string(),
+                username: u.username,
+                follower_count: u.follower_count,
+                following_count: u.following_count,
+            })
+            .collect(),
+    ))
 }
 
 /// GET /social/mutual - Get list of mutual friends
@@ -287,29 +184,34 @@ pub async fn get_mutual_friends_list(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<SocialUserResponse>>> {
-    let friend_repo = FriendRepository::new(state.db.pool.clone());
-    let user_repo = UserRepository::new(state.db.pool.clone());
+    let service = FriendsService::new(state.db.pool.clone());
+    let users = service.get_mutual_friends_list(&user_id)?;
 
-    let friend_ids = friend_repo
-        .get_mutual_friends(&user_id)
-        .map_err(|e| ApiError::InternalError(format!("Failed to get mutual friends: {}", e)))?;
+    Ok(Json(
+        users
+            .into_iter()
+            .map(|u| SocialUserResponse {
+                id: u.id.to_string(),
+                username: u.username,
+                follower_count: u.follower_count,
+                following_count: u.following_count,
+            })
+            .collect(),
+    ))
+}
 
-    let mut users = Vec::new();
-    for user_id in friend_ids {
-        if let Ok(Some(user)) = user_repo.find_by_id(&user_id) {
-            let follower_count = friend_repo.get_follower_count(&user_id).unwrap_or(0);
-            let following_count = friend_repo.get_following_count(&user_id).unwrap_or(0);
-
-            users.push(SocialUserResponse {
-                id: user.id.to_string(),
-                username: user.username,
-                follower_count,
-                following_count,
-            });
-        }
+fn map_relationship(info: &RelationshipInfo) -> RelationshipStatus {
+    if info.is_self {
+        RelationshipStatus::Self_
+    } else if info.is_mutual {
+        RelationshipStatus::MutualFriends
+    } else if info.is_following {
+        RelationshipStatus::Following
+    } else if info.follows_you {
+        RelationshipStatus::FollowsYou
+    } else {
+        RelationshipStatus::None
     }
-
-    Ok(Json(users))
 }
 
 #[cfg(test)]

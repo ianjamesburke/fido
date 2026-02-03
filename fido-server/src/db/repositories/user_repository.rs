@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use rusqlite::OptionalExtension;
 use uuid::Uuid;
 
 use fido_types::User;
 
-use crate::db::DbPool;
+use crate::db::{row, DbPool};
 
 pub struct UserRepository {
     pool: DbPool,
@@ -27,16 +27,7 @@ impl UserRepository {
         )?;
 
         let users = stmt
-            .query_map([], |row| {
-                Ok(User {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    username: row.get(1)?,
-                    bio: row.get(2)?,
-                    join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
-                    is_test_user: row.get::<_, i32>(4)? == 1,
-                    is_admin: row.get::<_, i32>(5)? == 1,
-                })
-            })?
+            .query_map([], map_user_row)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(users)
@@ -51,18 +42,7 @@ impl UserRepository {
              WHERE id = ?",
         )?;
 
-        let user = stmt
-            .query_row([user_id.to_string()], |row| {
-                Ok(User {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    username: row.get(1)?,
-                    bio: row.get(2)?,
-                    join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
-                    is_test_user: row.get::<_, i32>(4)? == 1,
-                    is_admin: row.get::<_, i32>(5)? == 1,
-                })
-            })
-            .optional()?;
+        let user = stmt.query_row([user_id.to_string()], map_user_row).optional()?;
 
         Ok(user)
     }
@@ -76,18 +56,7 @@ impl UserRepository {
              WHERE username = ?",
         )?;
 
-        let user = stmt
-            .query_row([username], |row| {
-                Ok(User {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    username: row.get(1)?,
-                    bio: row.get(2)?,
-                    join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
-                    is_test_user: row.get::<_, i32>(4)? == 1,
-                    is_admin: row.get::<_, i32>(5)? == 1,
-                })
-            })
-            .optional()?;
+        let user = stmt.query_row([username], map_user_row).optional()?;
 
         Ok(user)
     }
@@ -133,16 +102,7 @@ impl UserRepository {
         )?;
 
         let users = stmt
-            .query_map([], |row| {
-                Ok(User {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    username: row.get(1)?,
-                    bio: row.get(2)?,
-                    join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
-                    is_test_user: row.get::<_, i32>(4)? == 1,
-                    is_admin: row.get::<_, i32>(5)? == 1,
-                })
-            })?
+            .query_map([], map_user_row)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(users)
@@ -168,18 +128,7 @@ impl UserRepository {
              WHERE github_id = ?",
         )?;
 
-        let user = stmt
-            .query_row([github_id], |row| {
-                Ok(User {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    username: row.get(1)?,
-                    bio: row.get(2)?,
-                    join_date: row.get::<_, String>(3)?.parse::<DateTime<Utc>>().unwrap(),
-                    is_test_user: row.get::<_, i32>(4)? == 1,
-                    is_admin: row.get::<_, i32>(5)? == 1,
-                })
-            })
-            .optional()?;
+        let user = stmt.query_row([github_id], map_user_row).optional()?;
 
         Ok(user)
     }
@@ -233,4 +182,18 @@ impl UserRepository {
             is_admin: false,
         })
     }
+}
+
+fn map_user_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<User> {
+    let id_str: String = row.get(0)?;
+    let join_date_str: String = row.get(3)?;
+
+    Ok(User {
+        id: row::parse_uuid(&id_str, 0)?,
+        username: row.get(1)?,
+        bio: row.get(2)?,
+        join_date: row::parse_datetime(&join_date_str, 3)?,
+        is_test_user: row.get::<_, i32>(4)? == 1,
+        is_admin: row.get::<_, i32>(5)? == 1,
+    })
 }

@@ -104,7 +104,7 @@ pub async fn get_posts(
     OptionalUser(user_id): OptionalUser,
     Query(query): Query<GetPostsQuery>,
 ) -> ApiResult<Json<Vec<Post>>> {
-    let service = PostService::new(state.db.pool.clone());
+    let service = PostService::sqlite(state.db.pool.clone());
 
     // Parse and validate sort order - reject invalid values
     let sort_order = if let Some(sort_str) = query.sort.as_deref() {
@@ -136,7 +136,7 @@ pub async fn create_post(
     headers: HeaderMap,
     Json(payload): Json<CreatePostRequest>,
 ) -> ApiResult<Json<Post>> {
-    let service = PostService::new(state.db.pool.clone());
+    let service = PostService::sqlite(state.db.pool.clone());
     let client_ip = extract_client_ip(&headers);
     let user_agent = extract_user_agent(&headers);
 
@@ -204,7 +204,7 @@ pub async fn vote_on_post(
     Path(post_id): Path<String>,
     Json(payload): Json<VoteRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let service = PostService::new(state.db.pool.clone());
+    let service = PostService::sqlite(state.db.pool.clone());
     // Parse post ID
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
@@ -233,7 +233,7 @@ pub async fn get_replies(
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
 
-    let service = PostService::new(state.db.pool.clone());
+    let service = PostService::sqlite(state.db.pool.clone());
     let replies = service.get_replies(&post_id, user_id)?;
 
     Ok(Json(replies))
@@ -247,7 +247,7 @@ pub async fn create_reply(
     headers: HeaderMap,
     Json(payload): Json<fido_types::CreateReplyRequest>,
 ) -> ApiResult<Json<Post>> {
-    let service = PostService::new(state.db.pool.clone());
+    let service = PostService::sqlite(state.db.pool.clone());
     let client_ip = extract_client_ip(&headers);
     let user_agent = extract_user_agent(&headers);
 
@@ -345,7 +345,7 @@ pub async fn update_post(
     headers: HeaderMap,
     Json(payload): Json<fido_types::UpdatePostRequest>,
 ) -> ApiResult<Json<Post>> {
-    let service = PostService::new(state.db.pool.clone());
+    let service = PostService::sqlite(state.db.pool.clone());
     let client_ip = extract_client_ip(&headers);
     let user_agent = extract_user_agent(&headers);
 
@@ -397,7 +397,7 @@ pub async fn delete_post(
     AuthenticatedUser(user_id): AuthenticatedUser,
     Path(post_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let service = PostService::new(state.db.pool.clone());
+    let service = PostService::sqlite(state.db.pool.clone());
     // Parse post ID
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
@@ -428,7 +428,7 @@ pub async fn get_post(
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
 
-    let service = PostService::new(state.db.pool.clone());
+    let service = PostService::sqlite(state.db.pool.clone());
     let post = service.get_post(&post_id, user_id)?;
 
     Ok(Json(post))
@@ -444,7 +444,7 @@ pub async fn get_thread(
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
 
-    let service = PostService::new(state.db.pool.clone());
+    let service = PostService::sqlite(state.db.pool.clone());
     let (root_post, replies) = service.get_thread_parts(&post_id, user_id)?;
 
     // Return root post with all replies

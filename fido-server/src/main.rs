@@ -8,6 +8,7 @@ mod oauth;
 mod rate_limit;
 mod security;
 mod services;
+mod stores;
 mod session;
 mod state;
 

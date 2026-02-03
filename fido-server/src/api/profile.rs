@@ -7,10 +7,10 @@ use uuid::Uuid;
 
 use crate::{
     api::{ApiError, ApiResult},
-    db::repositories::{HashtagRepository, PostRepository, UserRepository, VoteRepository},
     http::{extract_client_ip, extract_user_agent, AuthenticatedUser},
     security::validation::validate_bio,
     security::{AuditEvent, AuditEventType},
+    services::profile::ProfileService,
     state::AppState,
 };
 use fido_types::{UpdateBioRequest, UserProfile};
@@ -23,49 +23,8 @@ pub async fn get_profile(
     // Parse user ID
     let user_id = Uuid::parse_str(&user_id)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
-
-    let pool = state.db.pool.clone();
-    let user_repo = UserRepository::new(pool.clone());
-    let vote_repo = VoteRepository::new(pool.clone());
-    let post_repo = PostRepository::new(pool.clone());
-    let hashtag_repo = HashtagRepository::new(pool);
-
-    // Get user
-    let user = user_repo
-        .get_by_id(&user_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
-
-    // Calculate karma (sum of upvotes on user's posts)
-    let karma = vote_repo
-        .calculate_karma(&user_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    // Get post count
-    let post_count = post_repo
-        .get_post_count(&user_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    // Get most active hashtags (top 5)
-    let active_hashtags = hashtag_repo
-        .get_active_by_user(&user_id, 5)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    // Extract just the hashtag names for the profile
-    let recent_hashtags: Vec<String> = active_hashtags
-        .into_iter()
-        .map(|(name, _count)| name)
-        .collect();
-
-    let profile = UserProfile {
-        user_id: user.id,
-        username: user.username,
-        bio: user.bio,
-        karma,
-        post_count,
-        join_date: user.join_date,
-        recent_hashtags,
-    };
+    let service = ProfileService::sqlite(state.db.pool.clone());
+    let profile = service.get_profile(&user_id)?;
 
     Ok(Json(profile))
 }
@@ -78,6 +37,7 @@ pub async fn update_profile(
     headers: HeaderMap,
     Json(payload): Json<UpdateBioRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    let service = ProfileService::sqlite(state.db.pool.clone());
     let client_ip = extract_client_ip(&headers);
     let user_agent = extract_user_agent(&headers);
 
@@ -104,19 +64,7 @@ pub async fn update_profile(
         ));
     }
 
-    let pool = state.db.pool.clone();
-    let user_repo = UserRepository::new(pool);
-
-    // Verify user exists
-    user_repo
-        .get_by_id(&user_id)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
-
-    // Update bio
-    user_repo
-        .update_bio(&user_id, &payload.bio)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+    service.update_bio(&user_id, &payload.bio)?;
 
     Ok(Json(serde_json::json!({
         "message": "Profile updated successfully",
@@ -133,19 +81,8 @@ pub async fn get_user_hashtags(
     let user_id = Uuid::parse_str(&user_id)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
-    let pool = state.db.pool.clone();
-    let hashtag_repo = HashtagRepository::new(pool);
-
-    // Get most active hashtags (top 10)
-    let active_hashtags = hashtag_repo
-        .get_active_by_user(&user_id, 10)
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    // Extract just the hashtag names
-    let hashtags: Vec<String> = active_hashtags
-        .into_iter()
-        .map(|(name, _count)| name)
-        .collect();
+    let service = ProfileService::sqlite(state.db.pool.clone());
+    let hashtags = service.get_user_hashtags(&user_id, 10)?;
 
     Ok(Json(hashtags))
 }

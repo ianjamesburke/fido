@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use fido_types::{Vote, VoteDirection};
 
-use crate::db::DbPool;
+use crate::db::{row, DbPool};
 
 pub struct VoteRepository {
     pool: DbPool,
@@ -53,12 +53,16 @@ impl VoteRepository {
 
         let vote = stmt
             .query_row((user_id.to_string(), post_id.to_string()), |row| {
+                let user_id_str: String = row.get(0)?;
+                let post_id_str: String = row.get(1)?;
                 let direction_str: String = row.get(2)?;
+                let created_at_str: String = row.get(3)?;
+
                 Ok(Vote {
-                    user_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    post_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                    direction: VoteDirection::parse(&direction_str).unwrap(),
-                    created_at: row.get::<_, String>(3)?.parse().unwrap(),
+                    user_id: row::parse_uuid(&user_id_str, 0)?,
+                    post_id: row::parse_uuid(&post_id_str, 1)?,
+                    direction: row::parse_vote_direction(&direction_str, 2)?,
+                    created_at: row::parse_datetime(&created_at_str, 3)?,
                 })
             })
             .optional()?;
