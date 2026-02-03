@@ -78,8 +78,4 @@ impl HashtagService {
             .collect())
     }
 
-    pub fn increment_activity(&self, user_id: &Uuid, hashtag: &str) -> ApiResult<()> {
-        self.store.increment_activity(user_id, hashtag)?;
-        Ok(())
-    }
 }

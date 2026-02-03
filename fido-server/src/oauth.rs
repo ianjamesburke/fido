@@ -178,6 +178,7 @@ mod tests {
 
     #[test]
     fn test_oauth_config_from_env() {
+        let _guard = crate::test_utils::env_lock().lock().unwrap();
         std::env::set_var("GITHUB_CLIENT_ID", "test_client_id");
 
         let config = GitHubOAuthConfig::from_env().unwrap();

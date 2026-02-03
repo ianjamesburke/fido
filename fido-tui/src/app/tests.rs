@@ -1,5 +1,6 @@
 use super::*;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use fido_types::Post;
 
 /// Helper to create a KeyEvent
 fn key_event(code: KeyCode) -> KeyEvent {

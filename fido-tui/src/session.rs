@@ -18,12 +18,22 @@ impl SessionStore {
     /// # Returns
     ///
     /// Returns an error if the home directory cannot be determined.
+    #[cfg(not(test))]
     pub fn new() -> Result<Self> {
         let home_dir = dirs::home_dir().context("Failed to determine home directory")?;
 
         let fido_dir = home_dir.join(".fido");
         let file_path = fido_dir.join("session");
 
+        Ok(Self { file_path })
+    }
+
+    /// Creates a new SessionStore with a temp directory for tests.
+    #[cfg(test)]
+    pub fn new() -> Result<Self> {
+        let pid = std::process::id();
+        let fido_dir = std::env::temp_dir().join(format!("fido-test-{}", pid));
+        let file_path = fido_dir.join("session");
         Ok(Self { file_path })
     }
 

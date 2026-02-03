@@ -15,8 +15,7 @@ use std::fmt;
 use thiserror::Error;
 
 pub use cors::CorsConfig;
-pub use errors::{ErrorCode, SecureError, SecureResult};
-pub use audit::{AuditError, AuditEvent, AuditEventType, AuditLogEntry, AuditLogger, AuditResult};
+pub use audit::{AuditEvent, AuditEventType, AuditLogger};
 pub use cookies::{is_https, create_session_cookie};
 
 /// Security configuration errors
@@ -28,8 +27,6 @@ pub enum SecurityConfigError {
     #[error("Invalid configuration value for {field}: {message}")]
     InvalidValue { field: String, message: String },
 
-    #[error("Environment variable error: {0}")]
-    EnvError(String),
 }
 
 /// Application environment
@@ -246,17 +243,6 @@ impl SecurityConfig {
         );
     }
 
-    /// Check if a specific origin is allowed
-    pub fn is_origin_allowed(&self, origin: &str) -> bool {
-        // In development, also allow localhost variants
-        if self.environment.is_development() {
-            if origin.starts_with("http://localhost:") || origin.starts_with("http://127.0.0.1:") {
-                return true;
-            }
-        }
-
-        self.allowed_origins.iter().any(|o| o == origin)
-    }
 }
 
 #[cfg(test)]
@@ -356,31 +342,6 @@ mod tests {
         };
         let result = config.validate();
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_is_origin_allowed_production() {
-        let config = SecurityConfig {
-            environment: Environment::Production,
-            allowed_origins: vec!["https://fido-social.fly.dev".to_string()],
-            ..Default::default()
-        };
-        assert!(config.is_origin_allowed("https://fido-social.fly.dev"));
-        assert!(!config.is_origin_allowed("http://localhost:3000"));
-        assert!(!config.is_origin_allowed("https://evil.com"));
-    }
-
-    #[test]
-    fn test_is_origin_allowed_development() {
-        let config = SecurityConfig {
-            environment: Environment::Development,
-            allowed_origins: vec!["http://localhost:3000".to_string()],
-            ..Default::default()
-        };
-        assert!(config.is_origin_allowed("http://localhost:3000"));
-        assert!(config.is_origin_allowed("http://localhost:8080")); // Any localhost port in dev
-        assert!(config.is_origin_allowed("http://127.0.0.1:3000"));
-        assert!(!config.is_origin_allowed("https://evil.com"));
     }
 
     #[test]

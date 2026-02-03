@@ -14,6 +14,8 @@ pub mod services;
 pub mod stores;
 pub mod session;
 pub mod state;
+#[cfg(test)]
+pub mod test_utils;
 
 use axum::{
     middleware,

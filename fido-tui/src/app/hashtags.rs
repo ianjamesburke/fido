@@ -1,4 +1,5 @@
 use super::*;
+use crossterm::event::{KeyCode, KeyEvent};
 
 impl App {
     /// Load hashtags list from API

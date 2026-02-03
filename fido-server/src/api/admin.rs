@@ -235,6 +235,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_config_does_not_expose_secrets() {
+        let _guard = crate::test_utils::env_lock().lock().unwrap();
         // Set a test GitHub client ID to verify it's not exposed
         std::env::set_var("GITHUB_CLIENT_ID", "test_secret_client_id_12345");
         

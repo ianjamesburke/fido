@@ -52,11 +52,10 @@ impl From<SecureError> for ApiError {
         match secure_error.code() {
             ErrorCode::NotFound => ApiError::NotFound("Resource not found".to_string()),
             ErrorCode::BadRequest => ApiError::BadRequest("Bad request".to_string()),
-            ErrorCode::ValidationError => ApiError::BadRequest("Validation failed".to_string()),
             ErrorCode::AuthenticationError => ApiError::Unauthorized("Authentication required".to_string()),
             ErrorCode::AuthorizationError => ApiError::Forbidden("Access denied".to_string()),
             ErrorCode::RateLimitExceeded => ApiError::TooManyRequests("Rate limit exceeded".to_string()),
-            ErrorCode::DatabaseError | ErrorCode::InternalError | ErrorCode::Conflict => {
+            ErrorCode::DatabaseError | ErrorCode::InternalError => {
                 ApiError::InternalError("Internal server error".to_string())
             }
         }

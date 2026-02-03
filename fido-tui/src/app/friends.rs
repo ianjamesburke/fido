@@ -1,4 +1,5 @@
 use super::*;
+use crossterm::event::{KeyCode, KeyEvent};
 
 impl App {
     /// Load social connections (following, followers, mutual friends)

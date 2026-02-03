@@ -40,9 +40,17 @@ impl ConfigManager {
     }
 
     /// Get the .fido configuration directory path
+    #[cfg(not(test))]
     fn get_config_dir() -> Result<PathBuf> {
         let home_dir = dirs::home_dir().context("Could not determine home directory")?;
         Ok(home_dir.join(".fido"))
+    }
+
+    /// Get the .fido configuration directory path (tests).
+    #[cfg(test)]
+    fn get_config_dir() -> Result<PathBuf> {
+        let pid = std::process::id();
+        Ok(std::env::temp_dir().join(format!("fido-test-{}", pid)))
     }
 
     /// Get the session file path for a specific instance

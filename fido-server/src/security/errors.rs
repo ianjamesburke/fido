@@ -25,16 +25,12 @@ pub enum ErrorCode {
     AuthorizationError,
     /// Resource not found
     NotFound,
-    /// Input validation failed
-    ValidationError,
     /// Rate limit exceeded
     RateLimitExceeded,
     /// Internal server error (catch-all)
     InternalError,
     /// Bad request (malformed input)
     BadRequest,
-    /// Conflict (e.g., duplicate resource)
-    Conflict,
 }
 
 impl ErrorCode {
@@ -45,11 +41,9 @@ impl ErrorCode {
             ErrorCode::AuthenticationError => StatusCode::UNAUTHORIZED,
             ErrorCode::AuthorizationError => StatusCode::FORBIDDEN,
             ErrorCode::NotFound => StatusCode::NOT_FOUND,
-            ErrorCode::ValidationError => StatusCode::BAD_REQUEST,
             ErrorCode::RateLimitExceeded => StatusCode::TOO_MANY_REQUESTS,
             ErrorCode::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             ErrorCode::BadRequest => StatusCode::BAD_REQUEST,
-            ErrorCode::Conflict => StatusCode::CONFLICT,
         }
     }
 
@@ -60,11 +54,9 @@ impl ErrorCode {
             ErrorCode::AuthenticationError => "Authentication required",
             ErrorCode::AuthorizationError => "Access denied",
             ErrorCode::NotFound => "Resource not found",
-            ErrorCode::ValidationError => "Validation failed",
             ErrorCode::RateLimitExceeded => "Too many requests",
             ErrorCode::InternalError => "Internal server error",
             ErrorCode::BadRequest => "Bad request",
-            ErrorCode::Conflict => "Resource conflict",
         }
     }
 }
@@ -143,17 +135,6 @@ impl SecureError {
         )
     }
 
-    /// Create a validation error with specific details for the client
-    pub fn validation(field: impl Into<String>, message: impl Into<String>) -> Self {
-        let field = field.into();
-        let message = message.into();
-        Self::with_public_details(
-            ErrorCode::ValidationError,
-            format!("Validation failed for {}: {}", field, message),
-            format!("{}: {}", field, message),
-        )
-    }
-
     /// Create a rate limit error
     pub fn rate_limit(details: impl Into<String>) -> Self {
         Self::with_public_details(
@@ -172,16 +153,6 @@ impl SecureError {
     pub fn bad_request(reason: impl Into<String>) -> Self {
         let reason = reason.into();
         Self::with_public_details(ErrorCode::BadRequest, &reason, reason.clone())
-    }
-
-    /// Create a conflict error
-    pub fn conflict(resource: impl Into<String>) -> Self {
-        let resource = resource.into();
-        Self::with_public_details(
-            ErrorCode::Conflict,
-            format!("Conflict: {}", resource),
-            format!("{} already exists", resource),
-        )
     }
 
     /// Get the error code
@@ -281,9 +252,6 @@ impl From<anyhow::Error> for SecureError {
     }
 }
 
-/// Result type alias for SecureError
-pub type SecureResult<T> = Result<T, SecureError>;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -304,10 +272,6 @@ mod tests {
         );
         assert_eq!(ErrorCode::NotFound.status_code(), StatusCode::NOT_FOUND);
         assert_eq!(
-            ErrorCode::ValidationError.status_code(),
-            StatusCode::BAD_REQUEST
-        );
-        assert_eq!(
             ErrorCode::RateLimitExceeded.status_code(),
             StatusCode::TOO_MANY_REQUESTS
         );
@@ -316,7 +280,6 @@ mod tests {
             StatusCode::INTERNAL_SERVER_ERROR
         );
         assert_eq!(ErrorCode::BadRequest.status_code(), StatusCode::BAD_REQUEST);
-        assert_eq!(ErrorCode::Conflict.status_code(), StatusCode::CONFLICT);
     }
 
     #[test]
@@ -330,11 +293,6 @@ mod tests {
         assert_eq!(
             ErrorCode::InternalError.public_message(),
             "Internal server error"
-        );
-        // Validation errors can be more specific
-        assert_eq!(
-            ErrorCode::ValidationError.public_message(),
-            "Validation failed"
         );
     }
 
@@ -363,22 +321,6 @@ mod tests {
         assert!(!display.contains("main.rs"));
         assert!(!display.contains("handler.rs"));
         assert_eq!(display, "Internal server error");
-    }
-
-    #[test]
-    fn test_secure_error_validation_shows_details() {
-        let err = SecureError::validation("username", "must be between 3 and 20 characters");
-
-        // Validation errors should show public details
-        assert_eq!(err.code(), ErrorCode::ValidationError);
-
-        // The public details should be available
-        assert!(err.public_details.is_some());
-        assert!(err
-            .public_details
-            .as_ref()
-            .unwrap()
-            .contains("must be between"));
     }
 
     #[test]
@@ -438,21 +380,8 @@ mod tests {
     }
 
     #[test]
-    fn test_secure_error_conflict() {
-        let err = SecureError::conflict("Username");
-
-        assert_eq!(err.code(), ErrorCode::Conflict);
-        assert!(err.public_details.is_some());
-        assert!(err
-            .public_details
-            .as_ref()
-            .unwrap()
-            .contains("already exists"));
-    }
-
-    #[test]
     fn test_error_code_display() {
         assert_eq!(format!("{}", ErrorCode::DatabaseError), "DatabaseError");
-        assert_eq!(format!("{}", ErrorCode::ValidationError), "ValidationError");
+        assert_eq!(format!("{}", ErrorCode::BadRequest), "BadRequest");
     }
 }

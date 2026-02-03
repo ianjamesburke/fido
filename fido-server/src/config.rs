@@ -120,11 +120,6 @@ impl Settings {
         Ok(builder)
     }
 
-    /// Get the server bind address as a formatted string
-    pub fn bind_address(&self) -> String {
-        format!("{}:{}", self.server.host, self.server.port)
-    }
-
     /// Validate configuration values
     pub fn validate(&self) -> Result<(), ConfigError> {
         // Validate port range
@@ -152,9 +147,11 @@ impl Settings {
 mod tests {
     use super::*;
     use std::env;
+    use crate::test_utils::env_lock;
 
     #[test]
     fn test_default_settings() {
+        let _guard = env_lock().lock().unwrap();
         let settings = Settings::default();
         assert_eq!(settings.server.host, DEFAULT_HOST);
         assert_eq!(settings.server.port, DEFAULT_PORT);
@@ -163,13 +160,8 @@ mod tests {
     }
 
     #[test]
-    fn test_bind_address_formatting() {
-        let settings = Settings::default();
-        assert_eq!(settings.bind_address(), "0.0.0.0:3000");
-    }
-
-    #[test]
     fn test_validation_success() {
+        let _guard = env_lock().lock().unwrap();
         let mut settings = Settings::default();
         settings.oauth.github_client_id = "test_client_id".to_string();
         assert!(settings.validate().is_ok());
@@ -177,6 +169,7 @@ mod tests {
 
     #[test]
     fn test_validation_zero_port() {
+        let _guard = env_lock().lock().unwrap();
         let mut settings = Settings::default();
         settings.server.port = 0;
         assert!(settings.validate().is_err());
@@ -184,6 +177,7 @@ mod tests {
 
     #[test]
     fn test_validation_empty_host() {
+        let _guard = env_lock().lock().unwrap();
         let mut settings = Settings::default();
         settings.server.host = String::new();
         settings.oauth.github_client_id = "test_client_id".to_string();
@@ -192,6 +186,7 @@ mod tests {
 
     #[test]
     fn test_validation_missing_github_client_id() {
+        let _guard = env_lock().lock().unwrap();
         let settings = Settings::default(); // github_client_id is empty by default
         let result = settings.validate();
         assert!(result.is_err());
@@ -203,6 +198,7 @@ mod tests {
 
     #[test]
     fn test_environment_variable_overrides() {
+        let _guard = env_lock().lock().unwrap();
         // Set environment variables
         env::set_var("HOST", "127.0.0.1");
         env::set_var("PORT", "8080");

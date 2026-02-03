@@ -5,11 +5,6 @@ pub mod profile;
 pub mod settings;
 
 // Re-export the handler functions that are called from app/mod.rs
-pub use dms::handle_dms_keys;
-pub use modals::handle_filter_modal_keys;
-pub use posts::handle_posts_keys;
-pub use profile::handle_profile_keys;
-pub use settings::handle_settings_keys;
 
 use crate::app::state::{App, InputMode, Screen, Tab};
 use anyhow::Result;

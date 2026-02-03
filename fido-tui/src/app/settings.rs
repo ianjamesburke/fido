@@ -28,6 +28,48 @@ impl App {
         Ok(())
     }
 
+    /// Try to switch tab, checking for unsaved changes
+    pub fn try_switch_tab(&mut self, new_tab: super::Tab) {
+        // If we're leaving settings with unsaved changes, show confirmation
+        if self.current_tab == super::Tab::Settings && self.settings_state.has_unsaved_changes {
+            self.settings_state.show_save_confirmation = true;
+            self.settings_state.pending_tab = Some(new_tab);
+        } else {
+            self.current_tab = new_tab;
+        }
+    }
+
+    /// Confirm tab switch or logout without saving
+    pub fn confirm_discard_changes(&mut self) {
+        self.settings_state.has_unsaved_changes = false;
+        self.settings_state.show_save_confirmation = false;
+
+        if let Some(pending_tab) = self.settings_state.pending_tab.take() {
+            // Switch to pending tab
+            self.current_tab = pending_tab;
+        } else {
+            // No pending tab means logout/exit was requested
+            // Clear session file
+            if let Err(e) = self.config_manager.delete_session(&self.instance_id) {
+                eprintln!("Warning: Failed to delete session: {}", e);
+            }
+
+            // Reset app state
+            self.auth_state.current_user = None;
+            self.current_screen = super::Screen::Auth;
+            self.posts_state.posts.clear();
+            self.profile_state.profile = None;
+            self.dms_state.conversations.clear();
+            self.dms_state.messages.clear();
+        }
+    }
+
+    /// Cancel tab switch
+    pub fn cancel_tab_switch(&mut self) {
+        self.settings_state.show_save_confirmation = false;
+        self.settings_state.pending_tab = None;
+    }
+
     /// Cycle color scheme
     pub fn cycle_color_scheme(&mut self) {
         if let Some(config) = &mut self.settings_state.config {

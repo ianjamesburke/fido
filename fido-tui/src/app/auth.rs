@@ -1,4 +1,5 @@
 use anyhow::Result;
+use crossterm::event::{KeyCode, KeyEvent};
 
 use super::{App, Screen, Tab};
 
@@ -123,6 +124,27 @@ impl App {
             }
         }
 
+        Ok(())
+    }
+
+
+    /// Handle keys for authentication screen
+    pub fn handle_auth_keys(&mut self, key: KeyEvent) -> Result<()> {
+        match key.code {
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => {
+                if self.auth_state.selected_index > 0 {
+                    self.auth_state.selected_index -= 1;
+                }
+            }
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
+                // Limit to 3 test users (alice, bob, charlie)
+                let max_users = self.auth_state.test_users.len().min(3);
+                if self.auth_state.selected_index < max_users.saturating_sub(1) {
+                    self.auth_state.selected_index += 1;
+                }
+            }
+            _ => {}
+        }
         Ok(())
     }
 }

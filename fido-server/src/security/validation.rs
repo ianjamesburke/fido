@@ -51,19 +51,6 @@ pub enum ValidationError {
     DangerousContent { field: String },
 }
 
-impl ValidationError {
-    /// Get the field name that failed validation
-    pub fn field(&self) -> &str {
-        match self {
-            ValidationError::Empty { field } => field,
-            ValidationError::TooLong { field, .. } => field,
-            ValidationError::TooShort { field, .. } => field,
-            ValidationError::InvalidCharacters { field, .. } => field,
-            ValidationError::DangerousContent { field } => field,
-        }
-    }
-}
-
 /// Result type for validation operations
 pub type ValidationResult<T> = Result<T, ValidationError>;
 
@@ -352,38 +339,6 @@ impl InputValidator {
     }
 }
 
-/// Sanitize text content for safe display
-///
-/// This function escapes HTML special characters to prevent XSS attacks
-/// when displaying user-provided content. It converts:
-/// - `<` to `&lt;`
-/// - `>` to `&gt;`
-/// - `&` to `&amp;`
-/// - `"` to `&quot;`
-/// - `'` to `&#x27;`
-///
-/// # Arguments
-/// * `text` - The text to sanitize
-///
-/// # Returns
-/// The sanitized text with HTML entities escaped
-pub fn sanitize_text(text: &str) -> String {
-    let mut result = String::with_capacity(text.len());
-
-    for ch in text.chars() {
-        match ch {
-            '<' => result.push_str("&lt;"),
-            '>' => result.push_str("&gt;"),
-            '&' => result.push_str("&amp;"),
-            '"' => result.push_str("&quot;"),
-            '\'' => result.push_str("&#x27;"),
-            _ => result.push(ch),
-        }
-    }
-
-    result
-}
-
 /// Convenience function to validate a username
 pub fn validate_username(username: &str) -> ValidationResult<()> {
     InputValidator::new().validate_username(username)
@@ -587,34 +542,6 @@ mod tests {
         ));
     }
 
-    // Sanitize text tests
-    #[test]
-    fn test_sanitize_text_basic() {
-        assert_eq!(sanitize_text("Hello"), "Hello");
-        assert_eq!(sanitize_text("Hello World"), "Hello World");
-    }
-
-    #[test]
-    fn test_sanitize_text_html_entities() {
-        assert_eq!(sanitize_text("<script>"), "&lt;script&gt;");
-        assert_eq!(sanitize_text("a < b > c"), "a &lt; b &gt; c");
-        assert_eq!(sanitize_text("Tom & Jerry"), "Tom &amp; Jerry");
-        assert_eq!(sanitize_text("Say \"hello\""), "Say &quot;hello&quot;");
-        assert_eq!(sanitize_text("It's fine"), "It&#x27;s fine");
-    }
-
-    #[test]
-    fn test_sanitize_text_xss_prevention() {
-        let malicious = "<script>alert('xss')</script>";
-        let sanitized = sanitize_text(malicious);
-        assert!(!sanitized.contains('<'));
-        assert!(!sanitized.contains('>'));
-        assert_eq!(
-            sanitized,
-            "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;"
-        );
-    }
-
     // Dangerous pattern detection tests
     #[test]
     fn test_dangerous_patterns_script_tags() {
@@ -654,22 +581,6 @@ mod tests {
         assert!(validate_bio("Hello!").is_ok());
         assert!(validate_post_content("Hello world!").is_ok());
         assert!(validate_hashtag("rust").is_ok());
-    }
-
-    // ValidationError tests
-    #[test]
-    fn test_validation_error_field() {
-        let err = ValidationError::Empty {
-            field: "Username".to_string(),
-        };
-        assert_eq!(err.field(), "Username");
-
-        let err = ValidationError::TooLong {
-            field: "Bio".to_string(),
-            max: 160,
-            current: 200,
-        };
-        assert_eq!(err.field(), "Bio");
     }
 
     #[test]

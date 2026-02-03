@@ -11,6 +11,8 @@ mod services;
 mod stores;
 mod session;
 mod state;
+#[cfg(test)]
+mod test_utils;
 
 use axum::{
     middleware,

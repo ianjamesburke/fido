@@ -218,6 +218,7 @@ fn map_relationship(info: &RelationshipInfo) -> RelationshipStatus {
 mod tests {
     use super::*;
     use crate::db::Database;
+    use crate::db::repositories::UserRepository;
     use crate::state::AppState;
     use axum::http::{HeaderMap, HeaderValue};
 

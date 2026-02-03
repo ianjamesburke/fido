@@ -45,9 +45,18 @@ pub struct ApiClient {
 impl ApiClient {
     /// Create a new API client
     pub fn new(base_url: impl Into<String>) -> Self {
-        let client = Client::builder()
+        let builder = Client::builder()
             .timeout(std::time::Duration::from_secs(30))
-            .connect_timeout(std::time::Duration::from_secs(10))
+            .connect_timeout(std::time::Duration::from_secs(10));
+
+        let builder = if cfg!(test) {
+            // Avoid system proxy lookups in tests (can panic in sandboxed environments).
+            builder.no_proxy()
+        } else {
+            builder
+        };
+
+        let client = builder
             .build()
             .expect("Failed to create HTTP client");
 

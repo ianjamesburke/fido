@@ -66,28 +66,6 @@ impl CorsConfig {
         &self.allowed_origins
     }
 
-    /// Get the allowed methods
-    pub fn allowed_methods(&self) -> &[Method] {
-        &self.allowed_methods
-    }
-
-    /// Get the allowed headers
-    pub fn allowed_headers(&self) -> &[HeaderName] {
-        &self.allowed_headers
-    }
-
-    /// Check if an origin is allowed
-    pub fn is_origin_allowed(&self, origin: &str) -> bool {
-        // In development, allow any localhost origin
-        if self.environment.is_development() {
-            if origin.starts_with("http://localhost:") || origin.starts_with("http://127.0.0.1:") {
-                return true;
-            }
-        }
-
-        self.allowed_origins.iter().any(|o| o == origin)
-    }
-
     /// Convert to a tower-http CorsLayer
     ///
     /// This creates a CorsLayer that:
@@ -139,59 +117,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_cors_config_production() {
-        let config = CorsConfig::for_environment(Environment::Production);
-
-        // Should only allow the production origin
-        assert!(config.is_origin_allowed("https://fido-social.fly.dev"));
-        assert!(!config.is_origin_allowed("http://localhost:3000"));
-        assert!(!config.is_origin_allowed("http://127.0.0.1:8080"));
-        assert!(!config.is_origin_allowed("https://evil.com"));
-    }
-
-    #[test]
-    fn test_cors_config_development() {
-        let config = CorsConfig::for_environment(Environment::Development);
-
-        // Should allow localhost origins
-        assert!(config.is_origin_allowed("http://localhost:3000"));
-        assert!(config.is_origin_allowed("http://localhost:8080"));
-        assert!(config.is_origin_allowed("http://localhost:5173"));
-        assert!(config.is_origin_allowed("http://127.0.0.1:3000"));
-        assert!(config.is_origin_allowed("http://127.0.0.1:8080"));
-
-        // Should allow any localhost port in development
-        assert!(config.is_origin_allowed("http://localhost:9999"));
-        assert!(config.is_origin_allowed("http://127.0.0.1:12345"));
-
-        // Should not allow external origins
-        assert!(!config.is_origin_allowed("https://evil.com"));
-        assert!(!config.is_origin_allowed("https://fido-social.fly.dev"));
-    }
-
-    #[test]
-    fn test_cors_config_allowed_methods() {
-        let config = CorsConfig::for_environment(Environment::Production);
-        let methods = config.allowed_methods();
-
-        assert!(methods.contains(&Method::GET));
-        assert!(methods.contains(&Method::POST));
-        assert!(methods.contains(&Method::PUT));
-        assert!(methods.contains(&Method::DELETE));
-        assert!(!methods.contains(&Method::PATCH));
-        assert!(!methods.contains(&Method::OPTIONS)); // OPTIONS is handled automatically by CORS
-    }
-
-    #[test]
-    fn test_cors_config_allowed_headers() {
-        let config = CorsConfig::for_environment(Environment::Production);
-        let headers = config.allowed_headers();
-
-        assert!(headers.contains(&header::CONTENT_TYPE));
-        assert!(headers.contains(&HeaderName::from_static("x-session-token")));
-    }
-
-    #[test]
     fn test_cors_layer_creation() {
         // Just verify that to_cors_layer doesn't panic
         let config = CorsConfig::for_environment(Environment::Production);
@@ -206,7 +131,5 @@ mod tests {
         let config = CorsConfig::for_environment(Environment::Production);
 
         assert_eq!(config.allowed_origins().len(), 1);
-        assert_eq!(config.allowed_methods().len(), 4);
-        assert_eq!(config.allowed_headers().len(), 2);
     }
 }
