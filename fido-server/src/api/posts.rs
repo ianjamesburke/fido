@@ -3,8 +3,7 @@ use axum::{
     http::HeaderMap,
     Json,
 };
-use chrono::{DateTime, Duration, Utc};
-use rusqlite::OptionalExtension;
+use chrono::{Duration, Utc};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -21,28 +20,13 @@ use fido_types::{CreatePostRequest, Post, SortOrder, VoteDirection, VoteRequest}
 
 /// Check if user has exceeded post rate limit (1 post per 10 seconds)
 fn check_post_rate_limit(state: &AppState, user_id: &Uuid) -> Result<(), ApiError> {
-    let conn = state
-        .db
-        .pool
-        .get()
+    let last_post_at = state
+        .stores
+        .rate_limits
+        .get_last_post_at(user_id)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
 
-    // Query last post time for this user
-    let last_post_at: Option<String> = conn
-        .query_row(
-            "SELECT last_post_at FROM post_rate_limits WHERE user_id = ?",
-            [user_id.to_string()],
-            |row| row.get(0),
-        )
-        .optional()
-        .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    if let Some(last_post_str) = last_post_at {
-        // Parse the timestamp
-        let last_post = DateTime::parse_from_rfc3339(&last_post_str)
-            .map_err(|e| ApiError::InternalError(format!("Failed to parse timestamp: {}", e)))?
-            .with_timezone(&Utc);
-
+    if let Some(last_post) = last_post_at {
         let now = Utc::now();
         let time_since_last_post = now.signed_duration_since(last_post);
         // Rate limit: 10 seconds between posts
@@ -64,21 +48,11 @@ fn check_post_rate_limit(state: &AppState, user_id: &Uuid) -> Result<(), ApiErro
 
 /// Update the rate limit timestamp after successful post creation
 fn update_post_rate_limit(state: &AppState, user_id: &Uuid) -> Result<(), ApiError> {
-    let conn = state
-        .db
-        .pool
-        .get()
+    state
+        .stores
+        .rate_limits
+        .update_last_post_at(user_id, Utc::now())
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
-    let now = Utc::now().to_rfc3339();
-
-    conn.execute(
-        "INSERT INTO post_rate_limits (user_id, last_post_at) VALUES (?, ?)
-         ON CONFLICT(user_id) DO UPDATE SET last_post_at = excluded.last_post_at",
-        (user_id.to_string(), now),
-    )
-    .map_err(|e| ApiError::InternalError(e.to_string()))?;
-
     Ok(())
 }
 
@@ -104,7 +78,7 @@ pub async fn get_posts(
     OptionalUser(user_id): OptionalUser,
     Query(query): Query<GetPostsQuery>,
 ) -> ApiResult<Json<Vec<Post>>> {
-    let service = PostService::sqlite(state.db.pool.clone());
+    let service = PostService::new(state.stores.clone());
 
     // Parse and validate sort order - reject invalid values
     let sort_order = if let Some(sort_str) = query.sort.as_deref() {
@@ -136,7 +110,7 @@ pub async fn create_post(
     headers: HeaderMap,
     Json(payload): Json<CreatePostRequest>,
 ) -> ApiResult<Json<Post>> {
-    let service = PostService::sqlite(state.db.pool.clone());
+    let service = PostService::new(state.stores.clone());
     let client_ip = extract_client_ip(&headers);
     let user_agent = extract_user_agent(&headers);
 
@@ -204,7 +178,7 @@ pub async fn vote_on_post(
     Path(post_id): Path<String>,
     Json(payload): Json<VoteRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let service = PostService::sqlite(state.db.pool.clone());
+    let service = PostService::new(state.stores.clone());
     // Parse post ID
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
@@ -233,7 +207,7 @@ pub async fn get_replies(
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
 
-    let service = PostService::sqlite(state.db.pool.clone());
+    let service = PostService::new(state.stores.clone());
     let replies = service.get_replies(&post_id, user_id)?;
 
     Ok(Json(replies))
@@ -247,7 +221,7 @@ pub async fn create_reply(
     headers: HeaderMap,
     Json(payload): Json<fido_types::CreateReplyRequest>,
 ) -> ApiResult<Json<Post>> {
-    let service = PostService::sqlite(state.db.pool.clone());
+    let service = PostService::new(state.stores.clone());
     let client_ip = extract_client_ip(&headers);
     let user_agent = extract_user_agent(&headers);
 
@@ -345,7 +319,7 @@ pub async fn update_post(
     headers: HeaderMap,
     Json(payload): Json<fido_types::UpdatePostRequest>,
 ) -> ApiResult<Json<Post>> {
-    let service = PostService::sqlite(state.db.pool.clone());
+    let service = PostService::new(state.stores.clone());
     let client_ip = extract_client_ip(&headers);
     let user_agent = extract_user_agent(&headers);
 
@@ -397,7 +371,7 @@ pub async fn delete_post(
     AuthenticatedUser(user_id): AuthenticatedUser,
     Path(post_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let service = PostService::sqlite(state.db.pool.clone());
+    let service = PostService::new(state.stores.clone());
     // Parse post ID
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
@@ -428,7 +402,7 @@ pub async fn get_post(
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
 
-    let service = PostService::sqlite(state.db.pool.clone());
+    let service = PostService::new(state.stores.clone());
     let post = service.get_post(&post_id, user_id)?;
 
     Ok(Json(post))
@@ -444,7 +418,7 @@ pub async fn get_thread(
     let post_id = Uuid::parse_str(&post_id)
         .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
 
-    let service = PostService::sqlite(state.db.pool.clone());
+    let service = PostService::new(state.stores.clone());
     let (root_post, replies) = service.get_thread_parts(&post_id, user_id)?;
 
     // Return root post with all replies

@@ -8,9 +8,9 @@ mod oauth;
 mod rate_limit;
 mod security;
 mod services;
-mod stores;
 mod session;
 mod state;
+mod stores;
 #[cfg(test)]
 mod test_utils;
 
@@ -22,6 +22,7 @@ use axum::{
 use clap::Parser;
 use rate_limit::RateLimiter;
 use state::AppState;
+use stores::Stores;
 use std::net::SocketAddr;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::ServeDir;
@@ -188,8 +189,17 @@ async fn main() {
 
     tracing::info!("Database initialized successfully");
 
+    let stores = match Stores::from_env(db.pool.clone()) {
+        Ok(stores) => stores,
+        Err(e) => {
+            tracing::error!("Failed to initialize stores: {}", e);
+            eprintln!("FATAL: Failed to initialize stores: {}", e);
+            std::process::exit(1);
+        }
+    };
+
     // Create application state
-    let state = AppState::new(db);
+    let state = AppState::new_with_stores(db, stores);
 
     // Run initial session cleanup on startup
     tracing::info!("Running initial session cleanup...");
@@ -227,7 +237,10 @@ async fn main() {
     });
 
     // Configure CORS using environment-aware configuration
-    let cors_config = security::CorsConfig::for_environment(security_config.environment);
+    let cors_config = security::CorsConfig::new(
+        security_config.environment,
+        security_config.allowed_origins.clone(),
+    );
     tracing::info!(
         "CORS configured for {} environment with origins: {:?}",
         security_config.environment,
@@ -250,13 +263,19 @@ async fn main() {
         .merge(
             Router::new()
                 .route("/auth/cleanup-sessions", post(api::auth::cleanup_sessions))
-                .route_layer(middleware::from_fn_with_state(state.clone(), security::admin::require_admin))
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    security::admin::require_admin,
+                )),
         )
         // Admin-only configuration routes (protected by require_admin middleware)
         .merge(
             Router::new()
                 .route("/admin/config/validate", get(api::admin::validate_config))
-                .route_layer(middleware::from_fn_with_state(state.clone(), security::admin::require_admin))
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    security::admin::require_admin,
+                )),
         )
         // GitHub Device Flow routes
         .route("/auth/github/device", post(api::auth::github_device_flow))
@@ -324,11 +343,16 @@ async fn main() {
         .route("/social/followers", get(api::friends::get_followers_list))
         .route("/social/mutual", get(api::friends::get_mutual_friends_list))
         .with_state(state.clone())
-        .layer(middleware::from_fn_with_state(state, rate_limit::rate_limit_middleware))
+        .layer(middleware::from_fn_with_state(
+            state,
+            rate_limit::rate_limit_middleware,
+        ))
         .layer(axum::Extension(rate_limiter))
         .layer(cors)
         // Security headers middleware - adds X-Content-Type-Options, X-Frame-Options, etc.
-        .layer(middleware::from_fn(security::headers::create_security_headers_layer(security_config.environment)))
+        .layer(middleware::from_fn(
+            security::headers::create_security_headers_layer(security_config.environment),
+        ))
         // Request body size limit: 1MB (1024 * 1024 bytes)
         .layer(RequestBodyLimitLayer::new(1024 * 1024))
         // Serve static files from web directory - only for unmatched routes

@@ -10,7 +10,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use super::{ApiError, ApiResult};
-use crate::db::repositories::UserRepository;
 use crate::http::{extract_client_ip, extract_user_agent};
 use crate::oauth::GitHubOAuthConfig;
 use crate::security::validation::validate_username;
@@ -50,8 +49,9 @@ pub struct ValidateSessionResponse {
 
 /// GET /users/test - List all test users
 pub async fn list_test_users(State(state): State<AppState>) -> ApiResult<Json<Vec<User>>> {
-    let repo = UserRepository::new(state.db.pool.clone());
-    let users = repo
+    let users = state
+        .stores
+        .users
         .get_test_users()
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
 
@@ -80,10 +80,8 @@ pub async fn login(
         return Err(ApiError::BadRequest(e.to_string()));
     }
 
-    let repo = UserRepository::new(state.db.pool.clone());
-
     // Find user by username
-    let user = match repo.get_by_username(&payload.username) {
+    let user = match state.stores.users.get_by_username(&payload.username) {
         Ok(Some(u)) => u,
         Ok(None) => {
             // Log login failure - user not found
@@ -362,8 +360,9 @@ pub async fn github_device_poll(
     );
 
     // Create or update user in database
-    let repo = UserRepository::new(state.db.pool.clone());
-    let user = repo
+    let user = state
+        .stores
+        .users
         .create_or_update_from_github(
             github_user.id,
             &github_user.login,
@@ -444,8 +443,9 @@ pub async fn validate_session(
         .map_err(|_| ApiError::Unauthorized("Invalid or expired session".to_string()))?;
 
     // Get user information
-    let repo = UserRepository::new(state.db.pool.clone());
-    let user = repo
+    let user = state
+        .stores
+        .users
         .get_by_id(&user_id)
         .map_err(|e| ApiError::InternalError(format!("Failed to get user: {}", e)))?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;

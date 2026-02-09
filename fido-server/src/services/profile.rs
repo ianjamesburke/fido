@@ -3,7 +3,6 @@
 use uuid::Uuid;
 
 use crate::api::{ApiError, ApiResult};
-use crate::db::DbPool;
 use crate::stores::Stores;
 use fido_types::UserProfile;
 
@@ -14,10 +13,6 @@ pub struct ProfileService {
 impl ProfileService {
     pub fn new(stores: Stores) -> Self {
         Self { stores }
-    }
-
-    pub fn sqlite(pool: DbPool) -> Self {
-        Self::new(Stores::sqlite(pool))
     }
 
     pub fn get_profile(&self, user_id: &Uuid) -> ApiResult<UserProfile> {

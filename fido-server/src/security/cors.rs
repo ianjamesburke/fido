@@ -4,7 +4,7 @@
 //! interface from CSRF attacks while allowing CLI and TUI clients to function.
 //!
 //! Key behaviors:
-//! - Production: Only allows https://fido-social.fly.dev origin
+//! - Production: Allows explicitly configured origins
 //! - Development: Allows http://localhost:* origins for local testing
 //! - Always allows requests without Origin header (CLI/TUI clients)
 //! - Restricts methods to GET, POST, PUT, DELETE
@@ -28,7 +28,25 @@ pub struct CorsConfig {
 }
 
 impl CorsConfig {
+    /// Create a new CorsConfig with explicit origins.
+    pub fn new(environment: Environment, allowed_origins: Vec<String>) -> Self {
+        let allowed_methods = vec![Method::GET, Method::POST, Method::PUT, Method::DELETE];
+
+        let allowed_headers = vec![
+            header::CONTENT_TYPE,
+            HeaderName::from_static("x-session-token"),
+        ];
+
+        Self {
+            allowed_origins,
+            allowed_methods,
+            allowed_headers,
+            environment,
+        }
+    }
+
     /// Create a new CorsConfig for the given environment
+    #[cfg(test)]
     pub fn for_environment(environment: Environment) -> Self {
         let allowed_origins = match environment {
             Environment::Production => {
@@ -46,19 +64,7 @@ impl CorsConfig {
             }
         };
 
-        let allowed_methods = vec![Method::GET, Method::POST, Method::PUT, Method::DELETE];
-
-        let allowed_headers = vec![
-            header::CONTENT_TYPE,
-            HeaderName::from_static("x-session-token"),
-        ];
-
-        Self {
-            allowed_origins,
-            allowed_methods,
-            allowed_headers,
-            environment,
-        }
+        Self::new(environment, allowed_origins)
     }
 
     /// Get the allowed origins

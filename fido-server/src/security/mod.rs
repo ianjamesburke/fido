@@ -14,9 +14,9 @@ pub mod validation;
 use std::fmt;
 use thiserror::Error;
 
-pub use cors::CorsConfig;
 pub use audit::{AuditEvent, AuditEventType, AuditLogger};
-pub use cookies::{is_https, create_session_cookie};
+pub use cookies::{create_session_cookie, is_https};
+pub use cors::CorsConfig;
 
 /// Security configuration errors
 #[derive(Debug, Error)]
@@ -26,7 +26,6 @@ pub enum SecurityConfigError {
 
     #[error("Invalid configuration value for {field}: {message}")]
     InvalidValue { field: String, message: String },
-
 }
 
 /// Application environment
@@ -159,6 +158,17 @@ impl SecurityConfig {
 
     /// Get allowed origins based on environment
     fn get_allowed_origins(environment: &Environment) -> Vec<String> {
+        if let Ok(origins_env) = std::env::var("ALLOWED_ORIGINS") {
+            let parsed = origins_env
+                .split(',')
+                .map(|origin| origin.trim().to_string())
+                .filter(|origin| !origin.is_empty())
+                .collect::<Vec<_>>();
+            if !parsed.is_empty() {
+                return parsed;
+            }
+        }
+
         match environment {
             Environment::Production => {
                 vec!["https://fido-social.fly.dev".to_string()]
@@ -242,7 +252,6 @@ impl SecurityConfig {
             }
         );
     }
-
 }
 
 #[cfg(test)]

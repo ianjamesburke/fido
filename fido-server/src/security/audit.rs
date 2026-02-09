@@ -4,17 +4,19 @@
 //! such as authentication, session management, and suspicious activity detection.
 
 use chrono::Utc;
-use rusqlite::{params, Connection};
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
+use crate::stores::AuditStore;
 
 /// Errors that can occur during audit logging
 #[derive(Debug, Error)]
 pub enum AuditError {
     #[error("Database error: {0}")]
     Database(#[from] rusqlite::Error),
+    #[error("Store error: {0}")]
+    Store(String),
 }
 
 /// Result type for audit operations
@@ -118,91 +120,38 @@ impl AuditEvent {
 /// Audit logger for recording security events
 #[derive(Clone)]
 pub struct AuditLogger {
-    pool: Arc<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>,
+    store: Arc<dyn AuditStore>,
 }
 
 impl AuditLogger {
-    /// Create a new AuditLogger with the given database connection pool
-    pub fn new(pool: Arc<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>) -> Self {
-        Self { pool }
+    /// Create a new AuditLogger with the given audit store
+    pub fn new(store: Arc<dyn AuditStore>) -> Self {
+        Self { store }
     }
 
     /// Log a security event to the audit log
     pub fn log(&self, event: AuditEvent) -> AuditResult<Uuid> {
-        let conn = self.pool.get().map_err(|e| {
-            AuditError::Database(rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_ERROR),
-                Some(format!("Failed to get connection: {}", e)),
-            ))
-        })?;
-
-        self.log_with_conn(&conn, event)
+        self.store
+            .log_event(
+                &event.event_type.to_string(),
+                event.user_id,
+                event.ip_address.as_deref(),
+                event.user_agent.as_deref(),
+                event.details.as_deref(),
+                Utc::now(),
+            )
+            .map_err(|e| AuditError::Store(e.to_string()))
     }
-
-    /// Log a security event using an existing connection
-    pub fn log_with_conn(&self, conn: &Connection, event: AuditEvent) -> AuditResult<Uuid> {
-        let id = Uuid::new_v4();
-        let timestamp = Utc::now().to_rfc3339();
-        let event_type = event.event_type.to_string();
-        let user_id = event.user_id.map(|u| u.to_string());
-
-        conn.execute(
-            "INSERT INTO audit_logs (id, event_type, user_id, ip_address, user_agent, details, timestamp)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![
-                id.to_string(),
-                event_type,
-                user_id,
-                event.ip_address,
-                event.user_agent,
-                event.details,
-                timestamp,
-            ],
-        )?;
-
-        // Also log to tracing for immediate visibility
-        tracing::info!(
-            event_type = %event.event_type,
-            user_id = ?event.user_id,
-            ip_address = ?event.ip_address,
-            details = ?event.details,
-            "Audit event logged"
-        );
-
-        Ok(id)
-    }
-
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use r2d2_sqlite::SqliteConnectionManager;
+    use crate::db::Database;
+    use crate::stores::sqlite::SqliteAuditStore;
 
-    fn create_test_pool() -> Arc<r2d2::Pool<SqliteConnectionManager>> {
-        let manager = SqliteConnectionManager::memory();
-        let pool = r2d2::Pool::builder()
-            .max_size(1)
-            .build(manager)
-            .expect("Failed to create pool");
-
-        // Create the audit_logs table
-        let conn = pool.get().expect("Failed to get connection");
-        conn.execute(
-            "CREATE TABLE audit_logs (
-                id TEXT PRIMARY KEY,
-                event_type TEXT NOT NULL,
-                user_id TEXT,
-                ip_address TEXT,
-                user_agent TEXT,
-                details TEXT,
-                timestamp TEXT NOT NULL
-            )",
-            [],
-        )
-        .expect("Failed to create table");
-
-        Arc::new(pool)
+    fn create_test_logger(db: &Database) -> AuditLogger {
+        AuditLogger::new(Arc::new(SqliteAuditStore::new(db.pool.clone())))
     }
 
     #[test]
@@ -235,8 +184,9 @@ mod tests {
 
     #[test]
     fn test_audit_logger_log() {
-        let pool = create_test_pool();
-        let logger = AuditLogger::new(pool);
+        let db = Database::in_memory().expect("Failed to create test database");
+        db.initialize().expect("Failed to initialize database");
+        let logger = create_test_logger(&db);
 
         let user_id = Uuid::new_v4();
         let event = AuditEvent::new(AuditEventType::LoginSuccess)
@@ -248,7 +198,7 @@ mod tests {
         assert!(result.is_ok());
 
         // Verify the log was stored
-        let conn = logger.pool.get().expect("Failed to get connection");
+        let conn = db.connection().expect("Failed to get connection");
         let (count, event_type, logged_user_id, ip_address): (
             i64,
             String,

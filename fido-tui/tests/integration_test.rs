@@ -1,61 +1,53 @@
-use fido::debug_log;
+use fido::logging::{init_logging, LogConfig, LogFeatures};
+use log::LevelFilter;
 use std::fs;
 use std::path::Path;
 
 #[test]
 fn test_logging_integration() {
-    // This test simulates the application startup sequence
+    let log_file = "fido_integration_test.log";
+    let config = LogConfig {
+        enabled: true,
+        log_file: log_file.into(),
+        clear_on_startup: true,
+        features: LogFeatures {
+            modal_state: true,
+            key_events: true,
+            rendering: true,
+            settings: true,
+        },
+        level: LevelFilter::Debug,
+    };
 
-    // Step 1: Clear debug log (as done in main.rs)
-    debug_log::clear_debug_log();
+    init_logging(&config).expect("logging should initialize");
 
-    // Verify log file exists and is empty
-    assert!(
-        Path::new(debug_log::DEBUG_LOG_FILE).exists(),
-        "Log file should exist"
-    );
-    let metadata = fs::metadata(debug_log::DEBUG_LOG_FILE).expect("Should read metadata");
-    assert_eq!(metadata.len(), 0, "Log file should be empty after clear");
+    log::debug!(target: "modal_state", "modal changed");
+    log::debug!(target: "key_events", "pressed key");
+    log::debug!(target: "rendering", "rendering frame");
+    log::debug!(target: "settings", "settings updated");
 
-    // Step 2: Simulate modal state logging (as done in tabs.rs)
-    debug_log::log_modal_state(false, false, false, "None");
+    assert!(Path::new(log_file).exists(), "Log file should exist");
 
-    // Step 3: Simulate key event logging (as done in main.rs)
-    debug_log::log_key_event("Char('r')", "main_view");
-
-    // Step 4: Simulate debug logging (as done in tabs.rs)
-    debug_log::log_debug("render_posts_tab_with_data: START");
-    debug_log::log_debug("Rendering thread modal (full post modal)");
-
-    // Step 5: Read and verify log contents
-    let contents =
-        fs::read_to_string(debug_log::DEBUG_LOG_FILE).expect("Should be able to read log file");
+    let contents = fs::read_to_string(log_file).expect("Should be able to read log file");
 
     // Verify all log entries are present
     assert!(
-        contents.contains("MODAL_STATE"),
+        contents.contains("modal changed"),
         "Should contain modal state log"
     );
     assert!(
-        contents.contains("KEY_EVENT"),
+        contents.contains("pressed key"),
         "Should contain key event log"
     );
     assert!(
-        contents.contains("render_posts_tab_with_data: START"),
+        contents.contains("rendering frame"),
         "Should contain render start log"
     );
     assert!(
-        contents.contains("Rendering thread modal"),
+        contents.contains("settings updated"),
         "Should contain thread modal log"
     );
 
-    // Verify timestamps are present (format: [YYYY-MM-DD HH:MM:SS.mmm])
-    assert!(contents.contains("[20"), "Should contain timestamp");
-
-    // Count number of log lines (should be 4)
-    let line_count = contents.lines().count();
-    assert_eq!(line_count, 4, "Should have 4 log lines");
-
     // Clean up
-    let _ = fs::remove_file(debug_log::DEBUG_LOG_FILE);
+    let _ = fs::remove_file(log_file);
 }

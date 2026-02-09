@@ -12,7 +12,6 @@ use axum::{
 };
 use serde_json::json;
 
-use crate::db::repositories::UserRepository;
 use crate::security::{AuditEvent, AuditEventType};
 use crate::state::AppState;
 
@@ -125,8 +124,7 @@ pub async fn require_admin(
     };
 
     // Get the user from the database
-    let user_repo = UserRepository::new(state.db.pool.clone());
-    let user = match user_repo.get_by_id(&user_id) {
+    let user = match state.stores.users.get_by_id(&user_id) {
         Ok(Some(u)) => u,
         Ok(None) => {
             tracing::error!("Admin check failed: user {} not found in database", user_id);

@@ -3,8 +3,7 @@
 use uuid::Uuid;
 
 use crate::api::ApiResult;
-use crate::db::DbPool;
-use crate::stores::{HashtagStore, Stores};
+use crate::stores::HashtagStore;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -26,11 +25,6 @@ pub struct HashtagService {
 impl HashtagService {
     pub fn new(store: Arc<dyn HashtagStore>) -> Self {
         Self { store }
-    }
-
-    pub fn sqlite(pool: DbPool) -> Self {
-        let stores = Stores::sqlite(pool);
-        Self::new(stores.hashtags)
     }
 
     pub fn get_followed_hashtags(&self, user_id: &Uuid) -> ApiResult<Vec<HashtagWithCount>> {

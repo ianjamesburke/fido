@@ -19,3 +19,11 @@ tui-local:
 # Run full test suite
 test:
     cargo test --workspace
+
+# Deploy web stack to Firebase Hosting + Cloud Run
+firebase-deploy project_id:
+    FIREBASE_PROJECT_ID={{project_id}} ./scripts/deploy-firebase.sh
+
+# Run Firestore emulator smoke test
+firestore-emulator-check project_id="demo-fido":
+    FIREBASE_PROJECT_ID={{project_id}} ./scripts/run-firestore-emulator-check.sh

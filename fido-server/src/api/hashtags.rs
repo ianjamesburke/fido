@@ -36,7 +36,7 @@ pub async fn get_followed_hashtags(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<HashtagResponse>>> {
-    let service = HashtagService::sqlite(state.db.pool.clone());
+    let service = HashtagService::new(state.stores.hashtags.clone());
     let hashtags = service.get_followed_hashtags(&user_id)?;
 
     let mut response = Vec::new();
@@ -77,7 +77,7 @@ pub async fn follow_hashtag(
         return Err(ApiError::BadRequest(e.to_string()));
     }
 
-    let service = HashtagService::sqlite(state.db.pool.clone());
+    let service = HashtagService::new(state.stores.hashtags.clone());
     service.follow_hashtag(&user_id, &req.name)?;
 
     Ok(StatusCode::OK)
@@ -105,7 +105,7 @@ pub async fn unfollow_hashtag(
         return Err(ApiError::BadRequest(e.to_string()));
     }
 
-    let service = HashtagService::sqlite(state.db.pool.clone());
+    let service = HashtagService::new(state.stores.hashtags.clone());
     service.unfollow_hashtag(&user_id, &name)?;
 
     Ok(StatusCode::OK)
@@ -134,7 +134,7 @@ pub async fn search_hashtags(
         }
     }
 
-    let service = HashtagService::sqlite(state.db.pool.clone());
+    let service = HashtagService::new(state.stores.hashtags.clone());
     let hashtags = service.search_hashtags(&query.q, 20)?;
 
     let mut response = Vec::new();
@@ -153,7 +153,7 @@ pub async fn get_active_hashtags(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<ActiveHashtagResponse>>> {
-    let service = HashtagService::sqlite(state.db.pool.clone());
+    let service = HashtagService::new(state.stores.hashtags.clone());
     let hashtags = service.get_active_hashtags(&user_id, 5)?;
 
     let response = hashtags

@@ -12,9 +12,12 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration with defaults
-FIDO_SERVER_PORT=${PORT:-3000}
+# `PORT` is the externally exposed port in managed environments (Cloud Run/Fly).
+# Keep fido-server on an internal port to avoid colliding with nginx.
+APP_PORT=${PORT:-8080}
+FIDO_SERVER_PORT=${FIDO_SERVER_PORT:-3000}
 TTYD_PORT=${TTYD_PORT:-7681}
-NGINX_PORT=${NGINX_PORT:-8080}
+NGINX_PORT=${NGINX_PORT:-$APP_PORT}
 DATABASE_PATH=${DATABASE_PATH:-./fido.db}
 LOG_DIR=${LOG_DIR:-./logs}
 
@@ -27,6 +30,13 @@ else
     ENV_MODE="local"
     FIDO_SERVER_BIN="./target/release/fido-server"
     FIDO_TUI_BIN="./target/release/fido"
+fi
+
+# Docker image nginx.conf proxies to 127.0.0.1:3000.
+# Prevent accidental misconfiguration from environment overrides.
+if [ "$ENV_MODE" = "docker" ] && [ "$FIDO_SERVER_PORT" != "3000" ]; then
+    echo -e "${YELLOW}Warning: forcing FIDO_SERVER_PORT=3000 in docker mode to match nginx upstream${NC}"
+    FIDO_SERVER_PORT=3000
 fi
 
 echo -e "${BLUE}╔══════════════════════════════════════════════╗${NC}"
@@ -95,7 +105,7 @@ check_local_deps() {
     
     if [ ! -f "$FIDO_TUI_BIN" ]; then
         echo -e "${YELLOW}Building fido-tui...${NC}"
-        cargo build --release --bin fido-tui
+        cargo build --release --bin fido
     fi
     
     echo -e "${GREEN}All dependencies ready!${NC}"
@@ -181,6 +191,7 @@ fi
 # Start fido-server
 echo -e "${YELLOW}Starting fido-server on port $FIDO_SERVER_PORT...${NC}"
 export HOST=0.0.0.0
+# fido-server reads `PORT`; keep it internal behind nginx.
 export PORT=$FIDO_SERVER_PORT
 export DATABASE_PATH=$DATABASE_PATH
 export RUST_LOG=${RUST_LOG:-info}

@@ -90,6 +90,18 @@ This script:
 
 The script works in both local development and Docker environments.
 
+### Firebase Deployment (Hosting + Cloud Run)
+
+To deploy the current web terminal stack (nginx + ttyd + fido-server) on Firebase:
+
+```bash
+export FIREBASE_PROJECT_ID=your-project-id
+export GITHUB_CLIENT_ID=your-github-oauth-client-id
+./scripts/deploy-firebase.sh
+```
+
+Full instructions: [FIREBASE_DEPLOYMENT.md](FIREBASE_DEPLOYMENT.md)
+
 ### Publishing to Crates.io
 
 Publish new versions to crates.io with version checking:
@@ -181,7 +193,8 @@ The following environment variables must be set before starting the server:
 - **HOST**: Server bind address (default: `0.0.0.0`)
 - **PORT**: Server port (default: `3000`)
 - **DATABASE_PATH**: SQLite database file path (default: `fido.db`)
-- **FIDO_SERVER_URL**: Server URL for TUI client (default: `http://localhost:3000`)
+- **FIDO_SERVER_URL**: Runtime server URL override for TUI client
+- **ALLOWED_ORIGINS**: Comma-separated CORS allowlist (for example: `https://your-project.web.app,https://your-project.firebaseapp.com`)
 
 #### Security Configuration Variables
 
@@ -287,7 +300,7 @@ All HTTP responses include security headers for defense-in-depth:
 
 Environment-aware Cross-Origin Resource Sharing:
 
-- **Production**: Only `https://fido-social.fly.dev` allowed
+- **Production**: Uses `ALLOWED_ORIGINS` when set, otherwise defaults to `https://fido-social.fly.dev`
 - **Development**: Localhost origins allowed for local testing
 - **CLI/TUI Clients**: Requests without Origin header always allowed
 
@@ -411,4 +424,3 @@ When deploying Fido in production:
 ## License
 
 MIT
-

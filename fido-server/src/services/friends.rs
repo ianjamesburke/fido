@@ -4,8 +4,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::api::{ApiError, ApiResult};
-use crate::db::repositories::{FriendRepository, PostRepository, UserRepository};
-use crate::db::DbPool;
+use crate::stores::Stores;
 
 #[derive(Debug)]
 pub struct UserSearchResult {
@@ -42,22 +41,16 @@ pub struct UserProfileData {
 }
 
 pub struct FriendsService {
-    friend_repo: FriendRepository,
-    user_repo: UserRepository,
-    post_repo: PostRepository,
+    stores: Stores,
 }
 
 impl FriendsService {
-    pub fn new(pool: DbPool) -> Self {
-        Self {
-            friend_repo: FriendRepository::new(pool.clone()),
-            user_repo: UserRepository::new(pool.clone()),
-            post_repo: PostRepository::new(pool),
-        }
+    pub fn new(stores: Stores) -> Self {
+        Self { stores }
     }
 
     pub fn search_users(&self, query: &str, limit: usize) -> ApiResult<Vec<UserSearchResult>> {
-        let all_users = self.user_repo.list_all()?;
+        let all_users = self.stores.users.list_all()?;
         let search_lower = query.to_lowercase();
 
         let mut results: Vec<_> = all_users
@@ -91,17 +84,23 @@ impl FriendsService {
         profile_user_id: &Uuid,
     ) -> ApiResult<UserProfileData> {
         let user = self
-            .user_repo
-            .find_by_id(profile_user_id)?
+            .stores
+            .users
+            .get_by_id(profile_user_id)?
             .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
-        let follower_count = self.friend_repo.get_follower_count(profile_user_id).unwrap_or(0);
-        let following_count = self.friend_repo.get_following_count(profile_user_id).unwrap_or(0);
+        let follower_count = self
+            .stores
+            .friends
+            .get_follower_count(profile_user_id)
+            .unwrap_or(0);
+        let following_count = self
+            .stores
+            .friends
+            .get_following_count(profile_user_id)
+            .unwrap_or(0);
 
-        let post_count = self
-            .post_repo
-            .get_post_count(profile_user_id)
-            .unwrap_or(0) as usize;
+        let post_count = self.stores.posts.get_post_count(profile_user_id).unwrap_or(0) as usize;
 
         let relationship = if let Some(viewer) = viewer_id {
             if viewer == *profile_user_id {
@@ -115,15 +114,18 @@ impl FriendsService {
                 RelationshipInfo {
                     is_self: false,
                     is_mutual: self
-                        .friend_repo
+                        .stores
+                        .friends
                         .are_mutual_friends(&viewer, profile_user_id)
                         .unwrap_or(false),
                     is_following: self
-                        .friend_repo
+                        .stores
+                        .friends
                         .is_following(&viewer, profile_user_id)
                         .unwrap_or(false),
                     follows_you: self
-                        .friend_repo
+                        .stores
+                        .friends
                         .is_following(profile_user_id, &viewer)
                         .unwrap_or(false),
                 }
@@ -154,27 +156,28 @@ impl FriendsService {
             return Err(ApiError::BadRequest("Cannot follow yourself".to_string()));
         }
 
-        self.user_repo
-            .find_by_id(following_id)?
+        self.stores
+            .users
+            .get_by_id(following_id)?
             .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
-        self.friend_repo.follow_user(follower_id, following_id)?;
+        self.stores.friends.follow_user(follower_id, following_id)?;
         Ok(())
     }
 
     pub fn unfollow_user(&self, follower_id: &Uuid, following_id: &Uuid) -> ApiResult<bool> {
-        let rows_deleted = self.friend_repo.unfollow_user(follower_id, following_id)?;
+        let rows_deleted = self.stores.friends.unfollow_user(follower_id, following_id)?;
         Ok(rows_deleted > 0)
     }
 
     pub fn get_following_list(&self, user_id: &Uuid) -> ApiResult<Vec<SocialUser>> {
-        let following_ids = self.friend_repo.get_following(user_id)?;
+        let following_ids = self.stores.friends.get_following(user_id)?;
 
         let mut users = Vec::new();
         for id in following_ids {
-            if let Ok(Some(user)) = self.user_repo.find_by_id(&id) {
-                let follower_count = self.friend_repo.get_follower_count(&id).unwrap_or(0);
-                let following_count = self.friend_repo.get_following_count(&id).unwrap_or(0);
+            if let Ok(Some(user)) = self.stores.users.get_by_id(&id) {
+                let follower_count = self.stores.friends.get_follower_count(&id).unwrap_or(0);
+                let following_count = self.stores.friends.get_following_count(&id).unwrap_or(0);
 
                 users.push(SocialUser {
                     id: user.id,
@@ -189,13 +192,13 @@ impl FriendsService {
     }
 
     pub fn get_followers_list(&self, user_id: &Uuid) -> ApiResult<Vec<SocialUser>> {
-        let follower_ids = self.friend_repo.get_followers(user_id)?;
+        let follower_ids = self.stores.friends.get_followers(user_id)?;
 
         let mut users = Vec::new();
         for id in follower_ids {
-            if let Ok(Some(user)) = self.user_repo.find_by_id(&id) {
-                let follower_count = self.friend_repo.get_follower_count(&id).unwrap_or(0);
-                let following_count = self.friend_repo.get_following_count(&id).unwrap_or(0);
+            if let Ok(Some(user)) = self.stores.users.get_by_id(&id) {
+                let follower_count = self.stores.friends.get_follower_count(&id).unwrap_or(0);
+                let following_count = self.stores.friends.get_following_count(&id).unwrap_or(0);
 
                 users.push(SocialUser {
                     id: user.id,
@@ -210,13 +213,13 @@ impl FriendsService {
     }
 
     pub fn get_mutual_friends_list(&self, user_id: &Uuid) -> ApiResult<Vec<SocialUser>> {
-        let friend_ids = self.friend_repo.get_mutual_friends(user_id)?;
+        let friend_ids = self.stores.friends.get_mutual_friends(user_id)?;
 
         let mut users = Vec::new();
         for id in friend_ids {
-            if let Ok(Some(user)) = self.user_repo.find_by_id(&id) {
-                let follower_count = self.friend_repo.get_follower_count(&id).unwrap_or(0);
-                let following_count = self.friend_repo.get_following_count(&id).unwrap_or(0);
+            if let Ok(Some(user)) = self.stores.users.get_by_id(&id) {
+                let follower_count = self.stores.friends.get_follower_count(&id).unwrap_or(0);
+                let following_count = self.stores.friends.get_following_count(&id).unwrap_or(0);
 
                 users.push(SocialUser {
                     id: user.id,

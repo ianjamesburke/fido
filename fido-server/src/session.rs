@@ -1,6 +1,7 @@
-use crate::db::Database;
+use crate::stores::SessionStore;
 use anyhow::{Context, Result};
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
+use std::sync::Arc;
 use uuid::Uuid;
 
 /// Database-backed session manager for persistent authentication
@@ -12,13 +13,13 @@ use uuid::Uuid;
 /// - Automatic cleanup of expired sessions
 #[derive(Clone)]
 pub struct SessionManager {
-    db: Database,
+    store: Arc<dyn SessionStore>,
 }
 
 impl SessionManager {
     /// Create a new session manager
-    pub fn new(db: Database) -> Self {
-        Self { db }
+    pub fn new(store: Arc<dyn SessionStore>) -> Self {
+        Self { store }
     }
 
     /// Create a new session for a user
@@ -37,18 +38,9 @@ impl SessionManager {
         let expires_at = created_at + Duration::days(7); // Reduced from 90 days to 7 days for security
         let last_activity = created_at; // Initialize last_activity to creation time
 
-        let conn = self.db.connection()?;
-        conn.execute(
-            "INSERT INTO sessions (token, user_id, created_at, expires_at, last_activity) VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![
-                token,
-                user_id.to_string(),
-                created_at.to_rfc3339(),
-                expires_at.to_rfc3339(),
-                last_activity.to_rfc3339(),
-            ],
-        )
-        .context("Failed to create session")?;
+        self.store
+            .create_session(&token, user_id, created_at, expires_at, last_activity)
+            .context("Failed to create session")?;
 
         tracing::info!("Created session for user {}", user_id);
         Ok(token)
@@ -67,22 +59,11 @@ impl SessionManager {
     /// * `Result<Uuid>` - The user ID if the session is valid
     /// * `Err` - If the session is invalid, expired, or idle too long
     pub fn validate_session(&self, token: &str) -> Result<Uuid> {
-        let conn = self.db.connection()?;
-
-        let (user_id_str, expires_at_str, last_activity_str): (String, String, Option<String>) = conn
-            .query_row(
-                "SELECT user_id, expires_at, last_activity FROM sessions WHERE token = ?1",
-                rusqlite::params![token],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )
-            .context("Session not found")?;
+        let session = self.store.get_session(token).context("Session lookup failed")?;
+        let session = session.context("Session not found")?;
 
         let now = Utc::now();
-
-        // Parse expiry time
-        let expires_at = DateTime::parse_from_rfc3339(&expires_at_str)
-            .context("Failed to parse expiry time")?
-            .with_timezone(&Utc);
+        let expires_at = session.expires_at;
 
         // Check if session has expired
         if now > expires_at {
@@ -92,11 +73,7 @@ impl SessionManager {
         }
 
         // Check idle timeout (24 hours)
-        if let Some(last_activity_str) = last_activity_str {
-            let last_activity = DateTime::parse_from_rfc3339(&last_activity_str)
-                .context("Failed to parse last activity time")?
-                .with_timezone(&Utc);
-
+        if let Some(last_activity) = session.last_activity {
             let idle_duration = now - last_activity;
             let max_idle_hours = 24;
 
@@ -112,7 +89,7 @@ impl SessionManager {
         }
 
         // Parse user ID
-        let user_id = Uuid::parse_str(&user_id_str).context("Failed to parse user ID")?;
+        let user_id = session.user_id;
 
         // Update last_activity on successful validation
         self.update_activity(token)?;
@@ -130,14 +107,9 @@ impl SessionManager {
     /// # Returns
     /// * `Result<()>` - Success or error
     pub fn update_activity(&self, token: &str) -> Result<()> {
-        let conn = self.db.connection()?;
-        let now = Utc::now().to_rfc3339();
-
-        conn.execute(
-            "UPDATE sessions SET last_activity = ?1 WHERE token = ?2",
-            rusqlite::params![now, token],
-        )
-        .context("Failed to update session activity")?;
+        self.store
+            .update_activity(token, Utc::now())
+            .context("Failed to update session activity")?;
 
         Ok(())
     }
@@ -152,12 +124,9 @@ impl SessionManager {
     /// # Returns
     /// * `Result<()>` - Success or error
     pub fn delete_session(&self, token: &str) -> Result<()> {
-        let conn = self.db.connection()?;
-        let rows_affected = conn
-            .execute(
-                "DELETE FROM sessions WHERE token = ?1",
-                rusqlite::params![token],
-            )
+        let rows_affected = self
+            .store
+            .delete_session(token)
             .context("Failed to delete session")?;
 
         if rows_affected > 0 {
@@ -175,14 +144,9 @@ impl SessionManager {
     /// # Returns
     /// * `Result<usize>` - The number of sessions deleted
     pub fn cleanup_expired_sessions(&self) -> Result<usize> {
-        let conn = self.db.connection()?;
-        let now = Utc::now().to_rfc3339();
-
-        let rows_affected = conn
-            .execute(
-                "DELETE FROM sessions WHERE expires_at < ?1",
-                rusqlite::params![now],
-            )
+        let rows_affected = self
+            .store
+            .cleanup_expired_sessions(Utc::now())
             .context("Failed to cleanup expired sessions")?;
 
         if rows_affected > 0 {
@@ -204,13 +168,9 @@ impl SessionManager {
     /// # Returns
     /// * `Result<usize>` - The number of sessions invalidated
     pub fn invalidate_user_sessions(&self, user_id: Uuid) -> Result<usize> {
-        let conn = self.db.connection()?;
-
-        let rows_affected = conn
-            .execute(
-                "DELETE FROM sessions WHERE user_id = ?1",
-                rusqlite::params![user_id.to_string()],
-            )
+        let rows_affected = self
+            .store
+            .invalidate_user_sessions(user_id)
             .context("Failed to invalidate user sessions")?;
 
         if rows_affected > 0 {
@@ -229,6 +189,9 @@ impl SessionManager {
 mod tests {
     use super::*;
     use crate::db::Database;
+    use crate::stores::sqlite::SqliteSessionStore;
+    use chrono::DateTime;
+    use std::sync::Arc;
 
     fn setup_test_db() -> Database {
         let db = Database::in_memory().expect("Failed to create test database");
@@ -251,10 +214,14 @@ mod tests {
         db
     }
 
+    fn setup_manager(db: &Database) -> SessionManager {
+        SessionManager::new(Arc::new(SqliteSessionStore::new(db.pool.clone())))
+    }
+
     #[test]
     fn test_create_session() {
         let db = setup_test_db();
-        let manager = SessionManager::new(db);
+        let manager = setup_manager(&db);
         let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
 
         let token = manager
@@ -270,7 +237,7 @@ mod tests {
     #[test]
     fn test_validate_session() {
         let db = setup_test_db();
-        let manager = SessionManager::new(db);
+        let manager = setup_manager(&db);
         let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
 
         let token = manager
@@ -286,7 +253,7 @@ mod tests {
     #[test]
     fn test_validate_invalid_session() {
         let db = setup_test_db();
-        let manager = SessionManager::new(db);
+        let manager = setup_manager(&db);
 
         let result = manager.validate_session("invalid-token");
         assert!(result.is_err());
@@ -295,7 +262,7 @@ mod tests {
     #[test]
     fn test_delete_session() {
         let db = setup_test_db();
-        let manager = SessionManager::new(db);
+        let manager = setup_manager(&db);
         let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
 
         let token = manager
@@ -312,7 +279,7 @@ mod tests {
     #[test]
     fn test_cleanup_expired_sessions() {
         let db = setup_test_db();
-        let manager = SessionManager::new(db.clone());
+        let manager = setup_manager(&db);
         let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
 
         // Create a session
@@ -343,7 +310,7 @@ mod tests {
     #[test]
     fn test_session_token_uniqueness() {
         let db = setup_test_db();
-        let manager = SessionManager::new(db);
+        let manager = setup_manager(&db);
         let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
 
         // Create multiple sessions
@@ -366,7 +333,7 @@ mod tests {
     #[test]
     fn test_idle_timeout_invalidates_session() {
         let db = setup_test_db();
-        let manager = SessionManager::new(db.clone());
+        let manager = setup_manager(&db);
         let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
 
         // Create a session
@@ -398,7 +365,7 @@ mod tests {
     #[test]
     fn test_active_session_not_invalidated() {
         let db = setup_test_db();
-        let manager = SessionManager::new(db.clone());
+        let manager = setup_manager(&db);
         let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
 
         // Create a session
@@ -424,7 +391,7 @@ mod tests {
     #[test]
     fn test_update_activity() {
         let db = setup_test_db();
-        let manager = SessionManager::new(db.clone());
+        let manager = setup_manager(&db);
         let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
 
         // Create a session
@@ -467,7 +434,7 @@ mod tests {
     #[test]
     fn test_validate_session_updates_activity() {
         let db = setup_test_db();
-        let manager = SessionManager::new(db.clone());
+        let manager = setup_manager(&db);
         let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
 
         // Create a session
@@ -513,7 +480,7 @@ mod tests {
     #[test]
     fn test_invalidate_user_sessions() {
         let db = setup_test_db();
-        let manager = SessionManager::new(db);
+        let manager = setup_manager(&db);
         let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
 
         // Create multiple sessions for the user
@@ -556,7 +523,7 @@ mod tests {
     #[test]
     fn test_invalidate_user_sessions_no_sessions() {
         let db = setup_test_db();
-        let manager = SessionManager::new(db);
+        let manager = setup_manager(&db);
         let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
 
         // Invalidate sessions for a user with no sessions

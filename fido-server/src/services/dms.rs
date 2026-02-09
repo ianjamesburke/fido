@@ -4,8 +4,7 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use crate::api::{ApiError, ApiResult};
-use crate::db::repositories::{DirectMessageRepository, UserRepository};
-use crate::db::DbPool;
+use crate::stores::Stores;
 use fido_types::DirectMessage;
 use serde::Serialize;
 
@@ -19,29 +18,26 @@ pub struct ConversationSummary {
 }
 
 pub struct DMService {
-    dm_repo: DirectMessageRepository,
-    user_repo: UserRepository,
+    stores: Stores,
 }
 
 impl DMService {
-    pub fn new(pool: DbPool) -> Self {
-        Self {
-            dm_repo: DirectMessageRepository::new(pool.clone()),
-            user_repo: UserRepository::new(pool),
-        }
+    pub fn new(stores: Stores) -> Self {
+        Self { stores }
     }
 
     pub fn get_conversations(&self, user_id: &Uuid) -> ApiResult<Vec<ConversationSummary>> {
-        let conversation_user_ids = self.dm_repo.get_conversations_list(user_id)?;
+        let conversation_user_ids = self.stores.dms.get_conversations_list(user_id)?;
 
         let mut conversations = Vec::new();
         for other_user_id in conversation_user_ids {
             let user = self
-                .user_repo
+                .stores
+                .users
                 .get_by_id(&other_user_id)?
                 .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
-            let messages = self.dm_repo.get_conversation(user_id, &other_user_id)?;
+            let messages = self.stores.dms.get_conversation(user_id, &other_user_id)?;
 
             let unread_count = messages
                 .iter()
@@ -75,20 +71,23 @@ impl DMService {
         user_id: &Uuid,
         other_user_id: &Uuid,
     ) -> ApiResult<Vec<DirectMessage>> {
-        self.user_repo
+        self.stores
+            .users
             .get_by_id(other_user_id)?
             .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
-        let mut messages = self.dm_repo.get_conversation(user_id, other_user_id)?;
+        let mut messages = self.stores.dms.get_conversation(user_id, other_user_id)?;
 
         for msg in &mut messages {
             let from_user = self
-                .user_repo
+                .stores
+                .users
                 .get_by_id(&msg.from_user_id)?
                 .ok_or_else(|| ApiError::NotFound("Sender not found".to_string()))?;
 
             let to_user = self
-                .user_repo
+                .stores
+                .users
                 .get_by_id(&msg.to_user_id)?
                 .ok_or_else(|| ApiError::NotFound("Recipient not found".to_string()))?;
 
@@ -96,13 +95,13 @@ impl DMService {
             msg.to_username = to_user.username;
         }
 
-        self.dm_repo.mark_as_read(user_id, other_user_id)?;
+        self.stores.dms.mark_as_read(user_id, other_user_id)?;
 
         Ok(messages)
     }
 
     pub fn mark_messages_read(&self, user_id: &Uuid, other_user_id: &Uuid) -> ApiResult<()> {
-        self.dm_repo.mark_as_read(user_id, other_user_id)?;
+        self.stores.dms.mark_as_read(user_id, other_user_id)?;
         Ok(())
     }
 
@@ -119,7 +118,8 @@ impl DMService {
         }
 
         let to_user = self
-            .user_repo
+            .stores
+            .users
             .get_by_username(to_username)?
             .ok_or_else(|| ApiError::NotFound(format!("User '{}' not found", to_username)))?;
 
@@ -130,7 +130,8 @@ impl DMService {
         }
 
         let from_user = self
-            .user_repo
+            .stores
+            .users
             .get_by_id(from_user_id)?
             .ok_or_else(|| ApiError::NotFound("Sender not found".to_string()))?;
 
@@ -145,13 +146,13 @@ impl DMService {
             is_read: false,
         };
 
-        self.dm_repo.create(&message)?;
+        self.stores.dms.create(&message)?;
 
         Ok(message)
     }
 
     pub fn delete_conversation(&self, user_id: &Uuid, other_user_id: &Uuid) -> ApiResult<()> {
-        self.dm_repo.delete_conversation(user_id, other_user_id)?;
+        self.stores.dms.delete_conversation(user_id, other_user_id)?;
         Ok(())
     }
 }

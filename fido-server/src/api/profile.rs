@@ -23,7 +23,7 @@ pub async fn get_profile(
     // Parse user ID
     let user_id = Uuid::parse_str(&user_id)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
-    let service = ProfileService::sqlite(state.db.pool.clone());
+    let service = ProfileService::new(state.stores.clone());
     let profile = service.get_profile(&user_id)?;
 
     Ok(Json(profile))
@@ -37,7 +37,7 @@ pub async fn update_profile(
     headers: HeaderMap,
     Json(payload): Json<UpdateBioRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let service = ProfileService::sqlite(state.db.pool.clone());
+    let service = ProfileService::new(state.stores.clone());
     let client_ip = extract_client_ip(&headers);
     let user_agent = extract_user_agent(&headers);
 
@@ -81,7 +81,7 @@ pub async fn get_user_hashtags(
     let user_id = Uuid::parse_str(&user_id)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
-    let service = ProfileService::sqlite(state.db.pool.clone());
+    let service = ProfileService::new(state.stores.clone());
     let hashtags = service.get_user_hashtags(&user_id, 10)?;
 
     Ok(Json(hashtags))

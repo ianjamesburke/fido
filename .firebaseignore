@@ -1,0 +1,14 @@
+# Firebase CLI ignore patterns
+.git
+.github
+.gitignore
+Cargo.lock
+Cargo.toml
+justfile
+fly.toml
+Dockerfile
+start.sh
+fido-*/
+*.db
+logs/
+/tmp/

@@ -11,9 +11,9 @@ pub mod oauth;
 pub mod rate_limit;
 pub mod security;
 pub mod services;
-pub mod stores;
 pub mod session;
 pub mod state;
+pub mod stores;
 #[cfg(test)]
 pub mod test_utils;
 
@@ -34,7 +34,10 @@ pub fn create_router(state: AppState) -> Router {
     // Configure CORS using environment-aware configuration
     let security_config = security::SecurityConfig::from_env()
         .unwrap_or_else(|_| security::SecurityConfig::default());
-    let cors_config = security::CorsConfig::for_environment(security_config.environment);
+    let cors_config = security::CorsConfig::new(
+        security_config.environment,
+        security_config.allowed_origins.clone(),
+    );
     let cors = cors_config.to_cors_layer();
 
     // Create global rate limiter: 100 requests per minute per user
@@ -52,13 +55,19 @@ pub fn create_router(state: AppState) -> Router {
         .merge(
             Router::new()
                 .route("/auth/cleanup-sessions", post(api::auth::cleanup_sessions))
-                .route_layer(middleware::from_fn_with_state(state.clone(), security::admin::require_admin))
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    security::admin::require_admin,
+                )),
         )
         // Admin-only configuration routes (protected by require_admin middleware)
         .merge(
             Router::new()
                 .route("/admin/config/validate", get(api::admin::validate_config))
-                .route_layer(middleware::from_fn_with_state(state.clone(), security::admin::require_admin))
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    security::admin::require_admin,
+                )),
         )
         // GitHub Device Flow routes
         .route("/auth/github/device", post(api::auth::github_device_flow))
@@ -126,11 +135,16 @@ pub fn create_router(state: AppState) -> Router {
         .route("/social/followers", get(api::friends::get_followers_list))
         .route("/social/mutual", get(api::friends::get_mutual_friends_list))
         .with_state(state.clone())
-        .layer(middleware::from_fn_with_state(state, rate_limit::rate_limit_middleware))
+        .layer(middleware::from_fn_with_state(
+            state,
+            rate_limit::rate_limit_middleware,
+        ))
         .layer(axum::Extension(rate_limiter))
         .layer(cors)
         // Security headers middleware - adds X-Content-Type-Options, X-Frame-Options, etc.
-        .layer(middleware::from_fn(security::headers::create_security_headers_layer(security_config.environment)))
+        .layer(middleware::from_fn(
+            security::headers::create_security_headers_layer(security_config.environment),
+        ))
         // Request body size limit: 1MB (1024 * 1024 bytes)
         .layer(RequestBodyLimitLayer::new(1024 * 1024))
 }

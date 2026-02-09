@@ -50,7 +50,10 @@ RUN mkdir -p /data /var/log/fido && chmod 755 /data /var/log/fido
 
 # Environment variables
 ENV HOST=0.0.0.0
-ENV PORT=3000
+# External listener (nginx). Cloud Run injects PORT at runtime.
+ENV PORT=8080
+# Internal API listener (fido-server) behind nginx.
+ENV FIDO_SERVER_PORT=3000
 ENV TTYD_PORT=7681
 ENV NGINX_PORT=8080
 ENV DATABASE_PATH=/data/fido.db

@@ -42,6 +42,19 @@ pub struct ApiClient {
     session_token: Option<String>,
 }
 
+const DEFAULT_PUBLIC_SERVER_URL: &str = "https://fido-social.fly.dev";
+
+fn read_server_url_from_config() -> Option<String> {
+    let config_path = dirs::home_dir()?.join(".fido").join("server_url");
+    let raw = std::fs::read_to_string(config_path).ok()?;
+    let value = raw.trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
 impl ApiClient {
     /// Create a new API client
     pub fn new(base_url: impl Into<String>) -> Self {
@@ -56,9 +69,7 @@ impl ApiClient {
             builder
         };
 
-        let client = builder
-            .build()
-            .expect("Failed to create HTTP client");
+        let client = builder.build().expect("Failed to create HTTP client");
 
         Self {
             client,
@@ -443,12 +454,18 @@ impl Default for ApiClient {
     fn default() -> Self {
         // Determine the appropriate base URL based on environment
         let base_url = if std::env::var("FIDO_WEB_MODE").is_ok() {
-            // In web mode (running on Fly.io), connect to localhost API server
+            // In web mode (containerized ttyd), connect to localhost API server
             "http://127.0.0.1:3000".to_string()
         } else {
-            // For local TUI client, check for override or use production URL
+            // For local TUI client:
+            // 1) explicit runtime override
+            // 2) user-level config file (~/.fido/server_url)
+            // 3) built-in public default
             std::env::var("FIDO_SERVER_URL")
-                .unwrap_or_else(|_| "https://fido-social.fly.dev".to_string())
+                .ok()
+                .filter(|url| !url.trim().is_empty())
+                .or_else(read_server_url_from_config)
+                .unwrap_or_else(|| DEFAULT_PUBLIC_SERVER_URL.to_string())
         };
         Self::new(base_url)
     }

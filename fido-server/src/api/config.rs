@@ -3,7 +3,6 @@ use uuid::Uuid;
 
 use crate::{
     api::{ApiError, ApiResult},
-    db::repositories::ConfigRepository,
     state::AppState,
 };
 use fido_types::{ColorScheme, SortOrder, UpdateConfigRequest, UserConfig};
@@ -15,11 +14,10 @@ pub async fn get_config(State(state): State<AppState>) -> ApiResult<Json<UserCon
     let user_id =
         Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").expect("Invalid hardcoded UUID");
 
-    let pool = state.db.pool.clone();
-    let config_repo = ConfigRepository::new(pool);
-
     // Get configuration (returns default if not found)
-    let config = config_repo
+    let config = state
+        .stores
+        .config
         .get(&user_id)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
 
@@ -36,11 +34,10 @@ pub async fn update_config(
     let user_id =
         Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").expect("Invalid hardcoded UUID");
 
-    let pool = state.db.pool.clone();
-    let config_repo = ConfigRepository::new(pool);
-
     // Get current config
-    let mut config = config_repo
+    let mut config = state
+        .stores
+        .config
         .get(&user_id)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
 
@@ -80,7 +77,9 @@ pub async fn update_config(
     }
 
     // Save updated config
-    config_repo
+    state
+        .stores
+        .config
         .update(&config)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
 

@@ -108,11 +108,6 @@ impl UserRepository {
         Ok(users)
     }
 
-    /// Find user by ID (alias for get_by_id for consistency)
-    pub fn find_by_id(&self, user_id: &Uuid) -> Result<Option<User>> {
-        self.get_by_id(user_id)
-    }
-
     /// Find user by username (alias for get_by_username for consistency)
     #[allow(dead_code)]
     pub fn find_by_username(&self, username: &str) -> Result<Option<User>> {

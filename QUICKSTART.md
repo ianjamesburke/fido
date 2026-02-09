@@ -8,7 +8,7 @@
 cargo install fido
 ```
 
-This installs the Fido TUI client. The client automatically connects to the production server at `https://fido-social.fly.dev` - no server setup required!
+This installs the Fido TUI client. By default it connects to the public Fido server, and you can override the server URL via env var, CLI flag, or `~/.fido/server_url`.
 
 ---
 
@@ -80,7 +80,7 @@ You can login to Fido from multiple devices simultaneously. Each device gets its
 
 ### Default (Production)
 
-By default, Fido connects to: `https://fido-social.fly.dev`
+By default, Fido connects to the public Fido server.
 
 ### Local Development
 
@@ -94,6 +94,13 @@ FIDO_SERVER_URL=http://localhost:3000 fido
 **Using CLI flag:**
 ```bash
 fido --server http://localhost:3000
+```
+
+**Persistent local override (recommended for self-hosting):**
+```bash
+mkdir -p ~/.fido
+echo "https://your-server-domain" > ~/.fido/server_url
+fido
 ```
 
 **Check current server:**
