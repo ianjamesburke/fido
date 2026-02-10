@@ -16,6 +16,13 @@ mod ui;
 use anyhow::Result;
 use app::App;
 use clap::Parser;
+
+fn env_flag(name: &str) -> bool {
+    std::env::var(name)
+        .ok()
+        .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(false)
+}
 use std::process::Command;
 
 /// Current version from Cargo.toml
@@ -159,8 +166,9 @@ async fn main() -> Result<()> {
     // Initialize terminal
     let mut tui = terminal::init()?;
 
-    // Check if running in demo mode
-    let is_demo_mode = std::env::var("FIDO_DEMO_MODE").is_ok();
+    // Check runtime mode flags
+    let is_demo_mode = env_flag("FIDO_DEMO_MODE");
+    let is_web_mode = env_flag("FIDO_WEB_MODE");
 
     // Create app based on mode
     let mut app = if is_demo_mode {
@@ -178,23 +186,20 @@ async fn main() -> Result<()> {
     app.log_config = log_config;
 
     // Check for updates (quick, non-blocking with 3s timeout, skip in demo/web mode)
-    if !is_demo_mode && std::env::var("FIDO_WEB_MODE").is_err() {
+    if !is_demo_mode && !is_web_mode {
         if let Some(latest_version) = check_for_updates().await {
             app.update_available = Some(latest_version);
         }
     }
 
-    // Check if running in web mode (for web terminal interface)
-    let is_web_mode = std::env::var("FIDO_WEB_MODE").is_ok();
-
-    // In web mode or demo mode, hide GitHub OAuth option (test users only)
-    if is_web_mode || is_demo_mode {
+    // In demo mode, hide GitHub OAuth option (test users only)
+    if is_demo_mode {
         app.auth_state.show_github_option = false;
     }
 
-    // Check for existing session on startup (skip in web mode and demo mode)
+    // Check for existing session on startup (skip in demo mode)
     let mut auth_flow = auth::AuthFlow::new(app.api_client.clone())?;
-    if !is_web_mode && !is_demo_mode {
+    if !is_demo_mode {
         if let Ok(Some(user)) = auth_flow.check_existing_session().await {
             log::info!("Restored session for user: {}", user.username);
             app.auth_state.current_user = Some(user);
@@ -209,16 +214,12 @@ async fn main() -> Result<()> {
             let _ = app.load_posts().await;
         } else {
             log::info!("No valid session found, showing authentication screen");
-            // Load test users for authentication screen
-            let _ = app.load_test_users().await;
         }
     } else {
         if is_demo_mode {
             log::info!("Running in demo mode, loading test users only");
-        } else {
-            log::info!("Running in web mode, loading test users only");
         }
-        // In web mode or demo mode, always show test users (no GitHub OAuth, no session restore)
+        // In demo mode, always show test users (no GitHub OAuth, no session restore)
         let _ = app.load_test_users().await;
     }
 

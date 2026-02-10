@@ -40,6 +40,16 @@ web project_id="demo-fido" emulator_host="127.0.0.1:8088":
     FIRESTORE_SEED_TEST_DATA=true \
     ./start.sh
 
+# Start local web stack in explicit demo auth mode (test users only)
+web-demo project_id="demo-fido" emulator_host="127.0.0.1:8088":
+    DB_BACKEND=firestore \
+    FIREBASE_PROJECT_ID={{project_id}} \
+    GOOGLE_CLOUD_PROJECT={{project_id}} \
+    FIRESTORE_EMULATOR_HOST={{emulator_host}} \
+    FIRESTORE_SEED_TEST_DATA=true \
+    FIDO_DEMO_MODE=true \
+    ./start.sh
+
 # Run full test suite
 test:
     cargo test --workspace

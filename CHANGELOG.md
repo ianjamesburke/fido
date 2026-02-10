@@ -15,6 +15,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.1.12] - 2026-02-10
+
+### Changed
+- Improved type safety and terminal validation in UI layer
+- Consolidated app architecture with improved test isolation
+- Extracted business logic into service layer with store abstraction
+- Consolidated post operations into dedicated service layer
+- Extracted post retrieval logic into service layer
+- Extracted authentication and header utilities into dedicated HTTP module
+
+### Fixed
+- Cleaned up compiler warnings
+
+## [0.1.11] - 2026-02-10
+
+### Changed
+- Migrated deployment documentation from Fly.io to Firebase/Cloud Run
+
+## [0.1.10] - 2026-01-07
+
+### Changed
+- Simplified cargo deploy process
+
+## [0.1.9] - 2026-01-07
+
+### Changed
+- Firebase refactor complete
+- Improved Firebase integration
+
 ## [0.1.8] - 2026-01-07
 
 - Literally just testing the outdated version banner so needed a version bump.
