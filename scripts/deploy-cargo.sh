@@ -1,80 +1,79 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Deploy crates to crates.io in dependency-safe order.
-# Default behavior bumps patch version, then publishes:
+# Publish crates to crates.io in dependency-safe order (no version bumping).
+# Order:
 #   1) fido-types
 #   2) fido
 #
 # Usage:
-#   ./scripts/deploy-cargo.sh                 # patch bump + publish
-#   ./scripts/deploy-cargo.sh minor           # minor bump + publish
-#   ./scripts/deploy-cargo.sh major --dry-run # major bump + validate only
+#   ./scripts/deploy-cargo.sh
+#   ./scripts/deploy-cargo.sh --dry-run
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-BUMP_KIND="${1:-patch}"
 DRY_RUN_ONLY=false
-if [[ "${2:-}" == "--dry-run" || "${1:-}" == "--dry-run" ]]; then
+if [[ "${1:-}" == "--dry-run" ]]; then
   DRY_RUN_ONLY=true
 fi
 
-if [[ "$BUMP_KIND" == "--dry-run" ]]; then
-  BUMP_KIND="patch"
-fi
-
-if [[ "$BUMP_KIND" != "patch" && "$BUMP_KIND" != "minor" && "$BUMP_KIND" != "major" ]]; then
-  echo "error: bump kind must be one of: patch|minor|major"
-  exit 1
-fi
-
-echo "==> Reading current workspace version"
 CURRENT_VERSION="$(sed -nE 's/^version = "([0-9]+\.[0-9]+\.[0-9]+)"/\1/p' Cargo.toml | head -n1)"
 if [[ -z "$CURRENT_VERSION" ]]; then
   echo "error: could not parse workspace version from Cargo.toml"
   exit 1
 fi
 
-IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
-case "$BUMP_KIND" in
-  patch) PATCH=$((PATCH + 1)) ;;
-  minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-  major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
-esac
-NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+echo "Workspace version: $CURRENT_VERSION"
+echo "Dry-run only:      $DRY_RUN_ONLY"
 
-echo "Current version: $CURRENT_VERSION"
-echo "Next version:    $NEXT_VERSION"
-echo "Bump:            $BUMP_KIND"
-echo "Dry-run only:    $DRY_RUN_ONLY"
+# Warn if worktree is dirty.
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "warning: you have uncommitted changes."
+  echo "warning: publish is safer after version bump + commit (+ push if needed)."
+fi
 
-echo "==> Updating workspace and dependency versions"
-# workspace.package version
-sed -i.bak -E "s/^version = \"${CURRENT_VERSION}\"$/version = \"${NEXT_VERSION}\"/" Cargo.toml
-# workspace dependency pin for fido-types
-sed -i.bak -E "s/^fido-types = \{ path = \"fido-types\", version = \"${CURRENT_VERSION}\" \}$/fido-types = { path = \"fido-types\", version = \"${NEXT_VERSION}\" }/" Cargo.toml
-rm -f Cargo.toml.bak
+# Ensure dependency pin matches workspace version.
+PINNED_TYPES_VERSION="$(sed -nE 's/^fido-types = \{ path = "fido-types", version = "([0-9]+\.[0-9]+\.[0-9]+)" \}/\1/p' Cargo.toml | head -n1)"
+if [[ -z "$PINNED_TYPES_VERSION" ]]; then
+  echo "error: could not parse fido-types dependency pin from Cargo.toml"
+  exit 1
+fi
+if [[ "$PINNED_TYPES_VERSION" != "$CURRENT_VERSION" ]]; then
+  echo "error: version mismatch."
+  echo "error: workspace version is $CURRENT_VERSION, fido-types pin is $PINNED_TYPES_VERSION."
+  echo "warning: bump/fix versions manually, commit, then rerun."
+  exit 1
+fi
 
-echo "==> Formatting metadata changes"
-cargo fmt
+# Preflight: detect already-published versions.
+TYPES_PUBLISHED="$(cargo search fido-types 2>/dev/null | sed -nE 's/^fido-types = "([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' | head -n1)"
+FIDO_PUBLISHED="$(cargo search fido --limit 20 2>/dev/null | sed -nE 's/^fido = "([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' | head -n1)"
+
+if [[ "$TYPES_PUBLISHED" == "$CURRENT_VERSION" || "$FIDO_PUBLISHED" == "$CURRENT_VERSION" ]]; then
+  echo "warning: version $CURRENT_VERSION is already published on crates.io:"
+  echo "  fido-types: ${TYPES_PUBLISHED:-not found}"
+  echo "  fido:       ${FIDO_PUBLISHED:-not found}"
+  echo "warning: bump version manually, commit, and push, then rerun deploy-cargo."
+  exit 1
+fi
 
 echo "==> Running publish dry-runs (dependency order)"
 cargo publish --dry-run -p fido-types
 cargo publish --dry-run -p fido
 
 if [[ "$DRY_RUN_ONLY" == true ]]; then
-  echo "Dry-run completed. Version files updated to $NEXT_VERSION (not published)."
+  echo "Dry-run completed. No publish performed."
   exit 0
 fi
 
-echo "==> Publishing fido-types $NEXT_VERSION"
+echo "==> Publishing fido-types $CURRENT_VERSION"
 cargo publish -p fido-types
 
 echo "==> Waiting for crates.io index to catch up"
 sleep 30
 
-echo "==> Publishing fido $NEXT_VERSION"
+echo "==> Publishing fido $CURRENT_VERSION"
 cargo publish -p fido
 
-echo "Publish complete: $NEXT_VERSION"
+echo "Publish complete: $CURRENT_VERSION"

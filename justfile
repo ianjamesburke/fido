@@ -52,14 +52,13 @@ firebase-deploy project_id:
 deploy:
     ./scripts/deploy-firebase.sh
 
-# Bump version and publish crates to crates.io in dependency order.
+# Publish crates to crates.io in dependency order (no auto-bump).
 # Usage:
 #   just deploy-cargo
-#   just deploy-cargo minor
-#   just deploy-cargo patch dry-run=true
-deploy-cargo bump="patch" dry-run="false":
+#   just deploy-cargo dry-run=true
+deploy-cargo dry-run="false":
     chmod +x ./scripts/deploy-cargo.sh
-    if [ "{{dry-run}}" = "true" ]; then ./scripts/deploy-cargo.sh {{bump}} --dry-run; else ./scripts/deploy-cargo.sh {{bump}}; fi
+    if [ "{{dry-run}}" = "true" ]; then ./scripts/deploy-cargo.sh --dry-run; else ./scripts/deploy-cargo.sh; fi
 
 # Run Firestore emulator smoke test
 firestore-emulator-check project_id="demo-fido":
