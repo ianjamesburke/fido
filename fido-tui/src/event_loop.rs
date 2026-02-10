@@ -35,26 +35,26 @@ impl EventLoop {
             // Handle GitHub Device Flow polling
             self.handle_github_device_flow(app, auth_flow).await?;
 
-            // Check modal state changes and load data as needed
-            self.modal_tracker.check_and_load(app).await?;
-
-            // Handle tab changes and data loading
-            self.handle_tab_changes(app).await?;
-
-            // Handle DM conversation changes
-            self.handle_dm_conversation_changes(app).await?;
-
             // Clear expired messages
             app.clear_expired_messages();
 
             // Render UI
             self.render_ui(app, tui)?;
 
+            // Process events
+            self.process_events(app, auth_flow).await?;
+
             // Handle pending loads
             self.handle_pending_loads(app).await?;
 
-            // Process events
-            self.process_events(app, auth_flow).await?;
+            // Check modal state changes and load data as needed
+            self.modal_tracker.check_and_load(app).await?;
+
+            // Handle tab changes and data loading after render/event processing
+            self.handle_tab_changes(app).await?;
+
+            // Handle DM conversation changes
+            self.handle_dm_conversation_changes(app).await?;
         }
 
         Ok(())
@@ -86,7 +86,7 @@ impl EventLoop {
             return Ok(());
         }
 
-        if let Some(device_code) = &app.auth_state.github_device_code.clone() {
+        if let Some(device_code) = app.auth_state.github_device_code.as_deref() {
             log::debug!("Polling GitHub for device authorization...");
 
             match auth_flow.api_client().github_device_poll(device_code).await {
@@ -167,13 +167,19 @@ impl EventLoop {
 
         match app.current_tab {
             Tab::Profile => {
-                app.load_profile().await?;
+                if app.profile_state.profile.is_none() || app.profile_state.error.is_some() {
+                    app.load_profile().await?;
+                }
             }
             Tab::DMs => {
-                app.load_conversations().await?;
+                if app.dms_state.conversations.is_empty() || app.dms_state.error.is_some() {
+                    app.load_conversations().await?;
+                }
             }
             Tab::Settings => {
-                app.load_settings().await?;
+                if app.settings_state.config.is_none() || app.settings_state.error.is_some() {
+                    app.load_settings().await?;
+                }
             }
             _ => {}
         }
@@ -232,7 +238,7 @@ impl EventLoop {
     }
 
     async fn process_events(&self, app: &mut App, auth_flow: &mut AuthFlow) -> Result<()> {
-        if !event::poll(Duration::from_millis(100))? {
+        if !event::poll(Duration::from_millis(33))? {
             return Ok(());
         }
 

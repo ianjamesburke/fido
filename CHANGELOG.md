@@ -15,6 +15,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+
+
+## [0.1.14] - 2026-02-10
+
+### Changed
+- Improved event loop responsiveness with reduced polling interval (100ms → 33ms)
+- Optimized tab data loading to prevent redundant API calls
+
+### Fixed
+- Removed artificial loading delay in post refresh for faster UI updates
+
+### Removed
+- Unnecessary 200ms delay in post loading operations
+
+
+
 ## [0.1.12] - 2026-02-10
 
 ### Changed

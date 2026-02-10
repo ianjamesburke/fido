@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::time::Duration;
 
 use super::{categorize_error, App, FilterTab, InputMode, PostFilter};
 use crossterm::event::{KeyCode, KeyEvent};
@@ -12,9 +11,6 @@ impl App {
 
         // Yield to allow UI to render the loading state
         tokio::task::yield_now().await;
-
-        // Add 200ms delay to ensure loading spinner is visible
-        tokio::time::sleep(Duration::from_millis(200)).await;
 
         // Get sort order and max posts from config
         let sort_order = self
