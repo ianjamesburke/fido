@@ -103,11 +103,7 @@ pub async fn send_message(
 
     // Check rate limit (1 DM per 1 second)
     check_dm_rate_limit(&state, &from_user_id)?;
-    let message = service.send_message(
-        &from_user_id,
-        &payload.to_username,
-        &payload.content,
-    )?;
+    let message = service.send_message(&from_user_id, &payload.to_username, &payload.content)?;
 
     // Update rate limit timestamp
     update_dm_rate_limit(&state, &from_user_id)?;

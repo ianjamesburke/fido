@@ -5,8 +5,8 @@ use rusqlite::OptionalExtension;
 use uuid::Uuid;
 
 use crate::db::repositories::{
-    ConfigRepository, DirectMessageRepository, FriendRepository, HashtagRepository,
-    PostRepository, UserRepository, VoteRepository,
+    ConfigRepository, DirectMessageRepository, FriendRepository, HashtagRepository, PostRepository,
+    UserRepository, VoteRepository,
 };
 use crate::db::DbPool;
 use crate::stores::{
@@ -38,8 +38,7 @@ impl PostStore for SqlitePostStore {
         sort_order: SortOrder,
         limit: i32,
     ) -> anyhow::Result<Vec<Post>> {
-        self.repo
-            .get_posts_by_hashtag(hashtag, sort_order, limit)
+        self.repo.get_posts_by_hashtag(hashtag, sort_order, limit)
     }
 
     fn get_posts_by_username(
@@ -48,8 +47,7 @@ impl PostStore for SqlitePostStore {
         sort_order: SortOrder,
         limit: i32,
     ) -> anyhow::Result<Vec<Post>> {
-        self.repo
-            .get_posts_by_username(username, sort_order, limit)
+        self.repo.get_posts_by_username(username, sort_order, limit)
     }
 
     fn get_posts_by_hashtag_and_username(
@@ -121,7 +119,11 @@ impl HashtagStore for SqliteHashtagStore {
         self.repo.increment_activity(user_id, hashtag)
     }
 
-    fn get_active_by_user(&self, user_id: &Uuid, limit: usize) -> anyhow::Result<Vec<(String, i64)>> {
+    fn get_active_by_user(
+        &self,
+        user_id: &Uuid,
+        limit: usize,
+    ) -> anyhow::Result<Vec<(String, i64)>> {
         self.repo.get_active_by_user(user_id, limit)
     }
 
@@ -447,8 +449,7 @@ impl SessionStore for SqliteSessionStore {
         match row {
             Some((user_id_str, expires_at_str, last_activity_str)) => {
                 let user_id = Uuid::parse_str(&user_id_str)?;
-                let expires_at =
-                    DateTime::parse_from_rfc3339(&expires_at_str)?.with_timezone(&Utc);
+                let expires_at = DateTime::parse_from_rfc3339(&expires_at_str)?.with_timezone(&Utc);
                 let last_activity = match last_activity_str {
                     Some(v) => Some(DateTime::parse_from_rfc3339(&v)?.with_timezone(&Utc)),
                     None => None,

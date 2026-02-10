@@ -49,14 +49,15 @@ pub fn auth_layout(frame: &mut Frame, app: &App) -> AuthLayout {
     };
 
     if app.is_demo_mode {
-        let demo_banner = Paragraph::new("🎮 DEMO MODE - Data is temporary and will be lost on refresh")
-            .style(
-                Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .alignment(ratatui::layout::Alignment::Center);
+        let demo_banner =
+            Paragraph::new("🎮 DEMO MODE - Data is temporary and will be lost on refresh")
+                .style(
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .alignment(ratatui::layout::Alignment::Center);
         frame.render_widget(demo_banner, chunks[0]);
 
         AuthLayout {
@@ -169,12 +170,10 @@ pub fn banner_layout(area: Rect, has_message: bool, has_error: bool) -> BannerLa
                 ])
                 .split(area)
         }
-        (false, false) => {
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Min(0)])
-                .split(area)
-        }
+        (false, false) => Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0)])
+            .split(area),
     };
 
     match (has_message, has_error) {

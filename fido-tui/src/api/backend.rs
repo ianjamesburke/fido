@@ -51,7 +51,9 @@ impl Backend {
             Backend::Api(client) => client.validate_session().await,
             Backend::Mock(_) => {
                 // Mock backend doesn't support session validation
-                Err(super::ApiError::Api("Session validation not supported in demo mode".to_string()))
+                Err(super::ApiError::Api(
+                    "Session validation not supported in demo mode".to_string(),
+                ))
             }
         }
     }
@@ -78,13 +80,8 @@ impl Backend {
         match self {
             Backend::Api(client) => client.get_posts(limit, sort, hashtag, username).await,
             Backend::Mock(mock) => {
-                mock.get_posts(
-                    limit.map(|l| l as usize),
-                    sort,
-                    hashtag,
-                    username,
-                )
-                .await
+                mock.get_posts(limit.map(|l| l as usize), sort, hashtag, username)
+                    .await
             }
         }
     }
@@ -96,7 +93,11 @@ impl Backend {
         }
     }
 
-    pub async fn vote_on_post(&mut self, post_id: Uuid, direction: VoteDirection) -> ApiResult<serde_json::Value> {
+    pub async fn vote_on_post(
+        &mut self,
+        post_id: Uuid,
+        direction: VoteDirection,
+    ) -> ApiResult<serde_json::Value> {
         match self {
             Backend::Api(client) => client.vote_on_post(post_id, direction).await,
             Backend::Mock(mock) => {
@@ -112,7 +113,8 @@ impl Backend {
             Backend::Mock(mock) => {
                 // MockBackend doesn't have get_post_by_id, so we'll get all posts and filter
                 let posts = mock.get_posts(None, None, None, None).await?;
-                posts.into_iter()
+                posts
+                    .into_iter()
                     .find(|p| p.id == post_id)
                     .ok_or_else(|| super::ApiError::NotFound("Post not found".to_string()))
             }
@@ -138,7 +140,9 @@ impl Backend {
             Backend::Api(client) => client.delete_post(post_id).await,
             Backend::Mock(_) => {
                 // MockBackend doesn't support delete_post
-                Err(super::ApiError::Api("Post deletion not supported in demo mode".to_string()))
+                Err(super::ApiError::Api(
+                    "Post deletion not supported in demo mode".to_string(),
+                ))
             }
         }
     }
@@ -178,7 +182,11 @@ impl Backend {
         }
     }
 
-    pub async fn send_message(&mut self, to_username: String, content: String) -> ApiResult<DirectMessage> {
+    pub async fn send_message(
+        &mut self,
+        to_username: String,
+        content: String,
+    ) -> ApiResult<DirectMessage> {
         match self {
             Backend::Api(client) => client.send_message(to_username, content).await,
             Backend::Mock(mock) => mock.send_message(to_username, content).await,
@@ -267,7 +275,10 @@ impl Backend {
         }
     }
 
-    pub async fn search_users(&self, query: String) -> ApiResult<Vec<super::client::UserSearchResult>> {
+    pub async fn search_users(
+        &self,
+        query: String,
+    ) -> ApiResult<Vec<super::client::UserSearchResult>> {
         match self {
             Backend::Api(client) => client.search_users(query).await,
             Backend::Mock(_) => {
@@ -284,7 +295,9 @@ impl Backend {
             Backend::Api(client) => client.github_device_flow().await,
             Backend::Mock(_) => {
                 // MockBackend doesn't support GitHub OAuth
-                Err(super::ApiError::Api("GitHub OAuth not supported in demo mode".to_string()))
+                Err(super::ApiError::Api(
+                    "GitHub OAuth not supported in demo mode".to_string(),
+                ))
             }
         }
     }
@@ -294,7 +307,9 @@ impl Backend {
             Backend::Api(client) => client.github_device_poll(device_code).await,
             Backend::Mock(_) => {
                 // MockBackend doesn't support GitHub OAuth
-                Err(super::ApiError::Api("GitHub OAuth not supported in demo mode".to_string()))
+                Err(super::ApiError::Api(
+                    "GitHub OAuth not supported in demo mode".to_string(),
+                ))
             }
         }
     }

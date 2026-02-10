@@ -53,7 +53,11 @@ pub trait HashtagStore: Send + Sync {
     fn store_hashtags(&self, post_id: &Uuid, hashtags: &[String]) -> anyhow::Result<()>;
     fn delete_by_post(&self, post_id: &Uuid) -> anyhow::Result<()>;
     fn increment_activity(&self, user_id: &Uuid, hashtag: &str) -> anyhow::Result<()>;
-    fn get_active_by_user(&self, user_id: &Uuid, limit: usize) -> anyhow::Result<Vec<(String, i64)>>;
+    fn get_active_by_user(
+        &self,
+        user_id: &Uuid,
+        limit: usize,
+    ) -> anyhow::Result<Vec<(String, i64)>>;
     fn get_followed_by_user(&self, user_id: &Uuid) -> anyhow::Result<Vec<String>>;
     fn get_post_count(&self, name: &str) -> anyhow::Result<i32>;
     fn follow_hashtag(&self, user_id: &Uuid, name: &str) -> anyhow::Result<()>;
@@ -112,8 +116,11 @@ pub trait RateLimitStore: Send + Sync {
 
 pub trait DirectMessageStore: Send + Sync {
     fn create(&self, dm: &DirectMessage) -> anyhow::Result<()>;
-    fn get_conversation(&self, user1_id: &Uuid, user2_id: &Uuid)
-        -> anyhow::Result<Vec<DirectMessage>>;
+    fn get_conversation(
+        &self,
+        user1_id: &Uuid,
+        user2_id: &Uuid,
+    ) -> anyhow::Result<Vec<DirectMessage>>;
     fn get_conversations_list(&self, user_id: &Uuid) -> anyhow::Result<Vec<Uuid>>;
     fn mark_as_read(&self, user_id: &Uuid, other_user_id: &Uuid) -> anyhow::Result<()>;
     fn delete_conversation(&self, user_id: &Uuid, other_user_id: &Uuid) -> anyhow::Result<()>;

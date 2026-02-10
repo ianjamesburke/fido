@@ -289,7 +289,6 @@ impl DMsState {
             }
         }
     }
-
 }
 
 /// Conversation summary

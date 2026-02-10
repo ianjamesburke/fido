@@ -383,7 +383,11 @@ mod tests {
 
         assert_eq!(err.code(), ErrorCode::BadRequest);
         assert!(err.public_details.is_some());
-        assert!(err.public_details.as_ref().unwrap().contains("Invalid JSON"));
+        assert!(err
+            .public_details
+            .as_ref()
+            .unwrap()
+            .contains("Invalid JSON"));
     }
 
     #[test]

@@ -217,8 +217,8 @@ fn map_relationship(info: &RelationshipInfo) -> RelationshipStatus {
 #[cfg(all(test, feature = "sqlite-tests"))]
 mod tests {
     use super::*;
-    use crate::db::Database;
     use crate::db::repositories::UserRepository;
+    use crate::db::Database;
     use crate::state::AppState;
     use axum::http::{HeaderMap, HeaderValue};
 

@@ -1,9 +1,3 @@
-use axum::{
-    extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
-    Json,
-};
-use serde::{Deserialize, Serialize};
 use crate::{
     api::{ApiError, ApiResult},
     http::{extract_client_ip, extract_user_agent, AuthenticatedUser},
@@ -12,6 +6,12 @@ use crate::{
     services::hashtags::HashtagService,
     state::AppState,
 };
+use axum::{
+    extract::{Path, Query, State},
+    http::{HeaderMap, StatusCode},
+    Json,
+};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {

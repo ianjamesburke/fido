@@ -87,7 +87,10 @@ pub async fn require_admin(
                 AuditEvent::new(AuditEventType::AdminAction)
                     .with_optional_ip_address(client_ip)
                     .with_optional_user_agent(user_agent)
-                    .with_details(format!("Unauthorized admin access attempt (no token): {}", request_path)),
+                    .with_details(format!(
+                        "Unauthorized admin access attempt (no token): {}",
+                        request_path
+                    )),
             );
             return Err((
                 StatusCode::UNAUTHORIZED,
@@ -110,7 +113,10 @@ pub async fn require_admin(
                 AuditEvent::new(AuditEventType::AdminAction)
                     .with_optional_ip_address(client_ip)
                     .with_optional_user_agent(user_agent)
-                    .with_details(format!("Unauthorized admin access attempt (invalid session): {}", request_path)),
+                    .with_details(format!(
+                        "Unauthorized admin access attempt (invalid session): {}",
+                        request_path
+                    )),
             );
             return Err((
                 StatusCode::UNAUTHORIZED,
@@ -134,7 +140,10 @@ pub async fn require_admin(
                     .with_user_id(user_id)
                     .with_optional_ip_address(client_ip)
                     .with_optional_user_agent(user_agent)
-                    .with_details(format!("Admin access attempt (user not found): {}", request_path)),
+                    .with_details(format!(
+                        "Admin access attempt (user not found): {}",
+                        request_path
+                    )),
             );
             return Err((
                 StatusCode::UNAUTHORIZED,
@@ -171,7 +180,10 @@ pub async fn require_admin(
                 .with_user_id(user_id)
                 .with_optional_ip_address(client_ip)
                 .with_optional_user_agent(user_agent)
-                .with_details(format!("Forbidden admin access attempt by non-admin user {}: {}", user.username, request_path)),
+                .with_details(format!(
+                    "Forbidden admin access attempt by non-admin user {}: {}",
+                    user.username, request_path
+                )),
         );
         return Err((
             StatusCode::FORBIDDEN,
@@ -196,8 +208,8 @@ pub async fn require_admin(
 #[cfg(all(test, feature = "sqlite-tests"))]
 mod tests {
     use super::*;
-    use crate::db::Database;
     use crate::db::repositories::UserRepository;
+    use crate::db::Database;
     use chrono::Utc;
     use uuid::Uuid;
 
@@ -228,28 +240,34 @@ mod tests {
     #[test]
     fn test_admin_user_has_is_admin_flag() {
         let db = setup_test_db();
-        
+
         // Create an admin user
         let admin_id = create_test_user(&db, "admin_user", true);
-        
+
         // Verify the user has is_admin = true
         let user_repo = UserRepository::new(db.pool.clone());
-        let user = user_repo.get_by_id(&admin_id).expect("Failed to get user").expect("User not found");
-        
+        let user = user_repo
+            .get_by_id(&admin_id)
+            .expect("Failed to get user")
+            .expect("User not found");
+
         assert!(user.is_admin, "Admin user should have is_admin = true");
     }
 
     #[test]
     fn test_regular_user_has_no_admin_flag() {
         let db = setup_test_db();
-        
+
         // Create a regular user
         let user_id = create_test_user(&db, "regular_user", false);
-        
+
         // Verify the user has is_admin = false
         let user_repo = UserRepository::new(db.pool.clone());
-        let user = user_repo.get_by_id(&user_id).expect("Failed to get user").expect("User not found");
-        
+        let user = user_repo
+            .get_by_id(&user_id)
+            .expect("Failed to get user")
+            .expect("User not found");
+
         assert!(!user.is_admin, "Regular user should have is_admin = false");
     }
 
@@ -257,27 +275,36 @@ mod tests {
     fn test_session_manager_creates_valid_session() {
         let db = setup_test_db();
         let state = AppState::new(db.clone());
-        
+
         // Create a user
         let user_id = create_test_user(&db, "test_user", false);
-        
+
         // Create a session
-        let token = state.session_manager.create_session(user_id).expect("Failed to create session");
-        
+        let token = state
+            .session_manager
+            .create_session(user_id)
+            .expect("Failed to create session");
+
         // Validate the session
-        let validated_user_id = state.session_manager.validate_session(&token).expect("Failed to validate session");
-        
-        assert_eq!(user_id, validated_user_id, "Session should return the correct user ID");
+        let validated_user_id = state
+            .session_manager
+            .validate_session(&token)
+            .expect("Failed to validate session");
+
+        assert_eq!(
+            user_id, validated_user_id,
+            "Session should return the correct user ID"
+        );
     }
 
     #[test]
     fn test_invalid_session_fails_validation() {
         let db = setup_test_db();
         let state = AppState::new(db);
-        
+
         // Try to validate an invalid token
         let result = state.session_manager.validate_session("invalid-token");
-        
+
         assert!(result.is_err(), "Invalid session should fail validation");
     }
 
@@ -285,18 +312,27 @@ mod tests {
     fn test_admin_check_logic() {
         let db = setup_test_db();
         let state = AppState::new(db.clone());
-        
+
         // Create an admin user
         let admin_id = create_test_user(&db, "admin_user", true);
-        
+
         // Create a session for the admin
-        let token = state.session_manager.create_session(admin_id).expect("Failed to create session");
-        
+        let token = state
+            .session_manager
+            .create_session(admin_id)
+            .expect("Failed to create session");
+
         // Validate session and get user
-        let user_id = state.session_manager.validate_session(&token).expect("Failed to validate session");
+        let user_id = state
+            .session_manager
+            .validate_session(&token)
+            .expect("Failed to validate session");
         let user_repo = UserRepository::new(state.db.pool.clone());
-        let user = user_repo.get_by_id(&user_id).expect("Failed to get user").expect("User not found");
-        
+        let user = user_repo
+            .get_by_id(&user_id)
+            .expect("Failed to get user")
+            .expect("User not found");
+
         // Check admin status
         assert!(user.is_admin, "User should be an admin");
     }
@@ -305,18 +341,27 @@ mod tests {
     fn test_non_admin_check_logic() {
         let db = setup_test_db();
         let state = AppState::new(db.clone());
-        
+
         // Create a regular user
         let user_id = create_test_user(&db, "regular_user", false);
-        
+
         // Create a session for the user
-        let token = state.session_manager.create_session(user_id).expect("Failed to create session");
-        
+        let token = state
+            .session_manager
+            .create_session(user_id)
+            .expect("Failed to create session");
+
         // Validate session and get user
-        let validated_user_id = state.session_manager.validate_session(&token).expect("Failed to validate session");
+        let validated_user_id = state
+            .session_manager
+            .validate_session(&token)
+            .expect("Failed to validate session");
         let user_repo = UserRepository::new(state.db.pool.clone());
-        let user = user_repo.get_by_id(&validated_user_id).expect("Failed to get user").expect("User not found");
-        
+        let user = user_repo
+            .get_by_id(&validated_user_id)
+            .expect("Failed to get user")
+            .expect("User not found");
+
         // Check admin status
         assert!(!user.is_admin, "User should not be an admin");
     }

@@ -107,5 +107,4 @@ impl App {
             current.saturating_sub(1)
         };
     }
-
 }

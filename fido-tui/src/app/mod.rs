@@ -1,22 +1,22 @@
 pub mod state;
 pub use state::*;
-pub mod handlers;
 mod error;
+pub mod handlers;
 pub(crate) use error::categorize_error;
-mod build;
 mod auth;
+mod build;
 mod composer;
 mod dms;
 mod friends;
 mod hashtags;
 mod helpers;
 mod navigation;
-mod posts;
 mod post_detail;
+mod posts;
 mod profile;
+mod profile_view;
 mod settings;
 mod user_search;
-mod profile_view;
 
 #[cfg(test)]
 mod tests;

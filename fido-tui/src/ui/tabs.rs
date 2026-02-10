@@ -147,7 +147,7 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
         } else {
             "Select a test user (development only):"
         };
-        
+
         lines.push(Line::from(Span::styled(
             user_prompt,
             Style::default()
@@ -682,8 +682,8 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
         }
     };
 
-    let posts_widget = styled_list(items, &theme, None)
-        .block(Block::default().borders(Borders::ALL).title(title));
+    let posts_widget =
+        styled_list(items, &theme, None).block(Block::default().borders(Borders::ALL).title(title));
 
     frame.render_stateful_widget(posts_widget, posts_area, &mut app.posts_state.list_state);
 

@@ -254,6 +254,34 @@ fly logs -a fido-social --tail 50
 - Docker-based deployment (`Dockerfile`)
 - Logs: `fly logs -a fido-social --tail 50` (always use --tail to avoid blocking)
 
+### Troubleshooting: Firebase Hosted ttyd Preview Blank
+
+If `/ttyd/` works directly but the embedded terminal on `https://<project>.web.app` is blank:
+
+- Use the Cloud Run ttyd URL directly in `web/index.html` iframe `src` (for this project: `https://fido-web-934696923362.us-central1.run.app/ttyd/`) instead of `/ttyd/`.
+- Ensure ttyd response headers allow embedding from Firebase Hosting domains via CSP `frame-ancestors`.
+  - Update `nginx.conf` and `start.sh` `/ttyd/` location to include:
+    - `https://fido-prod-ijb.web.app`
+    - `https://fido-prod-ijb.firebaseapp.com`
+- Do not rely on `X-Frame-Options` for multi-origin embedding; use CSP `frame-ancestors`.
+
+Verification checklist:
+
+- Confirm iframe source in deployed homepage:
+  - `curl -sS https://fido-prod-ijb.web.app/ | rg "iframe|ttyd|run.app"`
+- Confirm ttyd endpoint allows embedding:
+  - `curl -I -sS https://fido-web-934696923362.us-central1.run.app/ttyd/`
+  - Expect `content-security-policy` containing allowed Firebase domains.
+- Confirm websocket activity in Cloud Run logs:
+  - `gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="fido-web" AND textPayload:"/ttyd/ws"' --limit=50 --format='value(timestamp,textPayload)'`
+  - Expect websocket connect lines (`WS /ttyd/ws`) and HTTP `101` upgrades.
+
+Important runtime pitfall:
+
+- If ttyd opens but terminal stays blank/disconnects with reconnect prompts, check for glibc mismatch in logs:
+  - `/usr/local/bin/fido: ... GLIBC_X.Y not found`
+- Fix by matching builder/runtime OS families in Dockerfile (for this repo: `FROM rust:1.91-bookworm` builder with `debian:bookworm-slim` runtime).
+
 ## Web Terminal Demo vs Local TUI
 
 Fido has two distinct modes of operation:

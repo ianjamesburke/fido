@@ -30,6 +30,16 @@ tui:
 tui-local:
     cargo run --bin fido -- --server http://localhost:3000
 
+# Start full local web stack (fido-server + ttyd + nginx)
+# Uses Firestore emulator by default and enables test-data seeding.
+web project_id="demo-fido" emulator_host="127.0.0.1:8088":
+    DB_BACKEND=firestore \
+    FIREBASE_PROJECT_ID={{project_id}} \
+    GOOGLE_CLOUD_PROJECT={{project_id}} \
+    FIRESTORE_EMULATOR_HOST={{emulator_host}} \
+    FIRESTORE_SEED_TEST_DATA=true \
+    ./start.sh
+
 # Run full test suite
 test:
     cargo test --workspace
@@ -41,6 +51,15 @@ firebase-deploy project_id:
 # Deploy web stack using env/.env and active gcloud project defaults
 deploy:
     ./scripts/deploy-firebase.sh
+
+# Bump version and publish crates to crates.io in dependency order.
+# Usage:
+#   just deploy-cargo
+#   just deploy-cargo minor
+#   just deploy-cargo patch dry-run=true
+deploy-cargo bump="patch" dry-run="false":
+    chmod +x ./scripts/deploy-cargo.sh
+    if [ "{{dry-run}}" = "true" ]; then ./scripts/deploy-cargo.sh {{bump}} --dry-run; else ./scripts/deploy-cargo.sh {{bump}}; fi
 
 # Run Firestore emulator smoke test
 firestore-emulator-check project_id="demo-fido":

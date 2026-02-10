@@ -95,10 +95,7 @@ impl Database {
 
         // Migration: Add last_activity column to sessions table if it doesn't exist
         // Default value is set to created_at for existing sessions
-        let _ = conn.execute(
-            "ALTER TABLE sessions ADD COLUMN last_activity TEXT",
-            [],
-        );
+        let _ = conn.execute("ALTER TABLE sessions ADD COLUMN last_activity TEXT", []);
         // Update existing sessions to set last_activity = created_at where NULL
         let _ = conn.execute(
             "UPDATE sessions SET last_activity = created_at WHERE last_activity IS NULL",

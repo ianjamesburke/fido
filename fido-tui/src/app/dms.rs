@@ -197,34 +197,33 @@ impl App {
         self.dms_state.error = None;
 
         // Check if this is a pending new conversation
-        let to_username = if let Some(pending_username) =
-            &self.dms_state.pending_conversation_username
-        {
-            pending_username.clone()
-        } else {
-            // Regular conversation - get from selected
-            let selected_index = match &self.dms_state.selection {
-                DMSelection::NewConversation => {
-                    self.dms_state.error =
-                        Some("Press Enter or N to start a new conversation.".to_string());
+        let to_username =
+            if let Some(pending_username) = &self.dms_state.pending_conversation_username {
+                pending_username.clone()
+            } else {
+                // Regular conversation - get from selected
+                let selected_index = match &self.dms_state.selection {
+                    DMSelection::NewConversation => {
+                        self.dms_state.error =
+                            Some("Press Enter or N to start a new conversation.".to_string());
+                        return Ok(());
+                    }
+                    DMSelection::PendingDraft => {
+                        // This shouldn't happen since we check pending_conversation_username above
+                        self.dms_state.error = Some("No recipient selected.".to_string());
+                        return Ok(());
+                    }
+                    DMSelection::Conversation(index) => *index,
+                };
+
+                if self.dms_state.conversations.is_empty() {
+                    self.dms_state.error = Some("No conversations available.".to_string());
                     return Ok(());
                 }
-                DMSelection::PendingDraft => {
-                    // This shouldn't happen since we check pending_conversation_username above
-                    self.dms_state.error = Some("No recipient selected.".to_string());
-                    return Ok(());
-                }
-                DMSelection::Conversation(index) => *index,
+
+                let conversation = &self.dms_state.conversations[selected_index];
+                conversation.other_username.clone()
             };
-
-            if self.dms_state.conversations.is_empty() {
-                self.dms_state.error = Some("No conversations available.".to_string());
-                return Ok(());
-            }
-
-            let conversation = &self.dms_state.conversations[selected_index];
-            conversation.other_username.clone()
-        };
         // Parse emoji shortcodes before sending
         let parsed_content = crate::emoji::parse_emoji_shortcodes(&content);
 

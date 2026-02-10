@@ -152,7 +152,9 @@ impl DMService {
     }
 
     pub fn delete_conversation(&self, user_id: &Uuid, other_user_id: &Uuid) -> ApiResult<()> {
-        self.stores.dms.delete_conversation(user_id, other_user_id)?;
+        self.stores
+            .dms
+            .delete_conversation(user_id, other_user_id)?;
         Ok(())
     }
 }

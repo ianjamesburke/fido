@@ -22,8 +22,8 @@ use axum::{
 use clap::Parser;
 use rate_limit::RateLimiter;
 use state::AppState;
-use stores::Stores;
 use std::net::SocketAddr;
+use stores::Stores;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -123,7 +123,10 @@ async fn main() {
             Ok(db) => db,
             Err(e) => {
                 tracing::error!("Failed to create placeholder in-memory database: {}", e);
-                eprintln!("FATAL: Failed to create placeholder in-memory database: {}", e);
+                eprintln!(
+                    "FATAL: Failed to create placeholder in-memory database: {}",
+                    e
+                );
                 std::process::exit(1);
             }
         }

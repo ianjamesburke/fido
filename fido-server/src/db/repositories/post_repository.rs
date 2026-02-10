@@ -55,7 +55,7 @@ impl PostRepository {
     }
 
     /// Get posts with sorting and limit
-    /// 
+    ///
     /// # SQL Injection Safety
     /// This method uses format!() to build the ORDER BY clause, but it is safe because:
     /// - The `sort_order` parameter is a validated enum (SortOrder), not user input
@@ -238,7 +238,7 @@ impl PostRepository {
     }
 
     /// Get posts filtered by hashtag
-    /// 
+    ///
     /// # SQL Injection Safety
     /// This method uses format!() to build the ORDER BY clause, but it is safe because:
     /// - The `sort_order` parameter is a validated enum (SortOrder), not user input
@@ -288,7 +288,7 @@ impl PostRepository {
     }
 
     /// Get posts filtered by username
-    /// 
+    ///
     /// # SQL Injection Safety
     /// This method uses format!() to build the ORDER BY clause, but it is safe because:
     /// - The `sort_order` parameter is a validated enum (SortOrder), not user input
@@ -336,7 +336,7 @@ impl PostRepository {
     }
 
     /// Get posts filtered by both hashtag and username
-    /// 
+    ///
     /// # SQL Injection Safety
     /// This method uses format!() to build the ORDER BY clause, but it is safe because:
     /// - The `sort_order` parameter is a validated enum (SortOrder), not user input

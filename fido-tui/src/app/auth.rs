@@ -127,7 +127,6 @@ impl App {
         Ok(())
     }
 
-
     /// Handle keys for authentication screen
     pub fn handle_auth_keys(&mut self, key: KeyEvent) -> Result<()> {
         match key.code {

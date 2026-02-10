@@ -3,12 +3,12 @@
 //! This module provides comprehensive audit logging for security-relevant events
 //! such as authentication, session management, and suspicious activity detection.
 
+use crate::stores::AuditStore;
 use chrono::Utc;
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
-use crate::stores::AuditStore;
 
 /// Errors that can occur during audit logging
 #[derive(Debug, Error)]
@@ -114,7 +114,6 @@ impl AuditEvent {
         self.details = Some(details.into());
         self
     }
-
 }
 
 /// Audit logger for recording security events
@@ -158,12 +157,18 @@ mod tests {
     fn test_audit_event_type_display() {
         assert_eq!(AuditEventType::LoginSuccess.to_string(), "login_success");
         assert_eq!(AuditEventType::LoginFailure.to_string(), "login_failure");
-        assert_eq!(AuditEventType::SessionRevoked.to_string(), "session_revoked");
+        assert_eq!(
+            AuditEventType::SessionRevoked.to_string(),
+            "session_revoked"
+        );
         assert_eq!(
             AuditEventType::DeviceCodeGenerated.to_string(),
             "device_code_generated"
         );
-        assert_eq!(AuditEventType::DeviceCodeUsed.to_string(), "device_code_used");
+        assert_eq!(
+            AuditEventType::DeviceCodeUsed.to_string(),
+            "device_code_used"
+        );
     }
 
     #[test]

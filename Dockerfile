@@ -2,7 +2,8 @@
 # Includes: fido-server (API), fido-tui (TUI), ttyd (web terminal), nginx (reverse proxy)
 
 # Stage 1: Build Rust binaries
-FROM rust:1.91 as builder
+# Keep builder/runtime on the same Debian generation to avoid glibc ABI mismatch.
+FROM rust:1.91-bookworm as builder
 
 WORKDIR /app
 

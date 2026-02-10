@@ -61,7 +61,11 @@ impl HashtagService {
         Ok(response)
     }
 
-    pub fn get_active_hashtags(&self, user_id: &Uuid, limit: usize) -> ApiResult<Vec<ActiveHashtag>> {
+    pub fn get_active_hashtags(
+        &self,
+        user_id: &Uuid,
+        limit: usize,
+    ) -> ApiResult<Vec<ActiveHashtag>> {
         let hashtags = self.store.get_active_by_user(user_id, limit)?;
         Ok(hashtags
             .into_iter()
@@ -71,5 +75,4 @@ impl HashtagService {
             })
             .collect())
     }
-
 }

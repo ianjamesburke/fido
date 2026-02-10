@@ -48,13 +48,17 @@ impl From<ApiError> for SecureError {
 impl From<SecureError> for ApiError {
     fn from(secure_error: SecureError) -> Self {
         use crate::security::errors::ErrorCode;
-        
+
         match secure_error.code() {
             ErrorCode::NotFound => ApiError::NotFound("Resource not found".to_string()),
             ErrorCode::BadRequest => ApiError::BadRequest("Bad request".to_string()),
-            ErrorCode::AuthenticationError => ApiError::Unauthorized("Authentication required".to_string()),
+            ErrorCode::AuthenticationError => {
+                ApiError::Unauthorized("Authentication required".to_string())
+            }
             ErrorCode::AuthorizationError => ApiError::Forbidden("Access denied".to_string()),
-            ErrorCode::RateLimitExceeded => ApiError::TooManyRequests("Rate limit exceeded".to_string()),
+            ErrorCode::RateLimitExceeded => {
+                ApiError::TooManyRequests("Rate limit exceeded".to_string())
+            }
             ErrorCode::DatabaseError | ErrorCode::InternalError => {
                 ApiError::InternalError("Internal server error".to_string())
             }
@@ -148,10 +152,7 @@ mod tests {
             secure_error.code(),
             crate::security::errors::ErrorCode::NotFound
         );
-        assert_eq!(
-            secure_error.code().status_code(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(secure_error.code().status_code(), StatusCode::NOT_FOUND);
     }
 
     #[test]
@@ -163,10 +164,7 @@ mod tests {
             secure_error.code(),
             crate::security::errors::ErrorCode::BadRequest
         );
-        assert_eq!(
-            secure_error.code().status_code(),
-            StatusCode::BAD_REQUEST
-        );
+        assert_eq!(secure_error.code().status_code(), StatusCode::BAD_REQUEST);
     }
 
     #[test]
@@ -178,10 +176,7 @@ mod tests {
             secure_error.code(),
             crate::security::errors::ErrorCode::AuthenticationError
         );
-        assert_eq!(
-            secure_error.code().status_code(),
-            StatusCode::UNAUTHORIZED
-        );
+        assert_eq!(secure_error.code().status_code(), StatusCode::UNAUTHORIZED);
     }
 
     #[test]
@@ -193,10 +188,7 @@ mod tests {
             secure_error.code(),
             crate::security::errors::ErrorCode::AuthorizationError
         );
-        assert_eq!(
-            secure_error.code().status_code(),
-            StatusCode::FORBIDDEN
-        );
+        assert_eq!(secure_error.code().status_code(), StatusCode::FORBIDDEN);
     }
 
     #[test]

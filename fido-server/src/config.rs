@@ -146,8 +146,8 @@ impl Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
     use crate::test_utils::env_lock;
+    use std::env;
 
     #[test]
     fn test_default_settings() {
@@ -190,10 +190,7 @@ mod tests {
         let settings = Settings::default(); // github_client_id is empty by default
         let result = settings.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("GITHUB_CLIENT_ID"));
+        assert!(result.unwrap_err().to_string().contains("GITHUB_CLIENT_ID"));
     }
 
     #[test]

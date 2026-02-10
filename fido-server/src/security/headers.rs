@@ -51,24 +51,15 @@ pub async fn security_headers_middleware(
 
     // X-Content-Type-Options: Prevents MIME type sniffing
     // Requirement 9.1
-    headers.insert(
-        header::X_CONTENT_TYPE_OPTIONS,
-        "nosniff".parse().unwrap(),
-    );
+    headers.insert(header::X_CONTENT_TYPE_OPTIONS, "nosniff".parse().unwrap());
 
     // X-Frame-Options: Prevents clickjacking attacks
     // Requirement 9.2
-    headers.insert(
-        header::X_FRAME_OPTIONS,
-        "DENY".parse().unwrap(),
-    );
+    headers.insert(header::X_FRAME_OPTIONS, "DENY".parse().unwrap());
 
     // X-XSS-Protection: Enables XSS filtering in older browsers
     // Requirement 9.3
-    headers.insert(
-        header::X_XSS_PROTECTION,
-        "1; mode=block".parse().unwrap(),
-    );
+    headers.insert(header::X_XSS_PROTECTION, "1; mode=block".parse().unwrap());
 
     // Content-Security-Policy: Restricts resource loading to same origin
     // Requirement 9.4
@@ -117,12 +108,16 @@ pub async fn security_headers_middleware(
 /// ```
 pub fn create_security_headers_layer(
     environment: Environment,
-) -> impl Fn(Request<Body>, Next) -> std::pin::Pin<Box<dyn std::future::Future<Output = Response<Body>> + Send>> + Clone + Send + 'static {
+) -> impl Fn(
+    Request<Body>,
+    Next,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Response<Body>> + Send>>
+       + Clone
+       + Send
+       + 'static {
     move |request: Request<Body>, next: Next| {
         let env = environment;
-        Box::pin(async move {
-            security_headers_middleware(env, request, next).await
-        })
+        Box::pin(async move { security_headers_middleware(env, request, next).await })
     }
 }
 

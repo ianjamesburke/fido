@@ -194,6 +194,7 @@ http {
             proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
             proxy_read_timeout 1d;
             proxy_pass http://ttyd_server/ttyd/;
+            add_header Content-Security-Policy "frame-ancestors 'self' https://fido-prod-ijb.web.app https://fido-prod-ijb.firebaseapp.com;" always;
         }
         
         location / {

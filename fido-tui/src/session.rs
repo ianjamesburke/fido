@@ -199,7 +199,6 @@ impl SessionStore {
 
         Ok(())
     }
-
 }
 
 #[cfg(test)]

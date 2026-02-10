@@ -43,7 +43,10 @@ fn test_clear_debug_log() {
     reply_debug_log::log_reply_event("bootstrap");
 
     // Verify file exists and is empty
-    assert!(Path::new(log_file).exists(), "Log file should exist after write");
+    assert!(
+        Path::new(log_file).exists(),
+        "Log file should exist after write"
+    );
 
     let _ = fs::remove_file(log_file);
 }
@@ -59,7 +62,10 @@ fn test_log_modal_state() {
     let contents = fs::read_to_string(log_file).expect("Should be able to read log file");
 
     // Verify the log contains expected information
-    assert!(contents.contains("modal state event"), "Log should contain event message");
+    assert!(
+        contents.contains("modal state event"),
+        "Log should contain event message"
+    );
     let _ = fs::remove_file(log_file);
 }
 
@@ -74,7 +80,10 @@ fn test_log_key_event() {
     let contents = fs::read_to_string(log_file).expect("Should be able to read log file");
 
     // Verify the log contains expected information
-    assert!(contents.contains("key=Enter"), "Log should contain key=Enter");
+    assert!(
+        contents.contains("key=Enter"),
+        "Log should contain key=Enter"
+    );
     assert!(
         contents.contains("context=composer_open"),
         "Log should contain context=composer_open"

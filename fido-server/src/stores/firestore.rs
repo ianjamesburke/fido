@@ -14,7 +14,9 @@ use crate::stores::{
     AuditStore, ConfigStore, DirectMessageStore, FriendStore, HashtagStore, PostStore,
     RateLimitStore, SessionRecord, SessionStore, Stores, UserStore, VoteStore,
 };
-use fido_types::{ColorScheme, DirectMessage, Post, SortOrder, User, UserConfig, Vote, VoteDirection};
+use fido_types::{
+    ColorScheme, DirectMessage, Post, SortOrder, User, UserConfig, Vote, VoteDirection,
+};
 
 const COLLECTION_USERS: &str = "users";
 const COLLECTION_POSTS: &str = "posts";
@@ -68,9 +70,8 @@ impl FirestoreClient {
         let emulator = emulator_host.is_some();
 
         let (documents_base, run_query_url) = if let Some(host) = emulator_host {
-            let database_base = format!(
-                "http://{host}/v1/projects/{project_id}/databases/(default)"
-            );
+            let database_base =
+                format!("http://{host}/v1/projects/{project_id}/databases/(default)");
             (
                 format!("{database_base}/documents"),
                 format!("{database_base}/documents:runQuery"),
@@ -274,7 +275,11 @@ fn parse_firestore_error(status: StatusCode, payload: &str) -> anyhow::Error {
     let message = error
         .get("message")
         .and_then(|v| v.as_str())
-        .unwrap_or_else(|| status.canonical_reason().unwrap_or("Firestore request failed"))
+        .unwrap_or_else(|| {
+            status
+                .canonical_reason()
+                .unwrap_or("Firestore request failed")
+        })
         .to_string();
     let status_name = error
         .get("status")
@@ -419,9 +424,11 @@ fn user_from_fields(fields: &Map<String, Value>) -> Result<User> {
         &from_string(fields, "id").ok_or_else(|| anyhow!("missing user.id"))?,
         "id",
     )?;
-    let username = from_string(fields, "username").ok_or_else(|| anyhow!("missing user.username"))?;
+    let username =
+        from_string(fields, "username").ok_or_else(|| anyhow!("missing user.username"))?;
     let bio = from_string(fields, "bio");
-    let join_date = from_timestamp(fields, "join_date").ok_or_else(|| anyhow!("missing user.join_date"))?;
+    let join_date =
+        from_timestamp(fields, "join_date").ok_or_else(|| anyhow!("missing user.join_date"))?;
     let is_test_user = from_bool(fields, "is_test_user").unwrap_or(false);
     let is_admin = from_bool(fields, "is_admin").unwrap_or(false);
 
@@ -508,7 +515,8 @@ fn vote_to_fields(vote: &Vote) -> Map<String, Value> {
 }
 
 fn vote_from_fields(fields: &Map<String, Value>) -> Result<Vote> {
-    let direction_str = from_string(fields, "direction").ok_or_else(|| anyhow!("missing vote.direction"))?;
+    let direction_str =
+        from_string(fields, "direction").ok_or_else(|| anyhow!("missing vote.direction"))?;
     let direction = VoteDirection::parse(&direction_str)
         .ok_or_else(|| anyhow!("invalid vote direction: {direction_str}"))?;
 
@@ -530,7 +538,10 @@ fn vote_from_fields(fields: &Map<String, Value>) -> Result<Vote> {
 fn dm_to_fields(dm: &DirectMessage) -> Map<String, Value> {
     let mut fields = Map::new();
     fields.insert("id".into(), fs_string(&dm.id.to_string()));
-    fields.insert("from_user_id".into(), fs_string(&dm.from_user_id.to_string()));
+    fields.insert(
+        "from_user_id".into(),
+        fs_string(&dm.from_user_id.to_string()),
+    );
     fields.insert("to_user_id".into(), fs_string(&dm.to_user_id.to_string()));
     fields.insert("from_username".into(), fs_string(&dm.from_username));
     fields.insert("to_username".into(), fs_string(&dm.to_username));
@@ -547,7 +558,8 @@ fn dm_from_fields(fields: &Map<String, Value>) -> Result<DirectMessage> {
             "id",
         )?,
         from_user_id: parse_uuid(
-            &from_string(fields, "from_user_id").ok_or_else(|| anyhow!("missing dm.from_user_id"))?,
+            &from_string(fields, "from_user_id")
+                .ok_or_else(|| anyhow!("missing dm.from_user_id"))?,
             "from_user_id",
         )?,
         to_user_id: parse_uuid(
@@ -557,7 +569,8 @@ fn dm_from_fields(fields: &Map<String, Value>) -> Result<DirectMessage> {
         from_username: from_string(fields, "from_username").unwrap_or_default(),
         to_username: from_string(fields, "to_username").unwrap_or_default(),
         content: from_string(fields, "content").ok_or_else(|| anyhow!("missing dm.content"))?,
-        created_at: from_timestamp(fields, "created_at").ok_or_else(|| anyhow!("missing dm.created_at"))?,
+        created_at: from_timestamp(fields, "created_at")
+            .ok_or_else(|| anyhow!("missing dm.created_at"))?,
         is_read: from_bool(fields, "is_read").unwrap_or(false),
     })
 }
@@ -707,7 +720,9 @@ impl PostStore for FirestorePostStore {
         let mut posts = self
             .load_posts()?
             .into_iter()
-            .filter(|p| p.parent_post_id.is_none() && p.author_username.to_ascii_lowercase() == target)
+            .filter(|p| {
+                p.parent_post_id.is_none() && p.author_username.to_ascii_lowercase() == target
+            })
             .collect::<Vec<_>>();
 
         for post in &mut posts {
@@ -803,8 +818,12 @@ impl PostStore for FirestorePostStore {
     }
 
     fn create(&self, post: &Post) -> Result<()> {
-        self.client
-            .set_document(COLLECTION_POSTS, &post.id.to_string(), post_to_fields(post), None)
+        self.client.set_document(
+            COLLECTION_POSTS,
+            &post.id.to_string(),
+            post_to_fields(post),
+            None,
+        )
     }
 
     fn update_content(&self, post_id: &Uuid, content: &str) -> Result<()> {
@@ -829,9 +848,7 @@ impl PostStore for FirestorePostStore {
                 .unwrap_or(false);
             if post_match {
                 if let Some(id) = from_string(&record, "id") {
-                    let _ = self
-                        .client
-                        .delete_document(COLLECTION_POST_HASHTAGS, &id)?;
+                    let _ = self.client.delete_document(COLLECTION_POST_HASHTAGS, &id)?;
                 }
             }
         }
@@ -882,9 +899,7 @@ impl HashtagStore for FirestoreHashtagStore {
             .client
             .query_collection(COLLECTION_POST_HASHTAGS)?
             .into_iter()
-            .filter(|record| {
-                from_string(record, "post_id") == Some(post_id.to_string())
-            })
+            .filter(|record| from_string(record, "post_id") == Some(post_id.to_string()))
             .filter_map(|record| from_string(&record, "hashtag"))
             .collect::<Vec<_>>();
 
@@ -931,9 +946,7 @@ impl HashtagStore for FirestoreHashtagStore {
         }
 
         let id = format!("{}:{}", user_id, normalized);
-        let existing = self
-            .client
-            .get_document(COLLECTION_HASHTAG_ACTIVITY, &id)?;
+        let existing = self.client.get_document(COLLECTION_HASHTAG_ACTIVITY, &id)?;
         let current = existing
             .as_ref()
             .and_then(|f| from_int(f, "interaction_count"))
@@ -1148,8 +1161,12 @@ impl UserStore for FirestoreUserStore {
     fn update_bio(&self, user_id: &Uuid, bio: &str) -> Result<()> {
         let mut fields = Map::new();
         fields.insert("bio".into(), fs_string(bio));
-        self.client
-            .set_document(COLLECTION_USERS, &user_id.to_string(), fields, Some(&["bio"]))
+        self.client.set_document(
+            COLLECTION_USERS,
+            &user_id.to_string(),
+            fields,
+            Some(&["bio"]),
+        )
     }
 
     fn create_or_update_from_github(
@@ -1211,10 +1228,7 @@ impl FirestoreFriendStore {
 impl FriendStore for FirestoreFriendStore {
     fn is_following(&self, follower_id: &Uuid, following_id: &Uuid) -> Result<bool> {
         let id = Self::link_id(follower_id, following_id);
-        Ok(self
-            .client
-            .get_document(COLLECTION_FRIENDS, &id)?
-            .is_some())
+        Ok(self.client.get_document(COLLECTION_FRIENDS, &id)?.is_some())
     }
 
     fn are_mutual_friends(&self, user_a: &Uuid, user_b: &Uuid) -> Result<bool> {
@@ -1228,7 +1242,8 @@ impl FriendStore for FirestoreFriendStore {
         fields.insert("follower_id".into(), fs_string(&follower_id.to_string()));
         fields.insert("following_id".into(), fs_string(&following_id.to_string()));
         fields.insert("created_at".into(), fs_timestamp(Utc::now()));
-        self.client.set_document(COLLECTION_FRIENDS, &id, fields, None)
+        self.client
+            .set_document(COLLECTION_FRIENDS, &id, fields, None)
     }
 
     fn unfollow_user(&self, follower_id: &Uuid, following_id: &Uuid) -> Result<usize> {
@@ -1311,7 +1326,10 @@ impl ConfigStore for FirestoreConfigStore {
     fn update(&self, config: &UserConfig) -> Result<()> {
         let mut fields = Map::new();
         fields.insert("user_id".into(), fs_string(&config.user_id.to_string()));
-        fields.insert("color_scheme".into(), fs_string(config.color_scheme.as_str()));
+        fields.insert(
+            "color_scheme".into(),
+            fs_string(config.color_scheme.as_str()),
+        );
         fields.insert("sort_order".into(), fs_string(config.sort_order.as_str()));
         fields.insert(
             "max_posts_display".into(),
@@ -1319,8 +1337,12 @@ impl ConfigStore for FirestoreConfigStore {
         );
         fields.insert("emoji_enabled".into(), fs_bool(config.emoji_enabled));
 
-        self.client
-            .set_document(COLLECTION_CONFIGS, &config.user_id.to_string(), fields, None)
+        self.client.set_document(
+            COLLECTION_CONFIGS,
+            &config.user_id.to_string(),
+            fields,
+            None,
+        )
     }
 }
 
@@ -1352,7 +1374,9 @@ impl RateLimitStore for FirestoreRateLimitStore {
             .client
             .get_document(COLLECTION_RATE_LIMITS, &user_id.to_string())?;
 
-        Ok(maybe_doc.as_ref().and_then(|f| from_timestamp(f, "last_dm_at")))
+        Ok(maybe_doc
+            .as_ref()
+            .and_then(|f| from_timestamp(f, "last_dm_at")))
     }
 
     fn update_last_dm_at(&self, user_id: &Uuid, at: DateTime<Utc>) -> Result<()> {
@@ -1435,7 +1459,9 @@ impl DirectMessageStore for FirestoreDirectMessageStore {
 
     fn delete_conversation(&self, user_id: &Uuid, other_user_id: &Uuid) -> Result<()> {
         for dm in self.get_conversation(user_id, other_user_id)? {
-            let _ = self.client.delete_document(COLLECTION_DMS, &dm.id.to_string())?;
+            let _ = self
+                .client
+                .delete_document(COLLECTION_DMS, &dm.id.to_string())?;
         }
         Ok(())
     }
@@ -1467,7 +1493,8 @@ impl SessionStore for FirestoreSessionStore {
         match doc {
             Some(fields) => {
                 let user_id = parse_uuid(
-                    &from_string(&fields, "user_id").ok_or_else(|| anyhow!("missing session.user_id"))?,
+                    &from_string(&fields, "user_id")
+                        .ok_or_else(|| anyhow!("missing session.user_id"))?,
                     "user_id",
                 )?;
                 let expires_at = from_timestamp(&fields, "expires_at")
@@ -1672,7 +1699,10 @@ fn seed_emulator_test_data_if_needed(client: &Arc<FirestoreClient>) -> Result<()
         };
         let mut config_fields = Map::new();
         config_fields.insert("user_id".into(), fs_string(&config.user_id.to_string()));
-        config_fields.insert("color_scheme".into(), fs_string(config.color_scheme.as_str()));
+        config_fields.insert(
+            "color_scheme".into(),
+            fs_string(config.color_scheme.as_str()),
+        );
         config_fields.insert("sort_order".into(), fs_string(config.sort_order.as_str()));
         config_fields.insert(
             "max_posts_display".into(),
@@ -1721,7 +1751,12 @@ fn seed_emulator_test_data_if_needed(client: &Arc<FirestoreClient>) -> Result<()
     ];
 
     for post in sample_posts {
-        client.set_document(COLLECTION_POSTS, &post.id.to_string(), post_to_fields(&post), None)?;
+        client.set_document(
+            COLLECTION_POSTS,
+            &post.id.to_string(),
+            post_to_fields(&post),
+            None,
+        )?;
         for hashtag in &post.hashtags {
             let tag = hashtag.to_ascii_lowercase();
             let tag_doc_id = format!("{}:{}", post.id, tag);

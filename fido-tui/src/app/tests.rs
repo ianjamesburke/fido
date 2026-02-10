@@ -628,7 +628,7 @@ fn test_current_conversation_user_tracks_open_conversation() {
 #[test]
 fn test_dm_selection_starts_on_new_conversation() {
     let app = App::new();
-    
+
     // DM selection should start on "New Conversation" button
     assert!(
         app.dms_state.selection.is_new_conversation(),
@@ -639,20 +639,18 @@ fn test_dm_selection_starts_on_new_conversation() {
 #[test]
 fn test_dm_navigation_down_from_new_conversation() {
     let mut app = App::new();
-    
+
     // Add some conversations
-    app.dms_state.conversations = vec![
-        crate::app::Conversation {
-            other_user_id: uuid::Uuid::new_v4(),
-            other_username: "user1".to_string(),
-            last_message: "Hello".to_string(),
-            unread_count: 0,
-        },
-    ];
-    
+    app.dms_state.conversations = vec![crate::app::Conversation {
+        other_user_id: uuid::Uuid::new_v4(),
+        other_username: "user1".to_string(),
+        last_message: "Hello".to_string(),
+        unread_count: 0,
+    }];
+
     // Start on NewConversation
     assert!(app.dms_state.selection.is_new_conversation());
-    
+
     // Navigate down should go to first conversation
     app.dms_state.navigate_down();
     assert_eq!(
@@ -665,20 +663,18 @@ fn test_dm_navigation_down_from_new_conversation() {
 #[test]
 fn test_dm_navigation_up_from_conversation() {
     let mut app = App::new();
-    
+
     // Add some conversations
-    app.dms_state.conversations = vec![
-        crate::app::Conversation {
-            other_user_id: uuid::Uuid::new_v4(),
-            other_username: "user1".to_string(),
-            last_message: "Hello".to_string(),
-            unread_count: 0,
-        },
-    ];
-    
+    app.dms_state.conversations = vec![crate::app::Conversation {
+        other_user_id: uuid::Uuid::new_v4(),
+        other_username: "user1".to_string(),
+        last_message: "Hello".to_string(),
+        unread_count: 0,
+    }];
+
     // Start on first conversation
     app.dms_state.selection = crate::app::DMSelection::Conversation(0);
-    
+
     // Navigate up should go to NewConversation
     app.dms_state.navigate_up();
     assert!(
@@ -690,18 +686,18 @@ fn test_dm_navigation_up_from_conversation() {
 #[test]
 fn test_dm_navigation_with_pending_draft() {
     let mut app = App::new();
-    
+
     // Set up a pending draft
     app.dms_state.pending_conversation_username = Some("newuser".to_string());
     app.dms_state.selection = crate::app::DMSelection::NewConversation;
-    
+
     // Navigate down should go to pending draft
     app.dms_state.navigate_down();
     assert!(
         app.dms_state.selection.is_pending_draft(),
         "Should navigate to pending draft"
     );
-    
+
     // Navigate up should go back to NewConversation
     app.dms_state.navigate_up();
     assert!(
@@ -713,10 +709,10 @@ fn test_dm_navigation_with_pending_draft() {
 #[test]
 fn test_dm_selection_stays_on_new_conversation_when_no_conversations() {
     let mut app = App::new();
-    
+
     // No conversations
     assert!(app.dms_state.conversations.is_empty());
-    
+
     // Navigate down should stay on NewConversation
     app.dms_state.navigate_down();
     assert!(

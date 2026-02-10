@@ -59,7 +59,10 @@ impl SessionManager {
     /// * `Result<Uuid>` - The user ID if the session is valid
     /// * `Err` - If the session is invalid, expired, or idle too long
     pub fn validate_session(&self, token: &str) -> Result<Uuid> {
-        let session = self.store.get_session(token).context("Session lookup failed")?;
+        let session = self
+            .store
+            .get_session(token)
+            .context("Session lookup failed")?;
         let session = session.context("Session not found")?;
 
         let now = Utc::now();
@@ -352,8 +355,11 @@ mod tests {
 
         // Session should be invalid due to idle timeout
         let result = manager.validate_session(&token);
-        assert!(result.is_err(), "Session should be invalid after idle timeout");
-        
+        assert!(
+            result.is_err(),
+            "Session should be invalid after idle timeout"
+        );
+
         // Verify the error message mentions idle
         let err_msg = result.unwrap_err().to_string();
         assert!(
@@ -384,7 +390,10 @@ mod tests {
 
         // Session should still be valid
         let result = manager.validate_session(&token);
-        assert!(result.is_ok(), "Session should be valid within idle timeout");
+        assert!(
+            result.is_ok(),
+            "Session should be valid within idle timeout"
+        );
         assert_eq!(result.unwrap(), user_id);
     }
 
@@ -469,7 +478,7 @@ mod tests {
         let updated_time = DateTime::parse_from_rfc3339(&updated_activity)
             .expect("Failed to parse updated activity")
             .with_timezone(&Utc);
-        
+
         let time_diff = Utc::now() - updated_time;
         assert!(
             time_diff < Duration::seconds(5),

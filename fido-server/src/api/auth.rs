@@ -1,8 +1,8 @@
 use axum::{
     extract::State,
     http::HeaderMap,
-    Json,
     response::{IntoResponse, Response},
+    Json,
 };
 use fido_types::{LoginRequest, LoginResponse, User};
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ use super::{ApiError, ApiResult};
 use crate::http::{extract_client_ip, extract_user_agent};
 use crate::oauth::GitHubOAuthConfig;
 use crate::security::validation::validate_username;
-use crate::security::{AuditEvent, AuditEventType, is_https, create_session_cookie};
+use crate::security::{create_session_cookie, is_https, AuditEvent, AuditEventType};
 use crate::state::AppState;
 
 // Temporary in-memory storage for device codes during OAuth flow
@@ -91,7 +91,10 @@ pub async fn login(
                     .with_optional_user_agent(user_agent)
                     .with_details(format!("User not found: {}", payload.username)),
             );
-            return Err(ApiError::NotFound(format!("User '{}' not found", payload.username)));
+            return Err(ApiError::NotFound(format!(
+                "User '{}' not found",
+                payload.username
+            )));
         }
         Err(e) => {
             // Log login failure - database error
@@ -99,7 +102,10 @@ pub async fn login(
                 AuditEvent::new(AuditEventType::LoginFailure)
                     .with_optional_ip_address(client_ip.clone())
                     .with_optional_user_agent(user_agent)
-                    .with_details(format!("Database error during login for: {}", payload.username)),
+                    .with_details(format!(
+                        "Database error during login for: {}",
+                        payload.username
+                    )),
             );
             return Err(ApiError::InternalError(e.to_string()));
         }
@@ -151,7 +157,7 @@ pub async fn login(
     };
 
     let mut response = Json(response_body).into_response();
-    
+
     // Set session cookie with Secure flag if HTTPS
     let cookie = create_session_cookie(&session_token, https);
     response.headers_mut().insert("Set-Cookie", cookie);
@@ -219,7 +225,10 @@ pub async fn cleanup_sessions(
             .with_optional_user_id(admin_user_id)
             .with_optional_ip_address(client_ip)
             .with_optional_user_agent(user_agent)
-            .with_details(format!("Session cleanup: removed {} expired sessions", count)),
+            .with_details(format!(
+                "Session cleanup: removed {} expired sessions",
+                count
+            )),
     );
 
     Ok(Json(serde_json::json!({
@@ -414,7 +423,7 @@ pub async fn github_device_poll(
     };
 
     let mut response = Json(response_body).into_response();
-    
+
     // Set session cookie with Secure flag if HTTPS
     let cookie = create_session_cookie(&session_token, https);
     response.headers_mut().insert("Set-Cookie", cookie);

@@ -31,9 +31,9 @@ use ratatui::{
 };
 
 use super::super::components::list::styled_list;
+use super::super::theme::ThemeColors;
 pub use crate::ui::components::modal::{render_modal_container, ModalConfig};
 pub use crate::ui::components::tab_bar::{render_tab_bar, TabBarConfig};
-use super::super::theme::ThemeColors;
 
 /// Render a loading state
 pub fn render_loading_state(frame: &mut Frame, area: Rect, message: &str, theme: &ThemeColors) {
@@ -58,7 +58,6 @@ pub trait UserListItem {
     fn following_count(&self) -> Option<usize> {
         None
     }
-
 }
 
 /// Render a user list with consistent styling
@@ -97,12 +96,11 @@ pub fn render_user_list<T: UserListItem>(
         })
         .collect();
 
-    let list = styled_list(items, theme, Some(">> "))
-        .highlight_style(
-            Style::default()
-                .bg(theme.highlight_bg)
-                .add_modifier(Modifier::BOLD),
-        );
+    let list = styled_list(items, theme, Some(">> ")).highlight_style(
+        Style::default()
+            .bg(theme.highlight_bg)
+            .add_modifier(Modifier::BOLD),
+    );
 
     let mut list_state = ListState::default();
     // Safer bounds checking - only select if we have items

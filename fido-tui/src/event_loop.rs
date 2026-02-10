@@ -187,8 +187,8 @@ impl EventLoop {
             return Ok(());
         }
 
-        let needs_load = app.dms_state.selection != self.last_dm_selection
-            || app.dms_state.needs_message_load;
+        let needs_load =
+            app.dms_state.selection != self.last_dm_selection || app.dms_state.needs_message_load;
 
         if needs_load && !app.dms_state.conversations.is_empty() {
             app.load_conversation_messages().await?;

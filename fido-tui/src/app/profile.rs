@@ -159,5 +159,4 @@ impl App {
         };
         self.profile_state.list_state.select(Some(i));
     }
-
 }

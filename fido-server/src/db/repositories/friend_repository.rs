@@ -132,5 +132,4 @@ impl FriendRepository {
         )?;
         Ok(count as usize)
     }
-
 }

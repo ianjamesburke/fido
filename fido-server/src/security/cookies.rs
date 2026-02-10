@@ -57,7 +57,7 @@ pub fn create_session_cookie(token: &str, is_https: bool) -> HeaderValue {
         "session_token={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800{}",
         token, secure_flag
     );
-    
+
     HeaderValue::from_str(&cookie).unwrap_or_else(|_| HeaderValue::from_static(""))
 }
 
@@ -70,15 +70,18 @@ mod tests {
     fn test_is_https_with_forwarded_proto() {
         let mut headers = HeaderMap::new();
         headers.insert("X-Forwarded-Proto", HeaderValue::from_static("https"));
-        
-        assert!(is_https(&headers), "Should detect HTTPS from X-Forwarded-Proto");
+
+        assert!(
+            is_https(&headers),
+            "Should detect HTTPS from X-Forwarded-Proto"
+        );
     }
 
     #[test]
     fn test_is_https_with_forwarded_proto_case_insensitive() {
         let mut headers = HeaderMap::new();
         headers.insert("X-Forwarded-Proto", HeaderValue::from_static("HTTPS"));
-        
+
         assert!(is_https(&headers), "Should detect HTTPS case-insensitively");
     }
 
@@ -86,15 +89,18 @@ mod tests {
     fn test_is_https_with_forwarded_ssl() {
         let mut headers = HeaderMap::new();
         headers.insert("X-Forwarded-Ssl", HeaderValue::from_static("on"));
-        
-        assert!(is_https(&headers), "Should detect HTTPS from X-Forwarded-Ssl");
+
+        assert!(
+            is_https(&headers),
+            "Should detect HTTPS from X-Forwarded-Ssl"
+        );
     }
 
     #[test]
     fn test_is_https_with_forwarded_ssl_case_insensitive() {
         let mut headers = HeaderMap::new();
         headers.insert("X-Forwarded-Ssl", HeaderValue::from_static("ON"));
-        
+
         assert!(is_https(&headers), "Should detect HTTPS case-insensitively");
     }
 
@@ -102,15 +108,18 @@ mod tests {
     fn test_is_https_with_http() {
         let mut headers = HeaderMap::new();
         headers.insert("X-Forwarded-Proto", HeaderValue::from_static("http"));
-        
+
         assert!(!is_https(&headers), "Should not detect HTTPS for HTTP");
     }
 
     #[test]
     fn test_is_https_with_no_headers() {
         let headers = HeaderMap::new();
-        
-        assert!(!is_https(&headers), "Should not detect HTTPS without headers");
+
+        assert!(
+            !is_https(&headers),
+            "Should not detect HTTPS without headers"
+        );
     }
 
     #[test]
@@ -118,8 +127,11 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("X-Forwarded-Proto", HeaderValue::from_static("https"));
         headers.insert("X-Forwarded-Ssl", HeaderValue::from_static("off"));
-        
-        assert!(is_https(&headers), "Should prefer X-Forwarded-Proto over X-Forwarded-Ssl");
+
+        assert!(
+            is_https(&headers),
+            "Should prefer X-Forwarded-Proto over X-Forwarded-Ssl"
+        );
     }
 
     #[test]
@@ -127,13 +139,25 @@ mod tests {
         let token = "test-token-123";
         let cookie = create_session_cookie(token, true);
         let cookie_str = cookie.to_str().unwrap();
-        
-        assert!(cookie_str.contains("session_token=test-token-123"), "Should contain token");
+
+        assert!(
+            cookie_str.contains("session_token=test-token-123"),
+            "Should contain token"
+        );
         assert!(cookie_str.contains("HttpOnly"), "Should be HttpOnly");
-        assert!(cookie_str.contains("SameSite=Strict"), "Should have SameSite=Strict");
-        assert!(cookie_str.contains("Secure"), "Should have Secure flag for HTTPS");
+        assert!(
+            cookie_str.contains("SameSite=Strict"),
+            "Should have SameSite=Strict"
+        );
+        assert!(
+            cookie_str.contains("Secure"),
+            "Should have Secure flag for HTTPS"
+        );
         assert!(cookie_str.contains("Path=/"), "Should have Path=/");
-        assert!(cookie_str.contains("Max-Age=604800"), "Should have 7-day expiry");
+        assert!(
+            cookie_str.contains("Max-Age=604800"),
+            "Should have 7-day expiry"
+        );
     }
 
     #[test]
@@ -141,13 +165,25 @@ mod tests {
         let token = "test-token-456";
         let cookie = create_session_cookie(token, false);
         let cookie_str = cookie.to_str().unwrap();
-        
-        assert!(cookie_str.contains("session_token=test-token-456"), "Should contain token");
+
+        assert!(
+            cookie_str.contains("session_token=test-token-456"),
+            "Should contain token"
+        );
         assert!(cookie_str.contains("HttpOnly"), "Should be HttpOnly");
-        assert!(cookie_str.contains("SameSite=Strict"), "Should have SameSite=Strict");
-        assert!(!cookie_str.contains("Secure"), "Should not have Secure flag for HTTP");
+        assert!(
+            cookie_str.contains("SameSite=Strict"),
+            "Should have SameSite=Strict"
+        );
+        assert!(
+            !cookie_str.contains("Secure"),
+            "Should not have Secure flag for HTTP"
+        );
         assert!(cookie_str.contains("Path=/"), "Should have Path=/");
-        assert!(cookie_str.contains("Max-Age=604800"), "Should have 7-day expiry");
+        assert!(
+            cookie_str.contains("Max-Age=604800"),
+            "Should have 7-day expiry"
+        );
     }
 
     #[test]
@@ -155,7 +191,7 @@ mod tests {
         let token = "abc123";
         let cookie = create_session_cookie(token, true);
         let cookie_str = cookie.to_str().unwrap();
-        
+
         // Verify the cookie follows the expected format
         let expected_parts = vec![
             "session_token=abc123",
@@ -165,7 +201,7 @@ mod tests {
             "Max-Age=604800",
             "Secure",
         ];
-        
+
         for part in expected_parts {
             assert!(
                 cookie_str.contains(part),

@@ -42,7 +42,9 @@ impl UserRepository {
              WHERE id = ?",
         )?;
 
-        let user = stmt.query_row([user_id.to_string()], map_user_row).optional()?;
+        let user = stmt
+            .query_row([user_id.to_string()], map_user_row)
+            .optional()?;
 
         Ok(user)
     }

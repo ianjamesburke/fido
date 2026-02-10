@@ -9,13 +9,7 @@ use crate::ui::theme::ThemeColors;
 
 /// Render a standard footer with centered hint text.
 pub fn render_footer(frame: &mut Frame, area: Rect, text: &str, theme: &ThemeColors) {
-    render_footer_with_style(
-        frame,
-        area,
-        text,
-        theme,
-        Style::default().fg(theme.text),
-    );
+    render_footer_with_style(frame, area, text, theme, Style::default().fg(theme.text));
 }
 
 /// Render a footer with a custom text style while keeping standard borders/background.

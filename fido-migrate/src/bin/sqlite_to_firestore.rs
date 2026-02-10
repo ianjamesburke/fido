@@ -68,8 +68,9 @@ impl FirestoreClient {
                 format!("{base}/documents:runQuery"),
             )
         } else {
-            let base =
-                format!("https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)");
+            let base = format!(
+                "https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)"
+            );
             (
                 format!("{base}/documents"),
                 format!("{base}/documents:runQuery"),
@@ -85,7 +86,10 @@ impl FirestoreClient {
         }
     }
 
-    fn with_auth(&self, req: reqwest::blocking::RequestBuilder) -> reqwest::blocking::RequestBuilder {
+    fn with_auth(
+        &self,
+        req: reqwest::blocking::RequestBuilder,
+    ) -> reqwest::blocking::RequestBuilder {
         if self.emulator {
             return req;
         }
@@ -96,7 +100,12 @@ impl FirestoreClient {
         }
     }
 
-    fn patch_document(&self, collection: &str, doc_id: &str, fields: Map<String, Value>) -> Result<()> {
+    fn patch_document(
+        &self,
+        collection: &str,
+        doc_id: &str,
+        fields: Map<String, Value>,
+    ) -> Result<()> {
         let url = format!("{}/{}/{}", self.documents_base, collection, doc_id);
         self.send_json(Method::PATCH, &url, Some(json!({ "fields": fields })))?;
         Ok(())
@@ -127,7 +136,10 @@ impl FirestoreClient {
             req = req.json(&body);
         }
 
-        let resp = self.with_auth(req).send().with_context(|| format!("request failed for {url}"))?;
+        let resp = self
+            .with_auth(req)
+            .send()
+            .with_context(|| format!("request failed for {url}"))?;
         let status = resp.status();
         let text = resp.text().unwrap_or_default();
 
@@ -194,7 +206,12 @@ fn write_doc(
     Ok(())
 }
 
-fn migrate_users(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats: &mut MigrationStats) -> Result<()> {
+fn migrate_users(
+    conn: &Connection,
+    client: &FirestoreClient,
+    dry_run: bool,
+    stats: &mut MigrationStats,
+) -> Result<()> {
     let mut stmt = conn.prepare(
         "SELECT id, username, bio, join_date, is_test_user, is_admin, github_id, github_login FROM users",
     )?;
@@ -238,12 +255,18 @@ fn migrate_users(conn: &Connection, client: &FirestoreClient, dry_run: bool, sta
     Ok(())
 }
 
-fn migrate_posts(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats: &mut MigrationStats) -> Result<()> {
+fn migrate_posts(
+    conn: &Connection,
+    client: &FirestoreClient,
+    dry_run: bool,
+    stats: &mut MigrationStats,
+) -> Result<()> {
     let mut hashtags_by_post: HashMap<String, Vec<String>> = HashMap::new();
     let mut hashtag_stmt = conn.prepare(
         "SELECT ph.post_id, h.name FROM post_hashtags ph JOIN hashtags h ON h.id = ph.hashtag_id",
     )?;
-    let hashtag_rows = hashtag_stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+    let hashtag_rows =
+        hashtag_stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
     for row in hashtag_rows {
         let (post_id, hashtag) = row?;
         hashtags_by_post.entry(post_id).or_default().push(hashtag);
@@ -253,7 +276,8 @@ fn migrate_posts(conn: &Connection, client: &FirestoreClient, dry_run: bool, sta
     let mut reply_stmt = conn.prepare(
         "SELECT parent_post_id, COUNT(*) FROM posts WHERE parent_post_id IS NOT NULL GROUP BY parent_post_id",
     )?;
-    let reply_rows = reply_stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
+    let reply_rows =
+        reply_stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
     for row in reply_rows {
         let (parent_id, count) = row?;
         reply_count.insert(parent_id, count);
@@ -284,7 +308,19 @@ fn migrate_posts(conn: &Connection, client: &FirestoreClient, dry_run: bool, sta
     let rows = rows.collect::<std::result::Result<Vec<_>, _>>()?;
     stats.set_source(COLLECTION_POSTS, rows.len());
 
-    for (id, author_id, author_username, content, created_at, upvotes, downvotes, parent_post_id, reply_to_user_id, reply_to_username) in rows {
+    for (
+        id,
+        author_id,
+        author_username,
+        content,
+        created_at,
+        upvotes,
+        downvotes,
+        parent_post_id,
+        reply_to_user_id,
+        reply_to_username,
+    ) in rows
+    {
         let mut fields = Map::new();
         fields.insert("id".into(), fs_string(&id));
         fields.insert("author_id".into(), fs_string(&author_id));
@@ -321,7 +357,12 @@ fn migrate_posts(conn: &Connection, client: &FirestoreClient, dry_run: bool, sta
     Ok(())
 }
 
-fn migrate_post_hashtags(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats: &mut MigrationStats) -> Result<()> {
+fn migrate_post_hashtags(
+    conn: &Connection,
+    client: &FirestoreClient,
+    dry_run: bool,
+    stats: &mut MigrationStats,
+) -> Result<()> {
     let mut stmt = conn.prepare(
         "SELECT ph.post_id, h.name FROM post_hashtags ph JOIN hashtags h ON h.id = ph.hashtag_id",
     )?;
@@ -339,13 +380,25 @@ fn migrate_post_hashtags(conn: &Connection, client: &FirestoreClient, dry_run: b
         fields.insert("post_id".into(), fs_string(&post_id));
         fields.insert("hashtag".into(), fs_string(&normalized));
 
-        write_doc(client, COLLECTION_POST_HASHTAGS, &doc_id, fields, dry_run, stats)?;
+        write_doc(
+            client,
+            COLLECTION_POST_HASHTAGS,
+            &doc_id,
+            fields,
+            dry_run,
+            stats,
+        )?;
     }
 
     Ok(())
 }
 
-fn migrate_votes(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats: &mut MigrationStats) -> Result<()> {
+fn migrate_votes(
+    conn: &Connection,
+    client: &FirestoreClient,
+    dry_run: bool,
+    stats: &mut MigrationStats,
+) -> Result<()> {
     let mut stmt = conn.prepare("SELECT user_id, post_id, direction, created_at FROM votes")?;
     let rows = stmt.query_map([], |r| {
         Ok((
@@ -374,7 +427,12 @@ fn migrate_votes(conn: &Connection, client: &FirestoreClient, dry_run: bool, sta
     Ok(())
 }
 
-fn migrate_friendships(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats: &mut MigrationStats) -> Result<()> {
+fn migrate_friendships(
+    conn: &Connection,
+    client: &FirestoreClient,
+    dry_run: bool,
+    stats: &mut MigrationStats,
+) -> Result<()> {
     let mut stmt = conn.prepare("SELECT follower_id, following_id, created_at FROM follows")?;
     let rows = stmt.query_map([], |r| {
         Ok((
@@ -394,7 +452,11 @@ fn migrate_friendships(conn: &Connection, client: &FirestoreClient, dry_run: boo
         fields.insert("following_id".into(), fs_string(&following_id));
         fields.insert(
             "created_at".into(),
-            fs_timestamp(&DateTime::<Utc>::from_timestamp(created_at, 0).unwrap_or_else(Utc::now).to_rfc3339()),
+            fs_timestamp(
+                &DateTime::<Utc>::from_timestamp(created_at, 0)
+                    .unwrap_or_else(Utc::now)
+                    .to_rfc3339(),
+            ),
         );
 
         write_doc(client, COLLECTION_FRIENDS, &doc_id, fields, dry_run, stats)?;
@@ -403,7 +465,12 @@ fn migrate_friendships(conn: &Connection, client: &FirestoreClient, dry_run: boo
     Ok(())
 }
 
-fn migrate_user_configs(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats: &mut MigrationStats) -> Result<()> {
+fn migrate_user_configs(
+    conn: &Connection,
+    client: &FirestoreClient,
+    dry_run: bool,
+    stats: &mut MigrationStats,
+) -> Result<()> {
     let mut stmt = conn.prepare(
         "SELECT user_id, color_scheme, sort_order, max_posts_display, emoji_enabled FROM user_configs",
     )?;
@@ -434,15 +501,22 @@ fn migrate_user_configs(conn: &Connection, client: &FirestoreClient, dry_run: bo
     Ok(())
 }
 
-fn migrate_rate_limits(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats: &mut MigrationStats) -> Result<()> {
+fn migrate_rate_limits(
+    conn: &Connection,
+    client: &FirestoreClient,
+    dry_run: bool,
+    stats: &mut MigrationStats,
+) -> Result<()> {
     let mut docs: HashMap<String, Map<String, Value>> = HashMap::new();
 
     let mut post_stmt = conn.prepare("SELECT user_id, last_post_at FROM post_rate_limits")?;
-    let post_rows = post_stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+    let post_rows =
+        post_stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
     let post_rows = post_rows.collect::<std::result::Result<Vec<_>, _>>()?;
 
     let mut dm_stmt = conn.prepare("SELECT user_id, last_dm_at FROM dm_rate_limits")?;
-    let dm_rows = dm_stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+    let dm_rows =
+        dm_stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
     let dm_rows = dm_rows.collect::<std::result::Result<Vec<_>, _>>()?;
 
     for (user_id, last_post_at) in post_rows {
@@ -459,13 +533,25 @@ fn migrate_rate_limits(conn: &Connection, client: &FirestoreClient, dry_run: boo
 
     stats.set_source(COLLECTION_RATE_LIMITS, docs.len());
     for (user_id, fields) in docs {
-        write_doc(client, COLLECTION_RATE_LIMITS, &user_id, fields, dry_run, stats)?;
+        write_doc(
+            client,
+            COLLECTION_RATE_LIMITS,
+            &user_id,
+            fields,
+            dry_run,
+            stats,
+        )?;
     }
 
     Ok(())
 }
 
-fn migrate_dms(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats: &mut MigrationStats) -> Result<()> {
+fn migrate_dms(
+    conn: &Connection,
+    client: &FirestoreClient,
+    dry_run: bool,
+    stats: &mut MigrationStats,
+) -> Result<()> {
     let mut stmt = conn.prepare(
         "SELECT dm.id, dm.from_user_id, dm.to_user_id, fu.username, tu.username, dm.content, dm.created_at, dm.is_read
          FROM direct_messages dm
@@ -488,7 +574,9 @@ fn migrate_dms(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats
     let rows = rows.collect::<std::result::Result<Vec<_>, _>>()?;
     stats.set_source(COLLECTION_DMS, rows.len());
 
-    for (id, from_user_id, to_user_id, from_username, to_username, content, created_at, is_read) in rows {
+    for (id, from_user_id, to_user_id, from_username, to_username, content, created_at, is_read) in
+        rows
+    {
         let mut fields = Map::new();
         fields.insert("id".into(), fs_string(&id));
         fields.insert("from_user_id".into(), fs_string(&from_user_id));
@@ -505,10 +593,14 @@ fn migrate_dms(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats
     Ok(())
 }
 
-fn migrate_sessions(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats: &mut MigrationStats) -> Result<()> {
-    let mut stmt = conn.prepare(
-        "SELECT token, user_id, created_at, expires_at, last_activity FROM sessions",
-    )?;
+fn migrate_sessions(
+    conn: &Connection,
+    client: &FirestoreClient,
+    dry_run: bool,
+    stats: &mut MigrationStats,
+) -> Result<()> {
+    let mut stmt =
+        conn.prepare("SELECT token, user_id, created_at, expires_at, last_activity FROM sessions")?;
 
     let rows = stmt.query_map([], |r| {
         Ok((
@@ -538,7 +630,12 @@ fn migrate_sessions(conn: &Connection, client: &FirestoreClient, dry_run: bool, 
     Ok(())
 }
 
-fn migrate_audit_logs(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats: &mut MigrationStats) -> Result<()> {
+fn migrate_audit_logs(
+    conn: &Connection,
+    client: &FirestoreClient,
+    dry_run: bool,
+    stats: &mut MigrationStats,
+) -> Result<()> {
     let mut stmt = conn.prepare(
         "SELECT id, event_type, user_id, ip_address, user_agent, details, timestamp FROM audit_logs",
     )?;
@@ -581,7 +678,12 @@ fn migrate_audit_logs(conn: &Connection, client: &FirestoreClient, dry_run: bool
     Ok(())
 }
 
-fn migrate_hashtag_activity(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats: &mut MigrationStats) -> Result<()> {
+fn migrate_hashtag_activity(
+    conn: &Connection,
+    client: &FirestoreClient,
+    dry_run: bool,
+    stats: &mut MigrationStats,
+) -> Result<()> {
     let mut stmt = conn.prepare(
         "SELECT uha.user_id, h.name, uha.interaction_count, uha.last_interaction
          FROM user_hashtag_activity uha
@@ -612,17 +714,33 @@ fn migrate_hashtag_activity(conn: &Connection, client: &FirestoreClient, dry_run
         if let Some(last_interaction) = last_interaction {
             fields.insert(
                 "last_interaction".into(),
-                fs_timestamp(&DateTime::<Utc>::from_timestamp(last_interaction, 0).unwrap_or_else(Utc::now).to_rfc3339()),
+                fs_timestamp(
+                    &DateTime::<Utc>::from_timestamp(last_interaction, 0)
+                        .unwrap_or_else(Utc::now)
+                        .to_rfc3339(),
+                ),
             );
         }
 
-        write_doc(client, COLLECTION_HASHTAG_ACTIVITY, &doc_id, fields, dry_run, stats)?;
+        write_doc(
+            client,
+            COLLECTION_HASHTAG_ACTIVITY,
+            &doc_id,
+            fields,
+            dry_run,
+            stats,
+        )?;
     }
 
     Ok(())
 }
 
-fn migrate_hashtag_follows(conn: &Connection, client: &FirestoreClient, dry_run: bool, stats: &mut MigrationStats) -> Result<()> {
+fn migrate_hashtag_follows(
+    conn: &Connection,
+    client: &FirestoreClient,
+    dry_run: bool,
+    stats: &mut MigrationStats,
+) -> Result<()> {
     let mut stmt = conn.prepare(
         "SELECT uhf.user_id, h.name, uhf.followed_at
          FROM user_hashtag_follows uhf
@@ -650,10 +768,21 @@ fn migrate_hashtag_follows(conn: &Connection, client: &FirestoreClient, dry_run:
         fields.insert("hashtag".into(), fs_string(&normalized));
         fields.insert(
             "followed_at".into(),
-            fs_timestamp(&DateTime::<Utc>::from_timestamp(followed_at, 0).unwrap_or_else(Utc::now).to_rfc3339()),
+            fs_timestamp(
+                &DateTime::<Utc>::from_timestamp(followed_at, 0)
+                    .unwrap_or_else(Utc::now)
+                    .to_rfc3339(),
+            ),
         );
 
-        write_doc(client, COLLECTION_HASHTAG_FOLLOWS, &doc_id, fields, dry_run, stats)?;
+        write_doc(
+            client,
+            COLLECTION_HASHTAG_FOLLOWS,
+            &doc_id,
+            fields,
+            dry_run,
+            stats,
+        )?;
     }
 
     Ok(())
@@ -685,7 +814,9 @@ fn main() -> Result<()> {
         .project_id
         .or_else(|| std::env::var("FIREBASE_PROJECT_ID").ok())
         .or_else(|| std::env::var("GOOGLE_CLOUD_PROJECT").ok())
-        .context("missing project id: pass --project-id or set FIREBASE_PROJECT_ID/GOOGLE_CLOUD_PROJECT")?;
+        .context(
+            "missing project id: pass --project-id or set FIREBASE_PROJECT_ID/GOOGLE_CLOUD_PROJECT",
+        )?;
 
     let emulator_host = args
         .emulator_host
@@ -708,7 +839,10 @@ fn main() -> Result<()> {
     println!("Starting SQLite -> Firestore migration");
     println!("  sqlite path: {}", args.sqlite_path);
     println!("  project id : {}", project_id);
-    println!("  emulator   : {}", emulator_host.as_deref().unwrap_or("no"));
+    println!(
+        "  emulator   : {}",
+        emulator_host.as_deref().unwrap_or("no")
+    );
     println!("  dry-run    : {}", args.dry_run);
 
     let mut stats = MigrationStats::default();

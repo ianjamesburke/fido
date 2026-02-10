@@ -8,9 +8,9 @@ use ratatui::{
 };
 use uuid::Uuid;
 
-use super::super::components::modal::{render_modal_container, ModalConfig};
 use super::super::components::footer::render_footer;
 use super::super::components::list::styled_list;
+use super::super::components::modal::{render_modal_container, ModalConfig};
 use super::super::formatting::*;
 use super::super::theme::get_theme_colors;
 use crate::app::App;

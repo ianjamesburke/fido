@@ -100,7 +100,11 @@ impl FriendsService {
             .get_following_count(profile_user_id)
             .unwrap_or(0);
 
-        let post_count = self.stores.posts.get_post_count(profile_user_id).unwrap_or(0) as usize;
+        let post_count = self
+            .stores
+            .posts
+            .get_post_count(profile_user_id)
+            .unwrap_or(0) as usize;
 
         let relationship = if let Some(viewer) = viewer_id {
             if viewer == *profile_user_id {
@@ -166,7 +170,10 @@ impl FriendsService {
     }
 
     pub fn unfollow_user(&self, follower_id: &Uuid, following_id: &Uuid) -> ApiResult<bool> {
-        let rows_deleted = self.stores.friends.unfollow_user(follower_id, following_id)?;
+        let rows_deleted = self
+            .stores
+            .friends
+            .unfollow_user(follower_id, following_id)?;
         Ok(rows_deleted > 0)
     }
 

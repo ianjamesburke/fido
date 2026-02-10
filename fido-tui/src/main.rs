@@ -54,7 +54,7 @@ async fn check_for_updates() -> Option<String> {
         #[serde(rename = "crate")]
         krate: CrateInfo,
     }
-    
+
     #[derive(serde::Deserialize)]
     struct CrateInfo {
         max_stable_version: String,
@@ -85,20 +85,20 @@ async fn check_for_updates() -> Option<String> {
 
 /// Simple semver comparison - returns true if `latest` is newer than `current`
 fn is_newer_version(latest: &str, current: &str) -> bool {
-    let parse = |v: &str| -> Vec<u32> {
-        v.split('.')
-            .filter_map(|s| s.parse().ok())
-            .collect()
-    };
-    
+    let parse = |v: &str| -> Vec<u32> { v.split('.').filter_map(|s| s.parse().ok()).collect() };
+
     let latest_parts = parse(latest);
     let current_parts = parse(current);
-    
+
     for (l, c) in latest_parts.iter().zip(current_parts.iter()) {
-        if l > c { return true; }
-        if l < c { return false; }
+        if l > c {
+            return true;
+        }
+        if l < c {
+            return false;
+        }
     }
-    
+
     latest_parts.len() > current_parts.len()
 }
 
@@ -174,7 +174,7 @@ async fn main() -> Result<()> {
         // Default mode
         App::new()
     };
-    
+
     app.log_config = log_config;
 
     // Check for updates (quick, non-blocking with 3s timeout, skip in demo/web mode)

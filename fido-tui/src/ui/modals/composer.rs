@@ -183,7 +183,11 @@ pub fn render_unified_composer_modal(frame: &mut Frame, app: &mut App, area: Rec
     // Error message (if present)
     if let Some(err) = error_message {
         let error_widget = Paragraph::new(err)
-            .style(Style::default().fg(theme.error).add_modifier(Modifier::BOLD))
+            .style(
+                Style::default()
+                    .fg(theme.error)
+                    .add_modifier(Modifier::BOLD),
+            )
             .alignment(Alignment::Center)
             .block(
                 Block::default()
