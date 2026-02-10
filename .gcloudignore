@@ -1,0 +1,25 @@
+# Files to ignore when uploading source for gcloud builds/deploys.
+# Keep Cargo.lock included for reproducible Rust builds.
+
+.gcloudignore
+.git/
+.gitignore
+
+# Keep build artifacts out of upload context
+target/
+logs/
+
+# Local runtime artifacts
+*.db
+*.db-journal
+*.log
+.env
+.DS_Store
+
+# Docs and local tooling that are not needed for container build
+docs/
+To Do/
+.kiro/
+
+# Explicitly include Cargo.lock even if other ignore sources would exclude it
+!Cargo.lock

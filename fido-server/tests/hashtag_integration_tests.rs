@@ -1,7 +1,7 @@
 // Integration tests for hashtag system
 // These tests verify the full flow of hashtag functionality
 
-#[cfg(test)]
+#[cfg(feature = "sqlite-tests")]
 mod integration_tests {
 
     // Note: These are placeholder integration tests

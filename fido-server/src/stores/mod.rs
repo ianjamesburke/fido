@@ -168,9 +168,7 @@ impl Stores {
             "sqlite" => Ok(Self::sqlite(pool)),
             "firestore" => {
                 firestore::validate_firestore_env()?;
-                anyhow::bail!(
-                    "DB_BACKEND=firestore is scaffolded but not implemented yet; implement Firestore store traits in stores/firestore.rs"
-                )
+                firestore::stores_from_env()
             }
             other => anyhow::bail!("Unsupported DB_BACKEND '{}'", other),
         }

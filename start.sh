@@ -61,6 +61,10 @@ cleanup() {
         kill $NGINX_PID 2>/dev/null || true
         kill -9 $NGINX_PID 2>/dev/null || true
     fi
+    if [ -n "${FIDO_LOG_TAIL_PID:-}" ]; then
+        kill $FIDO_LOG_TAIL_PID 2>/dev/null || true
+        kill -9 $FIDO_LOG_TAIL_PID 2>/dev/null || true
+    fi
     
     # Also kill by port to catch any stragglers
     lsof -ti:$NGINX_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
@@ -157,8 +161,11 @@ http {
         root $(pwd)/web;
         
         location = /health {
-            return 200 'OK';
-            add_header Content-Type text/plain;
+            proxy_pass http://fido_server/health;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Real-IP \$remote_addr;
+            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto \$scheme;
         }
         
         location = / {
@@ -169,11 +176,22 @@ http {
             try_files \$uri =404;
         }
         
+        location ^~ /ttyd/ws {
+            proxy_http_version 1.1;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header Upgrade websocket;
+            proxy_set_header Connection "Upgrade";
+            proxy_read_timeout 1d;
+            proxy_pass http://ttyd_server/ttyd/ws;
+        }
+
         location /ttyd/ {
             proxy_http_version 1.1;
             proxy_set_header Host \$host;
-            proxy_set_header Upgrade \$http_upgrade;
-            proxy_set_header Connection "upgrade";
+            proxy_set_header X-Forwarded-Proto \$scheme;
+            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
             proxy_read_timeout 1d;
             proxy_pass http://ttyd_server/ttyd/;
         }
@@ -200,8 +218,26 @@ $FIDO_SERVER_BIN > "$LOG_DIR/fido-server.log" 2>&1 &
 FIDO_SERVER_PID=$!
 echo -e "${GREEN}  ✓ fido-server started (PID: $FIDO_SERVER_PID)${NC}"
 
+if [ "$ENV_MODE" = "docker" ]; then
+    tail -n +1 -F "$LOG_DIR/fido-server.log" &
+    FIDO_LOG_TAIL_PID=$!
+fi
+
 # Wait for server to be ready
 sleep 2
+if ! kill -0 "$FIDO_SERVER_PID" 2>/dev/null; then
+    echo -e "${RED}Error: fido-server exited during startup${NC}"
+    echo -e "${YELLOW}Last 200 lines of fido-server log:${NC}"
+    tail -n 200 "$LOG_DIR/fido-server.log" || true
+    exit 1
+fi
+
+if ! curl -fsS "http://127.0.0.1:${FIDO_SERVER_PORT}/health" >/dev/null 2>&1; then
+    echo -e "${RED}Error: fido-server health endpoint failed during startup${NC}"
+    echo -e "${YELLOW}Last 200 lines of fido-server log:${NC}"
+    tail -n 200 "$LOG_DIR/fido-server.log" || true
+    exit 1
+fi
 
 # Start ttyd
 echo -e "${YELLOW}Starting ttyd on port $TTYD_PORT...${NC}"

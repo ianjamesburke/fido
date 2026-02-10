@@ -126,16 +126,7 @@ impl ApiClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-
-            // Clean up HTML error messages (e.g., from nginx 404 pages)
-            let clean_error = if error_text.contains("<html>") || error_text.contains("<!DOCTYPE") {
-                format!(
-                    "Server returned {} error. Please check the server URL.",
-                    status.as_u16()
-                )
-            } else {
-                error_text
-            };
+            let clean_error = Self::clean_error_message(status.as_u16(), &error_text);
 
             let api_error = match status.as_u16() {
                 404 => ApiError::NotFound(clean_error),
@@ -143,16 +134,38 @@ impl ApiClient {
                 400 => ApiError::BadRequest(clean_error),
                 403 => ApiError::Unauthorized(clean_error), // Add forbidden handling
                 429 => ApiError::TooManyRequests(clean_error),
-                500..=599 => ApiError::Api(format!(
-                    "Server error ({}): {}",
-                    status.as_u16(),
-                    clean_error
-                )),
+                500..=599 => ApiError::Api(format!("Server error ({})", status.as_u16())),
                 _ => ApiError::Api(clean_error),
             };
 
             Err(api_error)
         }
+    }
+
+    fn clean_error_message(status_code: u16, error_text: &str) -> String {
+        if error_text.contains("<html>") || error_text.contains("<!DOCTYPE") {
+            return format!(
+                "Server returned {} error. Please check the server URL.",
+                status_code
+            );
+        }
+
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(error_text) {
+            let error = value
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Request failed");
+            let details = value.get("details").and_then(|v| v.as_str());
+
+            if let Some(details) = details {
+                if !details.trim().is_empty() {
+                    return format!("{}: {}", error, details);
+                }
+            }
+            return error.to_string();
+        }
+
+        error_text.to_string()
     }
 
     // Authentication endpoints

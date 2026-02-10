@@ -112,82 +112,96 @@ async fn main() {
         std::process::exit(1);
     }
 
-    // Check database directory permissions
-    let db_path = std::path::Path::new(&settings.database.path);
-    if let Some(parent) = db_path.parent() {
-        tracing::info!("Checking database directory: {}", parent.display());
-        match std::fs::metadata(parent) {
-            Ok(metadata) => {
-                tracing::info!(
-                    "Database directory exists, permissions: {:?}",
-                    metadata.permissions()
-                );
-            }
+    let backend = std::env::var("DB_BACKEND").unwrap_or_else(|_| "sqlite".to_string());
+    let backend = backend.to_ascii_lowercase();
+
+    let db = if backend == "firestore" {
+        tracing::info!(
+            "DB_BACKEND=firestore selected; skipping SQLite file initialization and using Firestore-backed stores"
+        );
+        match db::Database::in_memory() {
+            Ok(db) => db,
             Err(e) => {
-                tracing::warn!("Database directory check failed: {}", e);
-                // Try to create the directory
-                if let Err(create_err) = std::fs::create_dir_all(parent) {
-                    tracing::error!("Failed to create database directory: {}", create_err);
-                    eprintln!(
-                        "FATAL: Failed to create database directory {}: {}",
-                        parent.display(),
-                        create_err
+                tracing::error!("Failed to create placeholder in-memory database: {}", e);
+                eprintln!("FATAL: Failed to create placeholder in-memory database: {}", e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        // Check database directory permissions
+        let db_path = std::path::Path::new(&settings.database.path);
+        if let Some(parent) = db_path.parent() {
+            tracing::info!("Checking database directory: {}", parent.display());
+            match std::fs::metadata(parent) {
+                Ok(metadata) => {
+                    tracing::info!(
+                        "Database directory exists, permissions: {:?}",
+                        metadata.permissions()
                     );
-                    std::process::exit(1);
-                } else {
-                    tracing::info!("Created database directory: {}", parent.display());
+                }
+                Err(e) => {
+                    tracing::warn!("Database directory check failed: {}", e);
+                    if let Err(create_err) = std::fs::create_dir_all(parent) {
+                        tracing::error!("Failed to create database directory: {}", create_err);
+                        eprintln!(
+                            "FATAL: Failed to create database directory {}: {}",
+                            parent.display(),
+                            create_err
+                        );
+                        std::process::exit(1);
+                    } else {
+                        tracing::info!("Created database directory: {}", parent.display());
+                    }
                 }
             }
         }
-    }
 
-    // Handle database reset if requested
-    if args.reset_db {
-        tracing::warn!("Database reset requested - deleting existing database");
-        if std::path::Path::new(&settings.database.path).exists() {
-            if let Err(e) = std::fs::remove_file(&settings.database.path) {
-                tracing::error!("Failed to delete database file: {}", e);
-                eprintln!("FATAL: Failed to delete database file: {}", e);
+        if args.reset_db {
+            tracing::warn!("Database reset requested - deleting existing database");
+            if std::path::Path::new(&settings.database.path).exists() {
+                if let Err(e) = std::fs::remove_file(&settings.database.path) {
+                    tracing::error!("Failed to delete database file: {}", e);
+                    eprintln!("FATAL: Failed to delete database file: {}", e);
+                    std::process::exit(1);
+                }
+                tracing::info!("Deleted existing database: {}", settings.database.path);
+            } else {
+                tracing::info!("No existing database to delete");
+            }
+        }
+
+        tracing::info!("Creating database connection...");
+        let db = match db::Database::new(&settings.database.path) {
+            Ok(db) => {
+                tracing::info!("Successfully created database connection");
+                db
+            }
+            Err(e) => {
+                tracing::error!("Failed to create database: {}", e);
+                eprintln!("FATAL: Failed to create database: {}", e);
                 std::process::exit(1);
             }
-            tracing::info!("Deleted existing database: {}", settings.database.path);
-        } else {
-            tracing::info!("No existing database to delete");
-        }
-    }
+        };
 
-    // Initialize database with detailed error handling
-    tracing::info!("Creating database connection...");
-    let db = match db::Database::new(&settings.database.path) {
-        Ok(db) => {
-            tracing::info!("Successfully created database connection");
-            db
-        }
-        Err(e) => {
-            tracing::error!("Failed to create database: {}", e);
-            eprintln!("FATAL: Failed to create database: {}", e);
+        tracing::info!("Initializing database schema...");
+        if let Err(e) = db.initialize() {
+            tracing::error!("Failed to initialize database schema: {}", e);
+            eprintln!("FATAL: Failed to initialize database schema: {}", e);
             std::process::exit(1);
         }
+        tracing::info!("Database schema initialized successfully");
+
+        tracing::info!("Seeding test data...");
+        if let Err(e) = db.seed_test_data() {
+            tracing::warn!("Failed to seed test data (non-fatal): {}", e);
+            tracing::info!("Continuing without test data - database may already be populated");
+        } else {
+            tracing::info!("Test data seeded successfully");
+        }
+
+        tracing::info!("Database initialized successfully");
+        db
     };
-
-    tracing::info!("Initializing database schema...");
-    if let Err(e) = db.initialize() {
-        tracing::error!("Failed to initialize database schema: {}", e);
-        eprintln!("FATAL: Failed to initialize database schema: {}", e);
-        std::process::exit(1);
-    }
-    tracing::info!("Database schema initialized successfully");
-
-    // Seed test data for development (non-fatal if it fails)
-    tracing::info!("Seeding test data...");
-    if let Err(e) = db.seed_test_data() {
-        tracing::warn!("Failed to seed test data (non-fatal): {}", e);
-        tracing::info!("Continuing without test data - database may already be populated");
-    } else {
-        tracing::info!("Test data seeded successfully");
-    }
-
-    tracing::info!("Database initialized successfully");
 
     let stores = match Stores::from_env(db.pool.clone()) {
         Ok(stores) => stores,

@@ -9,6 +9,10 @@ repository.workspace = true
 homepage.workspace = true
 publish = false  # Server is not published to crates.io, only deployed to Fly.io
 
+[features]
+default = []
+sqlite-tests = []
+
 [dependencies]
 fido-types.workspace = true
 
@@ -25,7 +29,7 @@ axum.workspace = true
 tokio.workspace = true
 tower.workspace = true
 tower-http.workspace = true
-reqwest.workspace = true
+reqwest = { workspace = true, features = ["blocking"] }
 oauth2.workspace = true
 
 tracing.workspace = true

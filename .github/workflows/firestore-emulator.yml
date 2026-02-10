@@ -1,0 +1,39 @@
+name: Firestore Emulator
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  firestore-emulator:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Firestore smoke check
+        run: ./scripts/run-firestore-emulator-check.sh
+
+      - name: Firestore integration test
+        env:
+          FIREBASE_PROJECT_ID: demo-fido
+        run: |
+          firebase emulators:exec --only firestore --project demo-fido \
+            "FIREBASE_PROJECT_ID=demo-fido FIRESTORE_EMULATOR_HOST=127.0.0.1:8088 cargo test -p fido-server --test firestore_emulator_integration"

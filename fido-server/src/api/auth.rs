@@ -241,7 +241,7 @@ pub async fn github_device_flow(
 
     // Load GitHub OAuth configuration
     let oauth_config = GitHubOAuthConfig::from_env()
-        .map_err(|e| ApiError::InternalError(format!("OAuth configuration error: {}", e)))?;
+        .map_err(|e| ApiError::BadRequest(format!("OAuth configuration error: {}", e)))?;
 
     // Request device code from GitHub
     let device_response = oauth_config

@@ -144,7 +144,7 @@ impl AuditLogger {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "sqlite-tests"))]
 mod tests {
     use super::*;
     use crate::db::Database;

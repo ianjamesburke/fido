@@ -1,14 +1,15 @@
-# Fido Hashtag Migration Utility
+# Fido Migration Utilities
 
-A one-time migration tool to backfill hashtag data for existing posts in the Fido database.
+One-time migration tools for SQLite legacy data and Firestore cutover.
 
 ## Overview
 
-This utility extracts hashtags from existing post content and stores them in the database tables (`hashtags` and `post_hashtags`). This is necessary for posts created before the hashtag storage system was implemented.
+- `fido-migrate`: Backfills hashtag tables in SQLite from post content.
+- `sqlite-to-firestore`: Migrates SQLite entities into Firestore collections.
 
 ## Usage
 
-### Basic Usage
+### Hashtag Backfill (`fido-migrate`)
 
 ```bash
 # Run migration with default database (./fido.db)
@@ -30,6 +31,32 @@ cargo run --package fido-migrate -- --yes
 - `-n, --dry-run` - Perform a dry run without making changes
 - `-y, --yes` - Skip confirmation prompt
 - `-h, --help` - Print help information
+
+### SQLite -> Firestore (`sqlite-to-firestore`)
+
+```bash
+# Dry run
+cargo run -p fido-migrate --bin sqlite-to-firestore -- \
+  --sqlite-path ./fido.db \
+  --project-id demo-fido \
+  --emulator-host 127.0.0.1:8088 \
+  --dry-run
+
+# Execute and validate Firestore collection counts
+cargo run -p fido-migrate --bin sqlite-to-firestore -- \
+  --sqlite-path ./fido.db \
+  --project-id demo-fido \
+  --emulator-host 127.0.0.1:8088 \
+  --validate
+```
+
+Flags:
+- `--sqlite-path <PATH>`
+- `--project-id <PROJECT_ID>`
+- `--emulator-host <HOST:PORT>`
+- `--access-token <TOKEN>` (required for non-emulator migrations)
+- `--dry-run`
+- `--validate`
 
 ### Examples
 

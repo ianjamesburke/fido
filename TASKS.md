@@ -5,60 +5,60 @@ Mark items complete by changing `- [ ]` to `- [x]` as work lands.
 
 ## 1. Firestore Backend Implementation
 
-- [ ] Implement Firestore-backed store types in `fido-server/src/stores/firestore.rs` for all traits in `fido-server/src/stores/mod.rs`:
-- [ ] `UserStore`
-- [ ] `PostStore`
-- [ ] `HashtagStore`
-- [ ] `VoteStore`
-- [ ] `FriendStore`
-- [ ] `ConfigStore`
-- [ ] `RateLimitStore`
-- [ ] `DirectMessageStore`
-- [ ] `SessionStore`
-- [ ] `AuditStore`
-- [ ] Add Firestore document schema mapping layer (IDs, timestamps, optional fields, defaults).
-- [ ] Add robust error translation from Firestore API errors into server `ApiError`/`SecureError`.
-- [ ] Support local emulator via `FIRESTORE_EMULATOR_HOST`.
+- [x] Implement Firestore-backed store types in `fido-server/src/stores/firestore.rs` for all traits in `fido-server/src/stores/mod.rs`:
+- [x] `UserStore`
+- [x] `PostStore`
+- [x] `HashtagStore`
+- [x] `VoteStore`
+- [x] `FriendStore`
+- [x] `ConfigStore`
+- [x] `RateLimitStore`
+- [x] `DirectMessageStore`
+- [x] `SessionStore`
+- [x] `AuditStore`
+- [x] Add Firestore document schema mapping layer (IDs, timestamps, optional fields, defaults).
+- [x] Add robust error translation from Firestore API errors into server `ApiError`/`SecureError`.
+- [x] Support local emulator via `FIRESTORE_EMULATOR_HOST`.
 
 ## 2. Runtime Wiring and Configuration
 
-- [ ] Finalize `DB_BACKEND=firestore` path in `Stores::from_env` so server starts successfully.
-- [ ] Define and document required env vars for Firestore production:
-- [ ] `DB_BACKEND=firestore`
-- [ ] `GOOGLE_CLOUD_PROJECT` or `FIREBASE_PROJECT_ID`
-- [ ] Credentials strategy for Firebase hosting environment (service account / ADC).
+- [x] Finalize `DB_BACKEND=firestore` path in `Stores::from_env` so server starts successfully.
+- [x] Define and document required env vars for Firestore production:
+- [x] `DB_BACKEND=firestore`
+- [x] `GOOGLE_CLOUD_PROJECT` or `FIREBASE_PROJECT_ID`
+- [x] Credentials strategy for Firebase hosting environment (service account / ADC).
 - [ ] Ensure GitHub OAuth flow continues to work with Firestore-backed user/session data.
 - [ ] Remove/retire direct SQLite runtime dependencies for normal server operation.
 
 ## 3. Data Migration and Compatibility
 
-- [ ] Create one-time migration/export strategy from existing SQLite data to Firestore.
-- [ ] Provide migration script/tool and dry-run mode.
-- [ ] Validate key entities after migration:
-- [ ] users
-- [ ] posts and replies
-- [ ] hashtags and follows
-- [ ] votes/karma
-- [ ] friendships/follow graph
-- [ ] DMs/conversations
-- [ ] user config
-- [ ] sessions/audit (as applicable)
-- [ ] Document rollback strategy if Firestore cutover fails.
+- [x] Create one-time migration/export strategy from existing SQLite data to Firestore.
+- [x] Provide migration script/tool and dry-run mode.
+- [x] Validate key entities after migration:
+- [x] users
+- [x] posts and replies
+- [x] hashtags and follows
+- [x] votes/karma
+- [x] friendships/follow graph
+- [x] DMs/conversations
+- [x] user config
+- [x] sessions/audit (as applicable)
+- [x] Document rollback strategy if Firestore cutover fails.
 
 ## 4. Test Coverage and Validation
 
-- [ ] Add unit tests for Firestore store implementations.
-- [ ] Add integration tests that run against Firestore emulator.
-- [ ] Remove or archive SQLite-specific tests that are no longer relevant after cutover.
-- [ ] Add CI path that runs Firestore emulator tests.
+- [x] Add unit tests for Firestore store implementations.
+- [x] Add integration tests that run against Firestore emulator.
+- [x] Remove or archive SQLite-specific tests that are no longer relevant after cutover.
+- [x] Add CI path that runs Firestore emulator tests.
 - [ ] Keep and pass local smoke check: `just firestore-emulator-check`.
 
 ## 5. Local Preview and Demo Behavior
 
 - [ ] Verify `start.sh` local stack still works (`fido-server` + `ttyd` + `nginx`).
 - [ ] Verify browser preview still loads terminal at `/ttyd/`.
-- [ ] Confirm demo mode (`FIDO_DEMO_MODE=true`) remains mock/in-memory and does not require Firestore.
-- [ ] Confirm non-demo mode can hit Firestore backend when configured.
+- [x] Confirm demo mode (`FIDO_DEMO_MODE=true`) remains mock/in-memory and does not require Firestore.
+- [x] Confirm non-demo mode can hit Firestore backend when configured.
 
 ## 6. Firebase Deployment
 
@@ -89,8 +89,8 @@ Mark items complete by changing `- [ ]` to `- [x]` as work lands.
 
 ## 8. Documentation and Operations
 
-- [ ] Update `README.md` for Firestore-first backend and env configuration.
-- [ ] Update `QUICKSTART.md` with Firebase-local workflow and emulator usage.
-- [ ] Update deployment docs (including Firebase runbook and rollback notes).
-- [ ] Add troubleshooting section for Firestore emulator and auth issues.
-- [ ] Remove/mark Fly.io-specific docs/config as legacy once Firebase path is primary.
+- [x] Update `README.md` for Firestore-first backend and env configuration.
+- [x] Update `QUICKSTART.md` with Firebase-local workflow and emulator usage.
+- [x] Update deployment docs (including Firebase runbook and rollback notes).
+- [x] Add troubleshooting section for Firestore emulator and auth issues.
+- [x] Remove/mark Fly.io-specific docs/config as legacy once Firebase path is primary.

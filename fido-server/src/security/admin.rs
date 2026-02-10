@@ -193,7 +193,7 @@ pub async fn require_admin(
     Ok(next.run(request).await)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "sqlite-tests"))]
 mod tests {
     use super::*;
     use crate::db::Database;

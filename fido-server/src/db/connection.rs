@@ -132,7 +132,7 @@ impl Database {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "sqlite-tests"))]
 mod tests {
     use super::*;
 

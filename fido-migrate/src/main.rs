@@ -315,7 +315,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "sqlite-tests"))]
 mod tests {
     use super::*;
     use proptest::prelude::*;

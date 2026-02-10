@@ -13,7 +13,7 @@ Built for the Kiroween 2025.
 Fido is a social network that lives in your terminal. Think Twitter, but keyboard-driven and without the noise. Post updates, chat with other developers, upvote good content, downvote lame content.
 
 ## Live Demo Here
-https://fido-social.fly.dev/
+Legacy Fly.io demo: https://fido-social.fly.dev/ (Firebase/Firestore path is now primary for new deployments)
 
 
 ## Installation
@@ -130,7 +130,8 @@ Built with Rust using a workspace architecture:
 ### Technologies
 - **Ratatui** - Terminal UI framework
 - **Axum** - Fast, ergonomic web framework
-- **SQLite** - Lightweight database with r2d2 connection pooling
+- **Firestore** - Primary backend for production/runtime when `DB_BACKEND=firestore`
+- **SQLite** - Legacy/local backend and migration source
 - **tokio** - Async runtime
 - **oauth2** - GitHub authentication
 - **Security**: Input validation, audit logging, rate limiting, security headers
@@ -186,6 +187,13 @@ The following environment variables must be set before starting the server:
 
 #### Optional Environment Variables
 
+- **DB_BACKEND**: Storage backend (`sqlite` or `firestore`, default: `sqlite`)
+- **GOOGLE_CLOUD_PROJECT** or **FIREBASE_PROJECT_ID**: Required when `DB_BACKEND=firestore`
+- **FIRESTORE_EMULATOR_HOST**: Firestore emulator host (example: `127.0.0.1:8088`)
+- **FIRESTORE_SEED_TEST_DATA**: Auto-seed test users/posts in emulator mode (default: enabled, set `false`/`0` to disable)
+- **FIRESTORE_ACCESS_TOKEN**: Bearer token for Firestore REST API when not using emulator
+  - On Cloud Run, prefer Application Default Credentials (metadata service token) instead of static keys
+
 - **ENVIRONMENT** or **RUST_ENV**: Application environment (`development` or `production`, default: `development`)
   - Controls security features like CORS origins, HTTPS enforcement, and configuration validation
   - Production mode enforces stricter security requirements
@@ -217,6 +225,9 @@ cargo test
 cargo test -p fido-server
 cargo test -p fido-tui
 cargo test -p fido-types
+
+# Firestore emulator smoke check
+just firestore-emulator-check
 
 # Format code
 cargo fmt

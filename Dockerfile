@@ -2,7 +2,7 @@
 # Includes: fido-server (API), fido-tui (TUI), ttyd (web terminal), nginx (reverse proxy)
 
 # Stage 1: Build Rust binaries
-FROM rust:1.83 as builder
+FROM rust:1.91 as builder
 
 WORKDIR /app
 

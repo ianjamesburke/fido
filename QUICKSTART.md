@@ -103,6 +103,29 @@ echo "https://your-server-domain" > ~/.fido/server_url
 fido
 ```
 
+### Firestore Local Workflow
+
+Use Firestore emulator with the server:
+
+```bash
+export DB_BACKEND=firestore
+export FIREBASE_PROJECT_ID=demo-fido
+export FIRESTORE_EMULATOR_HOST=127.0.0.1:8088
+export GITHUB_CLIENT_ID=your_github_client_id_here
+
+# in one terminal
+firebase emulators:start --only firestore --project demo-fido
+
+# in another terminal
+cargo run --bin fido-server
+```
+
+Quick emulator smoke check:
+
+```bash
+just firestore-emulator-check
+```
+
 **Check current server:**
 - Switch to the Settings tab
 - The current server URL is displayed at the top
@@ -216,6 +239,14 @@ If you login with a test user, you'll see:
 2. Verify the server is up: `curl https://fido-social.fly.dev/health`
 3. Wait a moment and try again (server may be starting up)
 4. Check if you're behind a firewall or proxy
+
+**Problem:** Firestore backend fails at startup
+
+**Solutions:**
+1. Set `DB_BACKEND=firestore`
+2. Set `FIREBASE_PROJECT_ID` (or `GOOGLE_CLOUD_PROJECT`)
+3. For local dev, set `FIRESTORE_EMULATOR_HOST=127.0.0.1:8088`
+4. For non-emulator deploys, use ADC/metadata auth or set `FIRESTORE_ACCESS_TOKEN`
 
 ### Authentication Issues
 

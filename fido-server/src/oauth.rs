@@ -46,6 +46,11 @@ impl GitHubOAuthConfig {
     pub fn from_env() -> Result<Self> {
         let client_id = env::var("GITHUB_CLIENT_ID")
             .context("GITHUB_CLIENT_ID environment variable not set")?;
+        if client_id.trim().is_empty() || client_id == "demo-client-id" {
+            return Err(anyhow!(
+                "GITHUB_CLIENT_ID is not configured with a real GitHub OAuth App client ID"
+            ));
+        }
 
         Ok(Self { client_id })
     }

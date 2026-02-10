@@ -87,7 +87,7 @@ impl AuthFlow {
             .api_client
             .github_device_flow()
             .await
-            .context("Failed to initiate GitHub Device Flow")?;
+            .map_err(|e| anyhow::anyhow!("Failed to initiate GitHub Device Flow: {}", e))?;
 
         log::debug!(
             "Received device code with user code: {}",

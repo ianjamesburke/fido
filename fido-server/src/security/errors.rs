@@ -187,6 +187,13 @@ impl SecureError {
                     "Rate limit exceeded"
                 );
             }
+            ErrorCode::BadRequest if self.internal_details.contains("authorization_pending") => {
+                tracing::warn!(
+                    error_code = %self.code,
+                    internal_details = %self.internal_details,
+                    "OAuth device flow still pending authorization"
+                );
+            }
             _ => {
                 tracing::debug!(
                     error_code = %self.code,
