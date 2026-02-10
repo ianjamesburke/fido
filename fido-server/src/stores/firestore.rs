@@ -39,6 +39,7 @@ struct FirestoreClient {
     emulator: bool,
     project_id: String,
     access_token: Option<String>,
+    use_metadata_token: bool,
 }
 
 #[derive(Debug)]
@@ -86,14 +87,18 @@ impl FirestoreClient {
             )
         };
 
-        let access_token = if emulator {
+        let configured_access_token = if emulator {
             None
         } else {
             std::env::var("FIRESTORE_ACCESS_TOKEN")
                 .ok()
                 .or_else(|| std::env::var("GOOGLE_OAUTH_ACCESS_TOKEN").ok())
-                .or_else(fetch_metadata_access_token)
         };
+
+        // When no explicit token is configured, fetch a fresh metadata token per request.
+        // Metadata tokens are short-lived, so caching them at startup causes Unauthorized
+        // errors after expiration in long-lived Cloud Run instances.
+        let use_metadata_token = !emulator && configured_access_token.is_none();
 
         Ok(Self {
             http: Client::new(),
@@ -101,7 +106,8 @@ impl FirestoreClient {
             run_query_url,
             emulator,
             project_id,
-            access_token,
+            access_token: configured_access_token,
+            use_metadata_token,
         })
     }
 
@@ -124,10 +130,17 @@ impl FirestoreClient {
             return req;
         }
 
-        match &self.access_token {
-            Some(token) => req.bearer_auth(token),
-            None => req,
+        if let Some(token) = &self.access_token {
+            return req.bearer_auth(token);
         }
+
+        if self.use_metadata_token {
+            if let Some(token) = fetch_metadata_access_token() {
+                return req.bearer_auth(token);
+            }
+        }
+
+        req
     }
 
     fn send_json(&self, method: Method, url: String, body: Option<Value>) -> Result<Value> {

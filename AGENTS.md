@@ -240,17 +240,17 @@ let log_config = logging::LogConfig::default();
 - Keep `clear_on_startup: true` to avoid massive log files
 - Include relevant context in log messages (IDs, states, etc.)
 
-### Production Server Logs (Fly.io)
-To get logs from the deployed Fly server, use:
+### Production Server Logs (Cloud Run)
+To get logs from the deployed Cloud Run service, use:
 ```bash
-fly logs -a fido-social --tail 50
+gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="fido-web"' --limit=50 --format='value(timestamp,severity,textPayload,jsonPayload.message)'
 ```
 
-**Important**: Always use `--tail` with a specific number (e.g., 50) to limit output. Without it, the command runs forever and blocks execution. Use higher numbers for more history or lower for recent logs only.
+**Important**: Always use `--limit` with a specific number (e.g., 50) to limit output.
 
 ## Deployment
 
-- Deployed on Fly.io (`fly.toml`)
+- Deployed on Firebase Hosting + Cloud Run
 - Docker-based deployment (`Dockerfile`)
 - Logs: `fly logs -a fido-social --tail 50` (always use --tail to avoid blocking)
 
@@ -288,7 +288,7 @@ Fido has two distinct modes of operation:
 
 ### Local TUI (Production Mode)
 - **Client**: Native `fido-tui` binary running locally on user's machine
-- **Server**: Connects to production API server (https://fido-social.fly.dev or local server)
+- **Server**: Connects to production API server (https://fido-prod-ijb.web.app or local server)
 - **Database**: Uses persistent SQLite database (`fido.db`) on the server
 - **Authentication**: GitHub OAuth with session stored in `~/.fido/session`
 - **Data**: All posts, DMs, and user data persists across sessions

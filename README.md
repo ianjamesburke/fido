@@ -13,7 +13,7 @@ Built for the Kiroween 2025.
 Fido is a social network that lives in your terminal. Think Twitter, but keyboard-driven and without the noise. Post updates, chat with other developers, upvote good content, downvote lame content.
 
 ## Live Demo Here
-Legacy Fly.io demo: https://fido-social.fly.dev/ (Firebase/Firestore path is now primary for new deployments)
+Production demo: https://fido-prod-ijb.web.app/
 
 
 ## Installation
@@ -135,7 +135,7 @@ Built with Rust using a workspace architecture:
 - **tokio** - Async runtime
 - **oauth2** - GitHub authentication
 - **Security**: Input validation, audit logging, rate limiting, security headers
-- Deployed on Fly.io with HTTPS enforcement
+- Deployed on Firebase Hosting + Cloud Run with HTTPS enforcement
 
 ## Documentation
 
@@ -311,7 +311,7 @@ All HTTP responses include security headers for defense-in-depth:
 
 Environment-aware Cross-Origin Resource Sharing:
 
-- **Production**: Uses `ALLOWED_ORIGINS` when set, otherwise defaults to `https://fido-social.fly.dev`
+- **Production**: Uses `ALLOWED_ORIGINS` when set, otherwise defaults to `https://fido-prod-ijb.web.app`
 - **Development**: Localhost origins allowed for local testing
 - **CLI/TUI Clients**: Requests without Origin header always allowed
 
@@ -350,7 +350,7 @@ Audit logs include:
 
 ### HTTPS & Cookie Security
 
-- **HTTPS Enforcement**: Automatic HTTPS redirect in production (via Fly.io)
+- **HTTPS Enforcement**: Automatic HTTPS redirect in production
 - **Secure Cookies**: Session cookies marked as `Secure` when HTTPS detected
 - **Cookie Attributes**: HttpOnly, SameSite=Lax for CSRF protection
 
@@ -404,7 +404,7 @@ When deploying Fido in production:
    - Never commit secrets to version control
    
 2. **HTTPS**:
-   - Always use HTTPS in production (enforced on Fly.io)
+   - Always use HTTPS in production
    - Ensure `Strict-Transport-Security` header is enabled
    
 3. **Database**:

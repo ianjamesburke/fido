@@ -1,7 +1,4 @@
-# fly.toml app configuration file for fido-social
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# Legacy infrastructure config file retained for historical reference.
 
 app = 'fido-social'
 primary_region = 'ord'
@@ -61,5 +58,4 @@ primary_region = 'ord'
 [metrics]
   port = 9091
   path = "/metrics"
-
 

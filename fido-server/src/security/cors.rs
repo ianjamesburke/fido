@@ -49,9 +49,7 @@ impl CorsConfig {
     #[cfg(test)]
     pub fn for_environment(environment: Environment) -> Self {
         let allowed_origins = match environment {
-            Environment::Production => {
-                vec!["https://fido-social.fly.dev".to_string()]
-            }
+            Environment::Production => vec!["https://fido-prod-ijb.web.app".to_string()],
             Environment::Development => {
                 vec![
                     "http://localhost:3000".to_string(),

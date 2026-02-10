@@ -60,9 +60,17 @@ fi
 
 echo "==> Running publish dry-runs (dependency order)"
 cargo publish --dry-run -p fido-types
-cargo publish --dry-run -p fido
+
+if [[ "$TYPES_PUBLISHED" == "$CURRENT_VERSION" ]]; then
+  cargo publish --dry-run -p fido
+else
+  echo "warning: skipping pre-publish fido dry-run (fido-types $CURRENT_VERSION not yet on crates.io)."
+fi
 
 if [[ "$DRY_RUN_ONLY" == true ]]; then
+  if [[ "$TYPES_PUBLISHED" != "$CURRENT_VERSION" ]]; then
+    echo "warning: fido dry-run was skipped because fido-types $CURRENT_VERSION is not published yet."
+  fi
   echo "Dry-run completed. No publish performed."
   exit 0
 fi
@@ -70,8 +78,29 @@ fi
 echo "==> Publishing fido-types $CURRENT_VERSION"
 cargo publish -p fido-types
 
-echo "==> Waiting for crates.io index to catch up"
-sleep 30
+echo "==> Waiting for crates.io index to include fido-types $CURRENT_VERSION"
+MAX_WAIT_SECONDS=300
+SLEEP_SECONDS=10
+ELAPSED=0
+while true; do
+  VISIBLE_TYPES_VERSION="$(cargo search fido-types 2>/dev/null | sed -nE 's/^fido-types = "([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' | head -n1)"
+  if [[ "$VISIBLE_TYPES_VERSION" == "$CURRENT_VERSION" ]]; then
+    echo "fido-types $CURRENT_VERSION is now visible on crates.io."
+    break
+  fi
+
+  if (( ELAPSED >= MAX_WAIT_SECONDS )); then
+    echo "warning: timed out waiting for fido-types $CURRENT_VERSION to appear on crates.io."
+    echo "warning: rerun just deploy-cargo in a minute; fido-types is likely published but not indexed yet."
+    exit 1
+  fi
+
+  sleep "$SLEEP_SECONDS"
+  ELAPSED=$((ELAPSED + SLEEP_SECONDS))
+done
+
+echo "==> Running fido dry-run now that dependency is indexed"
+cargo publish --dry-run -p fido
 
 echo "==> Publishing fido $CURRENT_VERSION"
 cargo publish -p fido

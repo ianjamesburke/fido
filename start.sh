@@ -21,7 +21,7 @@ NGINX_PORT=${NGINX_PORT:-$APP_PORT}
 DATABASE_PATH=${DATABASE_PATH:-./fido.db}
 LOG_DIR=${LOG_DIR:-./logs}
 
-# Detect environment - check for pre-built binaries (Docker/Fly.io) or local dev
+# Detect environment - check for pre-built binaries (Docker/Cloud Run) or local dev
 if [ -f /usr/local/bin/fido-server ] && [ -f /usr/local/bin/fido ]; then
     ENV_MODE="docker"
     FIDO_SERVER_BIN="/usr/local/bin/fido-server"

@@ -3,7 +3,7 @@
 ## ✅ RESOLVED - December 11, 2025
 
 ### Problem Summary
-The Fido server failed to start in Fly.io deployment, dying immediately with exit code 0 and producing zero output, despite working perfectly in local development.
+The Fido server failed to start in legacy hosted deployment, dying immediately with exit code 0 and producing zero output, despite working perfectly in local development.
 
 ### Root Cause
 The issue was **startup script complexity** - the original startup script was too complex with multiple services (nginx, ttyd, fido-server) and health checks that masked the actual server startup process.
@@ -139,16 +139,16 @@ port = 8080          # nginx port
 
 ### Final Working Status ✅
 
-**🌐 Web Interface**: https://fido-social.fly.dev/
+**🌐 Web Interface**: legacy hosted URL
 - Static HTML/CSS/JS served by nginx
 - Responsive design, terminal styling
 
-**🔌 API Backend**: https://fido-social.fly.dev/api/*
+**🔌 API Backend**: legacy hosted URL `/api/*`
 - All REST endpoints working (`/posts`, `/health`, etc.)
 - SQLite database with test data
 - GitHub OAuth ready
 
-**💻 Terminal Interface**: https://fido-social.fly.dev/terminal/
+**💻 Terminal Interface**: legacy hosted URL `/terminal/`
 - ttyd web terminal running fido TUI
 - Full keyboard navigation
 - Real-time terminal in browser

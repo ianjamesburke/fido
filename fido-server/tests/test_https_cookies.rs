@@ -3,7 +3,7 @@ use fido_server::security::{create_session_cookie, is_https};
 
 #[test]
 fn test_https_detection_integration() {
-    // Test with X-Forwarded-Proto header (Fly.io uses this)
+    // Test with X-Forwarded-Proto header (common reverse proxy pattern)
     let mut headers = HeaderMap::new();
     headers.insert("X-Forwarded-Proto", "https".parse().unwrap());
 
@@ -61,7 +61,7 @@ fn test_http_cookie_without_secure_flag() {
 }
 
 #[test]
-fn test_fly_io_https_headers() {
+fn test_proxy_https_headers() {
     // Test with X-Forwarded-Ssl header (alternative header some proxies use)
     let mut headers = HeaderMap::new();
     headers.insert("X-Forwarded-Ssl", "on".parse().unwrap());

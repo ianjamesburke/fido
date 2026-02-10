@@ -42,7 +42,7 @@ pub struct ApiClient {
     session_token: Option<String>,
 }
 
-const DEFAULT_PUBLIC_SERVER_URL: &str = "https://fido-social.fly.dev";
+const DEFAULT_PUBLIC_SERVER_URL: &str = "https://fido-prod-ijb.web.app";
 
 fn read_server_url_from_config() -> Option<String> {
     let config_path = dirs::home_dir()?.join(".fido").join("server_url");

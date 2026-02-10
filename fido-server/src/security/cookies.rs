@@ -6,7 +6,7 @@ use axum::http::{HeaderMap, HeaderValue};
 /// 1. X-Forwarded-Proto: https
 /// 2. X-Forwarded-Ssl: on
 ///
-/// This is necessary because when behind a reverse proxy (like Fly.io),
+/// This is necessary because when behind a reverse proxy,
 /// the application sees HTTP traffic even though the client connection is HTTPS.
 ///
 /// # Arguments

@@ -93,4 +93,4 @@ Mark items complete by changing `- [ ]` to `- [x]` as work lands.
 - [x] Update `QUICKSTART.md` with Firebase-local workflow and emulator usage.
 - [x] Update deployment docs (including Firebase runbook and rollback notes).
 - [x] Add troubleshooting section for Firestore emulator and auth issues.
-- [x] Remove/mark Fly.io-specific docs/config as legacy once Firebase path is primary.
+- [x] Remove/mark legacy hosting docs/config as legacy once Firebase path is primary.

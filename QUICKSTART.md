@@ -236,7 +236,7 @@ If you login with a test user, you'll see:
 
 **Solutions:**
 1. Check your internet connection
-2. Verify the server is up: `curl https://fido-social.fly.dev/health`
+2. Verify the server is up: `curl https://fido-prod-ijb.web.app/health`
 3. Wait a moment and try again (server may be starting up)
 4. Check if you're behind a firewall or proxy
 
