@@ -219,8 +219,12 @@ impl App {
 
     /// Load filter modal data (hashtags and following users)
     pub async fn load_filter_modal_data(&mut self) -> Result<()> {
-        // Load followed hashtags
-        match self.api_client.get_followed_hashtags().await {
+        // Load both lists concurrently to keep filter modal snappy.
+        let hashtags_future = self.api_client.get_followed_hashtags();
+        let following_future = self.api_client.get_following_list();
+        let (hashtags_result, following_result) = tokio::join!(hashtags_future, following_future);
+
+        match hashtags_result {
             Ok(hashtags) => {
                 self.posts_state.filter_modal_state.hashtag_list = hashtags;
             }
@@ -230,8 +234,7 @@ impl App {
             }
         }
 
-        // Load following users (people you follow)
-        match self.api_client.get_following_list().await {
+        match following_result {
             Ok(following) => {
                 self.posts_state.filter_modal_state.user_list =
                     following.into_iter().map(|user| user.username).collect();

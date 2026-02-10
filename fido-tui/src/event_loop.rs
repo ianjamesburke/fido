@@ -172,7 +172,7 @@ impl EventLoop {
                 }
             }
             Tab::DMs => {
-                if app.dms_state.conversations.is_empty() || app.dms_state.error.is_some() {
+                if !app.dms_state.conversations_loaded || app.dms_state.error.is_some() {
                     app.load_conversations().await?;
                 }
             }

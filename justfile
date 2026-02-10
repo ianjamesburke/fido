@@ -73,3 +73,52 @@ deploy-cargo dry-run="false":
 # Run Firestore emulator smoke test
 firestore-emulator-check project_id="demo-fido":
     FIREBASE_PROJECT_ID={{project_id}} ./scripts/run-firestore-emulator-check.sh
+
+# Bump version in workspace Cargo.toml (patch, minor, or major)
+# Usage:
+#   just bump          # bumps patch version (0.1.14 -> 0.1.15)
+#   just bump patch    # same as above
+#   just bump minor    # bumps minor version (0.1.14 -> 0.2.0)
+#   just bump major    # bumps major version (0.1.14 -> 1.0.0)
+bump level="patch":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    # Read current version from Cargo.toml
+    current=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+    echo "Current version: $current"
+    
+    # Parse version components
+    IFS='.' read -r major minor patch <<< "$current"
+    
+    # Calculate new version based on level
+    case "{{level}}" in
+        patch)
+            new_version="$major.$minor.$((patch + 1))"
+            ;;
+        minor)
+            new_version="$major.$((minor + 1)).0"
+            ;;
+        major)
+            new_version="$((major + 1)).0.0"
+            ;;
+        *)
+            echo "Error: Invalid bump level '{{level}}'. Use 'patch', 'minor', or 'major'."
+            exit 1
+            ;;
+    esac
+    
+    echo "New version: $new_version"
+    
+    # Update workspace.package version
+    sed -i.bak "s/^version = \"$current\"/version = \"$new_version\"/" Cargo.toml
+    
+    # Update fido-types dependency version
+    sed -i.bak "s/fido-types = { path = \"fido-types\", version = \"$current\" }/fido-types = { path = \"fido-types\", version = \"$new_version\" }/" Cargo.toml
+    
+    # Remove backup files
+    rm -f Cargo.toml.bak
+    
+    echo "✓ Version bumped from $current to $new_version"
+    echo "  Updated: [workspace.package] version"
+    echo "  Updated: fido-types dependency version"

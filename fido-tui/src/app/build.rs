@@ -85,6 +85,7 @@ impl App {
             },
             dms_state: DMsState {
                 conversations: Vec::new(),
+                conversations_loaded: false,
                 selection: DMSelection::NewConversation,
                 messages: Vec::new(),
                 loading: false,

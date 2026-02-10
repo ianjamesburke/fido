@@ -193,16 +193,6 @@ impl Backend {
         }
     }
 
-    pub async fn mark_messages_read(&self, user_id: Uuid) -> ApiResult<serde_json::Value> {
-        match self {
-            Backend::Api(client) => client.mark_messages_read(user_id).await,
-            Backend::Mock(_) => {
-                // MockBackend doesn't track read status
-                Ok(serde_json::json!({}))
-            }
-        }
-    }
-
     // Configuration endpoints
 
     pub async fn get_config(&self) -> ApiResult<UserConfig> {

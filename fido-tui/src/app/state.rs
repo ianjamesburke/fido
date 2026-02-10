@@ -210,7 +210,8 @@ impl DMSelection {
 /// DMs tab state
 pub struct DMsState {
     pub conversations: Vec<Conversation>,
-    pub selection: DMSelection, // Clean enum-based selection
+    pub conversations_loaded: bool, // Distinguish "loaded but empty" from "not loaded yet"
+    pub selection: DMSelection,     // Clean enum-based selection
     pub messages: Vec<fido_types::DirectMessage>,
     pub loading: bool,
     pub error: Option<String>,

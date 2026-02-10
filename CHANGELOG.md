@@ -17,6 +17,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [0.1.15] - 2026-02-10
+
+### Added
+- Version bump command in justfile for automated version management
+- Filtered query support in Firestore client for complex queries
+
+### Changed
+- Optimized reply count computation in Firestore post store
+- Improved Firestore query performance with batch operations
+
+### Removed
+- Unused mark_messages_read endpoint from API client and backend
+
+
+
 ## [0.1.14] - 2026-02-10
 
 ### Changed

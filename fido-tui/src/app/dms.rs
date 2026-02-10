@@ -60,8 +60,13 @@ impl App {
                 if !self.dms_state.conversations.is_empty() {
                     self.dms_state.selection = DMSelection::Conversation(0);
                     self.dms_state.needs_message_load = true;
+                } else {
+                    self.dms_state.selection = DMSelection::NewConversation;
+                    self.dms_state.messages.clear();
+                    self.dms_state.current_conversation_user = None;
                 }
 
+                self.dms_state.conversations_loaded = true;
                 self.dms_state.loading = false;
             }
             Err(e) => {
@@ -111,31 +116,21 @@ impl App {
         // Set current conversation user
         self.dms_state.current_conversation_user = Some(user_id);
 
-        // Call API to mark messages as read
-        match self.api_client.mark_messages_read(user_id).await {
-            Ok(_) => {
-                // Clear unread count for this user
-                self.dms_state.unread_counts.insert(user_id, 0);
+        // Opening a conversation marks it as read server-side in GET /dms/conversations/:user_id.
+        // Keep local read state in sync without issuing another network round-trip.
+        self.dms_state.unread_counts.insert(user_id, 0);
 
-                // Update local message state
-                for msg in self.dms_state.messages.iter_mut() {
-                    msg.is_read = true;
-                }
+        for msg in self.dms_state.messages.iter_mut() {
+            msg.is_read = true;
+        }
 
-                // Update conversation unread count
-                if let Some(convo) = self
-                    .dms_state
-                    .conversations
-                    .iter_mut()
-                    .find(|c| c.other_user_id == user_id)
-                {
-                    convo.unread_count = 0;
-                }
-            }
-            Err(e) => {
-                // Log error but don't fail the operation
-                eprintln!("Warning: Failed to mark messages as read: {}", e);
-            }
+        if let Some(convo) = self
+            .dms_state
+            .conversations
+            .iter_mut()
+            .find(|c| c.other_user_id == user_id)
+        {
+            convo.unread_count = 0;
         }
 
         Ok(())

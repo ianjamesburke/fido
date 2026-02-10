@@ -27,15 +27,16 @@ impl App {
             // Load user's posts
             match self
                 .api_client
-                .get_posts(Some(100), Some("Newest".to_string()), None, None)
+                .get_posts(
+                    Some(100),
+                    Some("Newest".to_string()),
+                    None,
+                    Some(user.username.clone()),
+                )
                 .await
             {
                 Ok(posts) => {
-                    // Filter to only show current user's posts
-                    self.profile_state.user_posts = posts
-                        .into_iter()
-                        .filter(|p| p.author_id == user.id)
-                        .collect();
+                    self.profile_state.user_posts = posts;
                     if !self.profile_state.user_posts.is_empty() {
                         self.profile_state.list_state.select(Some(0));
                     } else {

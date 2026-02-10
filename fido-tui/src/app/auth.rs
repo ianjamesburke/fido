@@ -37,6 +37,7 @@ impl App {
         self.posts_state.posts.clear();
         self.profile_state.profile = None;
         self.dms_state.conversations.clear();
+        self.dms_state.conversations_loaded = false;
         self.dms_state.messages.clear();
 
         // Reset GitHub Device Flow state

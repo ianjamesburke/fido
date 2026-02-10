@@ -278,6 +278,77 @@ impl FirestoreClient {
 
         Ok(items)
     }
+
+    fn query_collection_filtered(
+        &self,
+        collection: &str,
+        filters: &[(&str, &str)],
+        order_by: Option<(&str, bool)>,
+    ) -> Result<Vec<Map<String, Value>>> {
+        if filters.is_empty() {
+            return self.query_collection(collection);
+        }
+
+        let field_filters: Vec<Value> = filters
+            .iter()
+            .map(|(field, value)| {
+                json!({
+                    "fieldFilter": {
+                        "field": { "fieldPath": field },
+                        "op": "EQUAL",
+                        "value": { "stringValue": value }
+                    }
+                })
+            })
+            .collect();
+
+        let where_clause = if field_filters.len() == 1 {
+            field_filters[0].clone()
+        } else {
+            json!({
+                "compositeFilter": {
+                    "op": "AND",
+                    "filters": field_filters
+                }
+            })
+        };
+
+        let mut structured_query = json!({
+            "from": [{"collectionId": collection}],
+            "where": where_clause
+        });
+
+        if let Some((field, descending)) = order_by {
+            let direction = if descending {
+                "DESCENDING"
+            } else {
+                "ASCENDING"
+            };
+            structured_query["orderBy"] = json!([{
+                "field": { "fieldPath": field },
+                "direction": direction
+            }]);
+        }
+
+        let query = json!({
+            "structuredQuery": structured_query
+        });
+
+        let rows = self.send_json(Method::POST, self.run_query_url.clone(), Some(query))?;
+        let items = rows
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|row| {
+                row.get("document")
+                    .and_then(|doc| doc.get("fields"))
+                    .and_then(|fields| fields.as_object().cloned())
+            })
+            .collect();
+
+        Ok(items)
+    }
 }
 
 fn parse_firestore_error(status: StatusCode, payload: &str) -> anyhow::Error {
@@ -661,28 +732,34 @@ impl FirestorePostStore {
             .collect()
     }
 
-    fn get_post_reply_count(&self, post_id: &Uuid) -> Result<i32> {
-        let count = self
-            .load_posts()?
-            .into_iter()
-            .filter(|p| p.parent_post_id == Some(*post_id))
-            .count();
-        Ok(count as i32)
+    fn compute_reply_counts(posts: &[Post]) -> HashMap<Uuid, i32> {
+        let mut reply_counts = HashMap::new();
+        for post in posts {
+            if let Some(parent_id) = post.parent_post_id {
+                *reply_counts.entry(parent_id).or_insert(0) += 1;
+            }
+        }
+        reply_counts
+    }
+
+    fn apply_reply_counts(posts: &mut [Post], reply_counts: &HashMap<Uuid, i32>) {
+        for post in posts {
+            post.reply_count = *reply_counts.get(&post.id).unwrap_or(&0);
+        }
     }
 }
 
 impl PostStore for FirestorePostStore {
     fn get_posts(&self, sort_order: SortOrder, limit: i32) -> Result<Vec<Post>> {
-        let mut posts = self
-            .load_posts()?
+        let all_posts = self.load_posts()?;
+        let reply_counts = Self::compute_reply_counts(&all_posts);
+
+        let mut posts = all_posts
             .into_iter()
             .filter(|p| p.parent_post_id.is_none())
             .collect::<Vec<_>>();
 
-        for post in &mut posts {
-            post.reply_count = self.get_post_reply_count(&post.id).unwrap_or(0);
-        }
-
+        Self::apply_reply_counts(&mut posts, &reply_counts);
         sort_posts(&mut posts, sort_order);
         posts.truncate(limit.max(0) as usize);
         Ok(posts)
@@ -708,16 +785,15 @@ impl PostStore for FirestorePostStore {
             })
             .collect();
 
-        let mut posts = self
-            .load_posts()?
+        let all_posts = self.load_posts()?;
+        let reply_counts = Self::compute_reply_counts(&all_posts);
+
+        let mut posts = all_posts
             .into_iter()
             .filter(|p| p.parent_post_id.is_none() && ids.contains(&p.id.to_string()))
             .collect::<Vec<_>>();
 
-        for post in &mut posts {
-            post.reply_count = self.get_post_reply_count(&post.id).unwrap_or(0);
-        }
-
+        Self::apply_reply_counts(&mut posts, &reply_counts);
         sort_posts(&mut posts, sort_order);
         posts.truncate(limit.max(0) as usize);
         Ok(posts)
@@ -730,18 +806,17 @@ impl PostStore for FirestorePostStore {
         limit: i32,
     ) -> Result<Vec<Post>> {
         let target = username.to_ascii_lowercase();
-        let mut posts = self
-            .load_posts()?
+        let all_posts = self.load_posts()?;
+        let reply_counts = Self::compute_reply_counts(&all_posts);
+
+        let mut posts = all_posts
             .into_iter()
             .filter(|p| {
                 p.parent_post_id.is_none() && p.author_username.to_ascii_lowercase() == target
             })
             .collect::<Vec<_>>();
 
-        for post in &mut posts {
-            post.reply_count = self.get_post_reply_count(&post.id).unwrap_or(0);
-        }
-
+        Self::apply_reply_counts(&mut posts, &reply_counts);
         sort_posts(&mut posts, sort_order);
         posts.truncate(limit.max(0) as usize);
         Ok(posts)
@@ -769,8 +844,10 @@ impl PostStore for FirestorePostStore {
             })
             .collect();
 
-        let mut posts = self
-            .load_posts()?
+        let all_posts = self.load_posts()?;
+        let reply_counts = Self::compute_reply_counts(&all_posts);
+
+        let mut posts = all_posts
             .into_iter()
             .filter(|p| {
                 p.parent_post_id.is_none()
@@ -779,10 +856,7 @@ impl PostStore for FirestorePostStore {
             })
             .collect::<Vec<_>>();
 
-        for post in &mut posts {
-            post.reply_count = self.get_post_reply_count(&post.id).unwrap_or(0);
-        }
-
+        Self::apply_reply_counts(&mut posts, &reply_counts);
         sort_posts(&mut posts, sort_order);
         posts.truncate(limit.max(0) as usize);
         Ok(posts)
@@ -798,15 +872,18 @@ impl PostStore for FirestorePostStore {
             None => return Ok(None),
         };
 
-        post.reply_count = self.get_post_reply_count(post_id).unwrap_or(0);
+        let all_posts = self.load_posts()?;
+        let reply_counts = Self::compute_reply_counts(&all_posts);
+        post.reply_count = *reply_counts.get(post_id).unwrap_or(&0);
         Ok(Some(post))
     }
 
     fn get_replies(&self, post_id: &Uuid) -> Result<Vec<Post>> {
-        let mut posts = self.load_posts()?;
+        let posts = self.load_posts()?;
+        let reply_counts = Self::compute_reply_counts(&posts);
         let mut by_parent: HashMap<Uuid, Vec<Post>> = HashMap::new();
 
-        for post in posts.drain(..) {
+        for post in posts {
             if let Some(parent_id) = post.parent_post_id {
                 by_parent.entry(parent_id).or_default().push(post);
             }
@@ -819,7 +896,7 @@ impl PostStore for FirestorePostStore {
             if let Some(mut children) = by_parent.remove(&parent) {
                 children.sort_by(|a, b| a.created_at.cmp(&b.created_at));
                 for mut child in children {
-                    child.reply_count = self.get_post_reply_count(&child.id).unwrap_or(0);
+                    child.reply_count = *reply_counts.get(&child.id).unwrap_or(&0);
                     queue.push(child.id);
                     out.push(child);
                 }
@@ -1133,6 +1210,16 @@ impl UserStore for FirestoreUserStore {
     }
 
     fn get_by_username(&self, username: &str) -> Result<Option<User>> {
+        // Try an exact indexed lookup first.
+        for row in self.client.query_collection_filtered(
+            COLLECTION_USERS,
+            &[("username", username)],
+            None,
+        )? {
+            return Ok(Some(user_from_fields(&row)?));
+        }
+
+        // Fallback for older mixed-case data.
         let target = username.to_ascii_lowercase();
         for row in self.client.query_collection(COLLECTION_USERS)? {
             if from_string(&row, "username")
@@ -1267,20 +1354,28 @@ impl FriendStore for FirestoreFriendStore {
     }
 
     fn get_following(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
+        let user_id_str = user_id.to_string();
         self.client
-            .query_collection(COLLECTION_FRIENDS)?
+            .query_collection_filtered(
+                COLLECTION_FRIENDS,
+                &[("follower_id", user_id_str.as_str())],
+                None,
+            )?
             .into_iter()
-            .filter(|row| from_string(row, "follower_id") == Some(user_id.to_string()))
             .filter_map(|row| from_string(&row, "following_id"))
             .map(|raw| parse_uuid(&raw, "following_id"))
             .collect()
     }
 
     fn get_followers(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
+        let user_id_str = user_id.to_string();
         self.client
-            .query_collection(COLLECTION_FRIENDS)?
+            .query_collection_filtered(
+                COLLECTION_FRIENDS,
+                &[("following_id", user_id_str.as_str())],
+                None,
+            )?
             .into_iter()
-            .filter(|row| from_string(row, "following_id") == Some(user_id.to_string()))
             .filter_map(|row| from_string(&row, "follower_id"))
             .map(|raw| parse_uuid(&raw, "follower_id"))
             .collect()
@@ -1405,6 +1500,30 @@ impl RateLimitStore for FirestoreRateLimitStore {
     }
 }
 
+impl FirestoreDirectMessageStore {
+    fn query_messages_between(
+        &self,
+        from_user_id: &Uuid,
+        to_user_id: &Uuid,
+    ) -> Result<Vec<DirectMessage>> {
+        let from_user_id_str = from_user_id.to_string();
+        let to_user_id_str = to_user_id.to_string();
+
+        self.client
+            .query_collection_filtered(
+                COLLECTION_DMS,
+                &[
+                    ("from_user_id", from_user_id_str.as_str()),
+                    ("to_user_id", to_user_id_str.as_str()),
+                ],
+                Some(("created_at", false)),
+            )?
+            .into_iter()
+            .map(|fields| dm_from_fields(&fields))
+            .collect::<Result<Vec<_>>>()
+    }
+}
+
 impl DirectMessageStore for FirestoreDirectMessageStore {
     fn create(&self, dm: &DirectMessage) -> Result<()> {
         self.client
@@ -1412,48 +1531,64 @@ impl DirectMessageStore for FirestoreDirectMessageStore {
     }
 
     fn get_conversation(&self, user1_id: &Uuid, user2_id: &Uuid) -> Result<Vec<DirectMessage>> {
-        let mut dms = self
-            .client
-            .query_collection(COLLECTION_DMS)?
-            .into_iter()
-            .map(|fields| dm_from_fields(&fields))
-            .collect::<Result<Vec<_>>>()?
-            .into_iter()
-            .filter(|dm| {
-                (dm.from_user_id == *user1_id && dm.to_user_id == *user2_id)
-                    || (dm.from_user_id == *user2_id && dm.to_user_id == *user1_id)
-            })
-            .collect::<Vec<_>>();
+        let mut dms = self.query_messages_between(user1_id, user2_id)?;
+        dms.extend(self.query_messages_between(user2_id, user1_id)?);
 
         dms.sort_by(|a, b| a.created_at.cmp(&b.created_at));
         Ok(dms)
     }
 
     fn get_conversations_list(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
-        let mut users = HashSet::new();
+        let user_id_str = user_id.to_string();
+        let mut latest_by_user = HashMap::new();
 
-        for dm in self
+        let sent = self
             .client
-            .query_collection(COLLECTION_DMS)?
+            .query_collection_filtered(
+                COLLECTION_DMS,
+                &[("from_user_id", user_id_str.as_str())],
+                Some(("created_at", true)),
+            )?
             .into_iter()
             .map(|fields| dm_from_fields(&fields))
-            .collect::<Result<Vec<_>>>()?
-        {
-            if dm.from_user_id == *user_id {
-                users.insert(dm.to_user_id);
-            } else if dm.to_user_id == *user_id {
-                users.insert(dm.from_user_id);
-            }
+            .collect::<Result<Vec<_>>>()?;
+
+        let received = self
+            .client
+            .query_collection_filtered(
+                COLLECTION_DMS,
+                &[("to_user_id", user_id_str.as_str())],
+                Some(("created_at", true)),
+            )?
+            .into_iter()
+            .map(|fields| dm_from_fields(&fields))
+            .collect::<Result<Vec<_>>>()?;
+
+        for dm in sent.into_iter().chain(received.into_iter()) {
+            let other_user_id = if dm.from_user_id == *user_id {
+                dm.to_user_id
+            } else {
+                dm.from_user_id
+            };
+
+            latest_by_user
+                .entry(other_user_id)
+                .and_modify(|latest: &mut DateTime<Utc>| {
+                    if dm.created_at > *latest {
+                        *latest = dm.created_at;
+                    }
+                })
+                .or_insert(dm.created_at);
         }
 
-        let mut out = users.into_iter().collect::<Vec<_>>();
-        out.sort();
-        Ok(out)
+        let mut out = latest_by_user.into_iter().collect::<Vec<_>>();
+        out.sort_by(|a, b| b.1.cmp(&a.1));
+        Ok(out.into_iter().map(|(user_id, _)| user_id).collect())
     }
 
     fn mark_as_read(&self, user_id: &Uuid, other_user_id: &Uuid) -> Result<()> {
-        for dm in self.get_conversation(user_id, other_user_id)? {
-            if dm.to_user_id != *user_id || dm.is_read {
+        for dm in self.query_messages_between(other_user_id, user_id)? {
+            if dm.is_read {
                 continue;
             }
 
@@ -1471,10 +1606,18 @@ impl DirectMessageStore for FirestoreDirectMessageStore {
     }
 
     fn delete_conversation(&self, user_id: &Uuid, other_user_id: &Uuid) -> Result<()> {
-        for dm in self.get_conversation(user_id, other_user_id)? {
+        let mut message_ids = HashSet::new();
+        for dm in self.query_messages_between(user_id, other_user_id)? {
+            message_ids.insert(dm.id);
+        }
+        for dm in self.query_messages_between(other_user_id, user_id)? {
+            message_ids.insert(dm.id);
+        }
+
+        for message_id in message_ids {
             let _ = self
                 .client
-                .delete_document(COLLECTION_DMS, &dm.id.to_string())?;
+                .delete_document(COLLECTION_DMS, &message_id.to_string())?;
         }
         Ok(())
     }

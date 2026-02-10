@@ -8,10 +8,12 @@ impl App {
         self.friends_state.loading = true;
         self.friends_state.error = None;
 
-        // Load all three lists
-        let following_result = self.api_client.get_following_list().await;
-        let followers_result = self.api_client.get_followers_list().await;
-        let mutual_result = self.api_client.get_mutual_friends_list().await;
+        // Load all three lists concurrently to reduce modal open latency.
+        let following_future = self.api_client.get_following_list();
+        let followers_future = self.api_client.get_followers_list();
+        let mutual_future = self.api_client.get_mutual_friends_list();
+        let (following_result, followers_result, mutual_result) =
+            tokio::join!(following_future, followers_future, mutual_future);
 
         // Check for errors and provide detailed messages
         if let Err(e) = &following_result {

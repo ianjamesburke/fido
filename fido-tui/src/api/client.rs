@@ -333,14 +333,6 @@ impl ApiClient {
         self.handle_response(response).await
     }
 
-    /// Mark messages as read for a specific user
-    pub async fn mark_messages_read(&self, user_id: Uuid) -> ApiResult<serde_json::Value> {
-        let url = format!("{}/dms/mark-read/{}", self.base_url, user_id);
-        let req = self.add_auth_header(self.client.post(&url));
-        let response = req.send().await?;
-        self.handle_response(response).await
-    }
-
     // Configuration endpoints
 
     /// Get user configuration
