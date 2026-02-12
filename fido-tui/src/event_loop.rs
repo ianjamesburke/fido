@@ -315,6 +315,20 @@ impl EventLoop {
             {
                 self.reset_github_auth_state(app);
             }
+            KeyCode::Char('o') | KeyCode::Char('O')
+                if app.current_screen == Screen::Auth && app.auth_state.github_auth_in_progress =>
+            {
+                if let Some(uri) = app.auth_state.github_verification_uri.as_deref() {
+                    if let Err(e) = auth_flow.open_browser(uri) {
+                        app.auth_state.error = Some(format!(
+                            "Could not open browser automatically. Please visit: {} ({})",
+                            uri, e
+                        ));
+                    } else {
+                        app.auth_state.error = None;
+                    }
+                }
+            }
             KeyCode::Enter
                 if app.current_screen == Screen::Auth
                     && !app.auth_state.github_auth_in_progress =>
@@ -418,15 +432,6 @@ impl EventLoop {
                 app.auth_state.github_auth_in_progress = true;
                 app.auth_state.github_auth_start_time = Some(std::time::Instant::now());
                 app.auth_state.loading = false;
-
-                // Try to open browser to verification URI
-                if let Err(e) = auth_flow.open_browser(&verification_uri) {
-                    log::warn!("Failed to open browser: {}", e);
-                    app.auth_state.error = Some(format!(
-                        "Could not open browser automatically. Please visit: {}",
-                        verification_uri
-                    ));
-                }
             }
             Err(e) => {
                 app.auth_state.error =

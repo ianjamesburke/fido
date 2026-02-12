@@ -4,6 +4,9 @@ use chrono::{Duration, Utc};
 use std::sync::Arc;
 use uuid::Uuid;
 
+const DEFAULT_SESSION_MAX_AGE_DAYS: i64 = 30;
+const DEFAULT_SESSION_IDLE_TIMEOUT_HOURS: i64 = 24 * 30;
+
 /// Database-backed session manager for persistent authentication
 ///
 /// Manages user sessions with token-based authentication, including:
@@ -14,18 +17,36 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct SessionManager {
     store: Arc<dyn SessionStore>,
+    session_max_age_days: i64,
+    session_idle_timeout_hours: i64,
 }
 
 impl SessionManager {
     /// Create a new session manager
     pub fn new(store: Arc<dyn SessionStore>) -> Self {
-        Self { store }
+        let session_max_age_days = std::env::var("SESSION_MAX_AGE_DAYS")
+            .ok()
+            .and_then(|v| v.parse::<i64>().ok())
+            .filter(|v| *v > 0)
+            .unwrap_or(DEFAULT_SESSION_MAX_AGE_DAYS);
+
+        let session_idle_timeout_hours = std::env::var("SESSION_IDLE_TIMEOUT_HOURS")
+            .ok()
+            .and_then(|v| v.parse::<i64>().ok())
+            .filter(|v| *v > 0)
+            .unwrap_or(DEFAULT_SESSION_IDLE_TIMEOUT_HOURS);
+
+        Self {
+            store,
+            session_max_age_days,
+            session_idle_timeout_hours,
+        }
     }
 
     /// Create a new session for a user
     ///
     /// Generates a cryptographically secure UUID v4 token and stores it in the database
-    /// with a 7-day expiry period (reduced from 90 days for security).
+    /// with a default 30-day expiry period (configurable via SESSION_MAX_AGE_DAYS).
     ///
     /// # Arguments
     /// * `user_id` - The UUID of the user to create a session for
@@ -35,7 +56,7 @@ impl SessionManager {
     pub fn create_session(&self, user_id: Uuid) -> Result<String> {
         let token = Uuid::new_v4().to_string();
         let created_at = Utc::now();
-        let expires_at = created_at + Duration::days(7); // Reduced from 90 days to 7 days for security
+        let expires_at = created_at + Duration::days(self.session_max_age_days);
         let last_activity = created_at; // Initialize last_activity to creation time
 
         self.store
@@ -49,7 +70,8 @@ impl SessionManager {
     /// Validate a session token and return the associated user ID
     ///
     /// Checks if the token exists in the database, has not expired, and is not idle.
-    /// Sessions are invalidated if idle for more than 24 hours.
+    /// Sessions are invalidated if idle longer than the configured threshold
+    /// (defaults to 30 days, configurable via SESSION_IDLE_TIMEOUT_HOURS).
     /// Updates last_activity on successful validation.
     ///
     /// # Arguments
@@ -75,12 +97,10 @@ impl SessionManager {
             anyhow::bail!("Session has expired");
         }
 
-        // Check idle timeout (24 hours)
+        // Check idle timeout
         if let Some(last_activity) = session.last_activity {
             let idle_duration = now - last_activity;
-            let max_idle_hours = 24;
-
-            if idle_duration > Duration::hours(max_idle_hours) {
+            if idle_duration > Duration::hours(self.session_idle_timeout_hours) {
                 // Clean up idle session
                 self.delete_session(token)?;
                 tracing::info!(
@@ -344,9 +364,9 @@ mod tests {
             .create_session(user_id)
             .expect("Failed to create session");
 
-        // Manually set last_activity to 25 hours ago (beyond 24-hour idle timeout)
+        // Manually set last_activity to 31 days ago (beyond 30-day idle timeout)
         let conn = db.connection().expect("Failed to get connection");
-        let old_activity = (Utc::now() - Duration::hours(25)).to_rfc3339();
+        let old_activity = (Utc::now() - Duration::days(31)).to_rfc3339();
         conn.execute(
             "UPDATE sessions SET last_activity = ?1 WHERE token = ?2",
             rusqlite::params![old_activity, token],
@@ -379,9 +399,9 @@ mod tests {
             .create_session(user_id)
             .expect("Failed to create session");
 
-        // Set last_activity to 23 hours ago (within 24-hour idle timeout)
+        // Set last_activity to 29 days ago (within 30-day idle timeout)
         let conn = db.connection().expect("Failed to get connection");
-        let recent_activity = (Utc::now() - Duration::hours(23)).to_rfc3339();
+        let recent_activity = (Utc::now() - Duration::days(29)).to_rfc3339();
         conn.execute(
             "UPDATE sessions SET last_activity = ?1 WHERE token = ?2",
             rusqlite::params![recent_activity, token],

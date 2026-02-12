@@ -209,10 +209,10 @@ The following environment variables must be set before starting the server:
 - **MAX_REQUEST_SIZE**: Maximum request body size in bytes (default: `1048576` = 1MB)
   - Protects against denial-of-service attacks via large payloads
   
-- **SESSION_MAX_AGE_DAYS**: Maximum session lifetime in days (default: `7`)
+- **SESSION_MAX_AGE_DAYS**: Maximum session lifetime in days (default: `30`)
   - Sessions expire after this duration regardless of activity
   
-- **SESSION_IDLE_TIMEOUT_HOURS**: Session idle timeout in hours (default: `24`)
+- **SESSION_IDLE_TIMEOUT_HOURS**: Session idle timeout in hours (default: `720`)
   - Sessions expire after this period of inactivity
 
 ### Testing
@@ -255,8 +255,8 @@ Fido implements comprehensive security hardening to protect user data and preven
   - User-friendly device code flow for terminal applications
   
 - **Session Security**:
-  - 7-day maximum session lifetime (configurable)
-  - 24-hour idle timeout (configurable)
+  - 30-day maximum session lifetime (configurable)
+  - 30-day idle timeout (configurable)
   - Automatic session invalidation on new login
   - Session tokens stored securely in `~/.fido/session`
   - All sessions invalidated when user logs out
@@ -418,7 +418,7 @@ When deploying Fido in production:
    - Track failed login attempts
    
 5. **Session Management**:
-   - Use default session timeouts (7 days max, 24 hours idle)
+   - Use default session timeouts (30 days max, 30 days idle)
    - Shorter timeouts for high-security environments
    - Educate users to logout when done
    

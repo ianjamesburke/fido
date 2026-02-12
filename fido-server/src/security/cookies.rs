@@ -1,5 +1,7 @@
 use axum::http::{HeaderMap, HeaderValue};
 
+const SESSION_COOKIE_MAX_AGE_SECONDS: i64 = 60 * 60 * 24 * 30;
+
 /// Detects if the request is over HTTPS by checking proxy headers
 ///
 /// Checks the following headers in order:
@@ -43,7 +45,7 @@ pub fn is_https(headers: &HeaderMap) -> bool {
 /// - SameSite=Strict: Prevents CSRF attacks
 /// - Secure: Only sent over HTTPS (when HTTPS is detected)
 /// - Path=/: Available for all paths
-/// - Max-Age: 7 days (604800 seconds)
+/// - Max-Age: 30 days (2592000 seconds)
 ///
 /// # Arguments
 /// * `token` - The session token value
@@ -54,8 +56,8 @@ pub fn is_https(headers: &HeaderMap) -> bool {
 pub fn create_session_cookie(token: &str, is_https: bool) -> HeaderValue {
     let secure_flag = if is_https { "; Secure" } else { "" };
     let cookie = format!(
-        "session_token={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800{}",
-        token, secure_flag
+        "session_token={}; HttpOnly; SameSite=Strict; Path=/; Max-Age={}{}",
+        token, SESSION_COOKIE_MAX_AGE_SECONDS, secure_flag
     );
 
     HeaderValue::from_str(&cookie).unwrap_or_else(|_| HeaderValue::from_static(""))
@@ -155,8 +157,8 @@ mod tests {
         );
         assert!(cookie_str.contains("Path=/"), "Should have Path=/");
         assert!(
-            cookie_str.contains("Max-Age=604800"),
-            "Should have 7-day expiry"
+            cookie_str.contains("Max-Age=2592000"),
+            "Should have 30-day expiry"
         );
     }
 
@@ -181,8 +183,8 @@ mod tests {
         );
         assert!(cookie_str.contains("Path=/"), "Should have Path=/");
         assert!(
-            cookie_str.contains("Max-Age=604800"),
-            "Should have 7-day expiry"
+            cookie_str.contains("Max-Age=2592000"),
+            "Should have 30-day expiry"
         );
     }
 
@@ -198,7 +200,7 @@ mod tests {
             "HttpOnly",
             "SameSite=Strict",
             "Path=/",
-            "Max-Age=604800",
+            "Max-Age=2592000",
             "Secure",
         ];
 

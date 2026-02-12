@@ -70,7 +70,7 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
 
         if let Some(user_code) = &app.auth_state.github_user_code {
             lines.push(Line::from(Span::styled(
-                "Enter this code on GitHub:",
+                "Step 1: Copy this code:",
                 Style::default().fg(Color::White),
             )));
             lines.push(Line::from(""));
@@ -86,7 +86,7 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
 
         if let Some(uri) = &app.auth_state.github_verification_uri {
             lines.push(Line::from(Span::styled(
-                "If the browser didn't open, visit:",
+                "Step 2: Open this link in your browser:",
                 Style::default().fg(Color::White),
             )));
             lines.push(Line::from(Span::styled(
@@ -94,10 +94,15 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
                 Style::default().fg(Color::White),
             )));
             lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "Press 'o' to open this link automatically",
+                Style::default().fg(Color::White),
+            )));
+            lines.push(Line::from(""));
         }
 
         lines.push(Line::from(Span::styled(
-            "Waiting for authorization...",
+            "Step 3: Paste the code on GitHub and approve access",
             Style::default().fg(Color::White),
         )));
         lines.push(Line::from(""));

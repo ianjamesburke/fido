@@ -17,6 +17,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [0.1.16] - 2026-02-11
+
+### Changed
+- Extended session lifetime from 7 days to 30 days for improved user experience
+- Extended session idle timeout from 24 hours to 30 days
+- Updated session cookie max age to 30 days
+- Improved OAuth flow with manual browser open option (press 'o')
+- Enhanced auth screen instructions with clearer step-by-step guidance
+- Improved session validation error handling to preserve tokens on transient failures
+
+### Fixed
+- Session validation now distinguishes between auth failures and transient errors
+- Browser no longer auto-opens during GitHub OAuth to prevent interruptions
+
+
+
 ## [0.1.15] - 2026-02-10
 
 ### Added

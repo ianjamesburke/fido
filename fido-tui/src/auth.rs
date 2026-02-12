@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use fido_types::User;
 
-use crate::api::Backend;
+use crate::api::{ApiError, Backend};
 use crate::session::SessionStore;
 
 /// Manages the OAuth authentication flow for the TUI client.
@@ -62,10 +62,20 @@ impl AuthFlow {
                 let _ = self.session_store.delete();
                 Ok(None)
             }
-            Err(e) => {
-                log::warn!("Session validation failed: {}", e);
-                // Clear invalid session
+            Err(ApiError::Unauthorized(_))
+            | Err(ApiError::NotFound(_))
+            | Err(ApiError::BadRequest(_)) => {
+                log::warn!("Session token rejected by server, clearing local token");
                 let _ = self.session_store.delete();
+                Ok(None)
+            }
+            Err(e) => {
+                // Keep the local token on transient failures (network/server/rate-limit).
+                // This prevents unnecessary re-authentication after temporary outages.
+                log::warn!(
+                    "Session validation failed due to transient error; keeping local token: {}",
+                    e
+                );
                 Ok(None)
             }
         }

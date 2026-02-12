@@ -90,10 +90,10 @@ pub struct SecurityConfig {
     /// Maximum request body size in bytes (default: 1MB)
     pub max_request_size: usize,
 
-    /// Maximum session age in days (default: 7)
+    /// Maximum session age in days (default: 30)
     pub session_max_age_days: i64,
 
-    /// Session idle timeout in hours (default: 24)
+    /// Session idle timeout in hours (default: 720 / 30 days)
     pub session_idle_timeout_hours: i64,
 }
 
@@ -110,8 +110,8 @@ impl Default for SecurityConfig {
             github_client_id: String::new(),
             enable_https_redirect: false,
             max_request_size: 1024 * 1024, // 1MB
-            session_max_age_days: 7,
-            session_idle_timeout_hours: 24,
+            session_max_age_days: 30,
+            session_idle_timeout_hours: 24 * 30,
         }
     }
 }
@@ -138,12 +138,12 @@ impl SecurityConfig {
         let session_max_age_days = std::env::var("SESSION_MAX_AGE_DAYS")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(7);
+            .unwrap_or(30);
 
         let session_idle_timeout_hours = std::env::var("SESSION_IDLE_TIMEOUT_HOURS")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(24);
+            .unwrap_or(24 * 30);
 
         Ok(Self {
             environment,
@@ -293,8 +293,8 @@ mod tests {
         assert_eq!(config.environment, Environment::Development);
         assert!(!config.allowed_origins.is_empty());
         assert_eq!(config.max_request_size, 1024 * 1024);
-        assert_eq!(config.session_max_age_days, 7);
-        assert_eq!(config.session_idle_timeout_hours, 24);
+        assert_eq!(config.session_max_age_days, 30);
+        assert_eq!(config.session_idle_timeout_hours, 24 * 30);
     }
 
     #[test]
