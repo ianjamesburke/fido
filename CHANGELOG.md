@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [0.1.17] - 2026-02-12
+
+### Changed
+- Extracted version fetching logic and improved update flow
+- Improved changelog updater hook with better formatting
+
+### Removed
+- Unused dependencies and consolidated versions across workspace
+
+
+
 ## [0.1.16] - 2026-02-11
 
 ### Changed
