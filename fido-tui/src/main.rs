@@ -50,8 +50,13 @@ struct Cli {
 // Load environment variables from .env file
 // This allows FIDO_SERVER_URL and other config to be set without command-line args
 fn load_env() {
-    // Load from workspace root .env file (fido/.env)
-    let _ = dotenv::dotenv();
+    // Do not auto-load .env in release binaries (cargo install users).
+    // This avoids accidental localhost overrides when running from a repo directory.
+    // Allow explicit opt-in for release builds via FIDO_LOAD_DOTENV=true.
+    let should_load = cfg!(debug_assertions) || env_flag("FIDO_LOAD_DOTENV");
+    if should_load {
+        let _ = dotenv::dotenv();
+    }
 }
 
 /// Check crates.io for the latest version of fido
