@@ -90,8 +90,8 @@ fn test_cookie_attributes() {
     );
     assert!(cookie_str.contains("Path=/"), "Should have Path=/");
     assert!(
-        cookie_str.contains("Max-Age=604800"),
-        "Should have 7-day expiry (604800 seconds)"
+        cookie_str.contains("Max-Age=2592000"),
+        "Should have 30-day expiry (2592000 seconds)"
     );
     assert!(cookie_str.contains("Secure"), "Should have Secure flag");
 }

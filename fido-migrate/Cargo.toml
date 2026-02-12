@@ -44,7 +44,6 @@ path = "src/bin/sqlite_to_firestore.rs"
 [dependencies]
 # Workspace crates
 fido-server = { path = "../fido-server" }
-fido-types.workspace = true
 
 # Workspace dependencies
 anyhow.workspace = true

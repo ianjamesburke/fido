@@ -27,12 +27,10 @@ tui-textarea = "0.6"
 
 reqwest.workspace = true
 tokio.workspace = true
-async-trait = "0.1"
 
 emojis = "0.6"
 dirs = "5.0"
 textwrap = "0.16.2"
-unicode-width = "0.1"
 urlencoding = "2.1"
 log = "0.4"
 simplelog = "0.12"

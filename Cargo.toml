@@ -29,11 +29,9 @@ rusqlite = { version = "0.37", features = ["bundled"] }
 
 # HTTP server and client
 axum = "0.7"
-tokio = { version = "1.35", features = ["full"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace", "fs", "limit"] }
-reqwest = { version = "0.11", features = ["json"] }
-oauth2 = "4.4"
+tokio = { version = "1.35", features = ["macros", "rt-multi-thread", "time", "net"] }
+tower-http = { version = "0.5", features = ["cors", "fs", "limit"] }
+reqwest = { version = "0.11", default-features = false, features = ["json", "native-tls"] }
 
 # Terminal UI framework
 ratatui = "0.28"
@@ -50,7 +48,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 dotenv = "0.15"
 
 # Additional shared dependencies
-async-trait = "0.1"
 log = "0.4"
 simplelog = "0.12"
 config = { version = "0.15.19", features = ["toml"] }
