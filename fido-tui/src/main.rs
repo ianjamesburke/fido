@@ -55,7 +55,7 @@ fn load_env() {
 }
 
 /// Check crates.io for the latest version of fido
-async fn check_for_updates() -> Option<String> {
+async fn fetch_latest_version() -> Result<String> {
     #[derive(serde::Deserialize)]
     struct CrateResponse {
         #[serde(rename = "crate")]
@@ -69,22 +69,25 @@ async fn check_for_updates() -> Option<String> {
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(3))
-        .build()
-        .ok()?;
+        .build()?;
 
     let resp = client
         .get("https://crates.io/api/v1/crates/fido")
         .header("User-Agent", format!("fido/{}", CURRENT_VERSION))
         .send()
-        .await
-        .ok()?;
+        .await?;
 
-    let data: CrateResponse = resp.json().await.ok()?;
-    let latest = &data.krate.max_stable_version;
+    let data: CrateResponse = resp.json().await?;
+    Ok(data.krate.max_stable_version)
+}
+
+/// Check crates.io for the latest version of fido
+async fn check_for_updates() -> Option<String> {
+    let latest = fetch_latest_version().await.ok()?;
 
     // Simple version comparison (works for semver)
-    if latest != CURRENT_VERSION && is_newer_version(latest, CURRENT_VERSION) {
-        Some(latest.clone())
+    if latest != CURRENT_VERSION && is_newer_version(&latest, CURRENT_VERSION) {
+        Some(latest)
     } else {
         None
     }
@@ -129,9 +132,37 @@ async fn main() -> Result<()> {
 
     // Handle --update flag
     if cli.update {
-        println!("Updating fido to the latest version...");
+        println!("Checking for updates...");
+
+        let latest_version = match fetch_latest_version().await {
+            Ok(version) => version,
+            Err(e) => {
+                eprintln!("✗ Failed to check for updates: {}", e);
+                eprintln!("  Try again later, or run `cargo install fido --force` manually.");
+                std::process::exit(1);
+            }
+        };
+
+        if !is_newer_version(&latest_version, CURRENT_VERSION) {
+            println!(
+                "✓ You are already on the latest version (v{}).",
+                CURRENT_VERSION
+            );
+            return Ok(());
+        }
+
+        println!(
+            "Updating fido from v{} to v{}...",
+            CURRENT_VERSION, latest_version
+        );
         let status = Command::new("cargo")
-            .args(["install", "fido", "--force"])
+            .args([
+                "install",
+                "fido",
+                "--version",
+                latest_version.as_str(),
+                "--force",
+            ])
             .status();
 
         match status {
