@@ -37,3 +37,6 @@ ian-docs
 .kiro/hooks/code-quality-analyzer.kiro.hook
 
 logs/
+
+# Firebase
+.firebase/
