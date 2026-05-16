@@ -25,6 +25,7 @@ RUN apt-get update && \
     apt-get install -y \
         ca-certificates \
         nginx \
+        gettext-base \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -37,7 +38,7 @@ COPY --from=builder /app/target/release/fido-server /usr/local/bin/fido-server
 COPY --from=builder /app/target/release/fido /usr/local/bin/fido
 
 # Copy configuration files
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY nginx.conf /etc/nginx/nginx.conf.template
 COPY start.sh /usr/local/bin/start.sh
 
 # Copy web assets
@@ -51,23 +52,19 @@ RUN mkdir -p /data /var/log/fido && chmod 755 /data /var/log/fido
 
 # Environment variables
 ENV HOST=0.0.0.0
-# External listener (nginx). Cloud Run injects PORT at runtime.
+# External listener (nginx). Railway/Cloud Run inject PORT at runtime.
 ENV PORT=8080
 # Internal API listener (fido-server) behind nginx.
 ENV FIDO_SERVER_PORT=3000
 ENV TTYD_PORT=7681
-ENV NGINX_PORT=8080
 ENV DATABASE_PATH=/data/fido.db
 ENV LOG_DIR=/var/log/fido
 ENV RUST_LOG=info
 ENV RUST_BACKTRACE=1
 
-# Health check
+# Health check uses the PORT env var (Railway overrides it at runtime)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
-
-# Expose nginx port (all services proxied through here)
-EXPOSE 8080
+    CMD curl -f http://localhost:${PORT}/health || exit 1
 
 # Use start script as entrypoint
 ENTRYPOINT ["/usr/local/bin/start.sh"]

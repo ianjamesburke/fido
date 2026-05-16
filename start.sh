@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration with defaults
-# `PORT` is the externally exposed port in managed environments (Cloud Run/Fly).
+# `PORT` is the externally exposed port in managed environments (Railway/Cloud Run).
 # Keep fido-server on an internal port to avoid colliding with nginx.
 APP_PORT=${PORT:-8080}
 FIDO_SERVER_PORT=${FIDO_SERVER_PORT:-3000}
@@ -32,11 +32,11 @@ else
     FIDO_TUI_BIN="./target/release/fido"
 fi
 
-# Docker image nginx.conf proxies to 127.0.0.1:3000.
-# Prevent accidental misconfiguration from environment overrides.
-if [ "$ENV_MODE" = "docker" ] && [ "$FIDO_SERVER_PORT" != "3000" ]; then
-    echo -e "${YELLOW}Warning: forcing FIDO_SERVER_PORT=3000 in docker mode to match nginx upstream${NC}"
-    FIDO_SERVER_PORT=3000
+# Render nginx config template with runtime port values.
+if [ "$ENV_MODE" = "docker" ] && [ -f /etc/nginx/nginx.conf.template ]; then
+    export NGINX_PORT
+    envsubst '${NGINX_PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+    echo -e "${GREEN}  ✓ nginx.conf rendered (listen on port $NGINX_PORT)${NC}"
 fi
 
 echo -e "${BLUE}╔══════════════════════════════════════════════╗${NC}"
