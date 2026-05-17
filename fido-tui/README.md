@@ -1,6 +1,6 @@
 # Fido
 
-A blazing-fast, keyboard-driven social platform for developers. No algorithms, no ads, just posts and conversations.
+A social media/message board built with Ratatui.
 
 ## Installation
 
