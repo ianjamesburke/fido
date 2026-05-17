@@ -30,6 +30,14 @@ impl Backend {
         }
     }
 
+    /// Stable scope for local session persistence.
+    pub fn session_scope(&self) -> Option<&str> {
+        match self {
+            Backend::Api(client) => Some(client.base_url()),
+            Backend::Mock(_) => None,
+        }
+    }
+
     // Authentication endpoints
 
     pub async fn get_test_users(&self) -> ApiResult<Vec<User>> {

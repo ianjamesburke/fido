@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fido — Mockup 2: Brutalist Newspaper</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --black: #000000;
+            --white: #f2efe8;
+            --red: #E8210A;
+            --red-dim: #991508;
+            --grey: #999;
+            --grey-light: #ccc;
+            --grey-dark: #333;
+            --card-bg: #0a0a0a;
+            --border: #222;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Courier Prime', 'Courier New', monospace;
+            background: var(--black);
+            color: var(--white);
+            line-height: 1.4;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── MASTHEAD / HEADER ── */
+        .masthead {
+            border-bottom: 6px solid var(--white);
+            padding: 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .masthead-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 40px;
+            border-bottom: 2px solid var(--grey-dark);
+            font-size: 0.75em;
+            color: var(--grey);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+
+        .masthead-top a {
+            color: var(--grey);
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+        .masthead-top a:hover { color: var(--white); }
+
+        .masthead-hero {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: end;
+            padding: 40px 40px 0;
+            gap: 40px;
+        }
+
+        .masthead-left {
+            position: relative;
+        }
+
+        .issue-label {
+            font-family: 'Courier Prime', monospace;
+            font-size: 0.7em;
+            letter-spacing: 0.2em;
+            color: var(--red);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .logo-text {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(100px, 20vw, 200px);
+            line-height: 0.85;
+            color: var(--white);
+            letter-spacing: -0.01em;
+            display: block;
+        }
+
+        .masthead-tagline {
+            font-size: 0.9em;
+            color: var(--grey);
+            letter-spacing: 0.05em;
+            margin-top: 16px;
+            text-transform: uppercase;
+            padding-bottom: 24px;
+        }
+
+        .masthead-right {
+            text-align: right;
+            padding-bottom: 24px;
+        }
+
+        .install-box {
+            display: inline-block;
+            border: 3px solid var(--red);
+            padding: 0;
+        }
+
+        .install-label {
+            background: var(--red);
+            padding: 4px 14px;
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 0.95em;
+            letter-spacing: 0.15em;
+            color: var(--black);
+        }
+
+        .install-code {
+            padding: 12px 16px;
+            font-family: 'Courier Prime', monospace;
+            font-size: 1.05em;
+            color: var(--white);
+            display: block;
+            white-space: nowrap;
+        }
+
+        .headline-strip {
+            background: var(--red);
+            padding: 8px 40px;
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.1em;
+            letter-spacing: 0.2em;
+            color: var(--black);
+            display: flex;
+            gap: 40px;
+            overflow: hidden;
+        }
+
+        .hl-item {
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .hl-item::after {
+            content: '◆';
+            opacity: 0.5;
+        }
+
+        .hl-item:last-child::after { display: none; }
+
+        /* ── BODY ── */
+        .body {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 40px 80px;
+        }
+
+        /* ── DEMO ── */
+        .demo-section {
+            padding: 60px 0;
+            border-bottom: 4px solid var(--border);
+        }
+
+        .section-label {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 0.75em;
+            letter-spacing: 0.3em;
+            color: var(--red);
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--red-dim);
+            padding-bottom: 4px;
+            margin-bottom: 24px;
+            display: inline-block;
+        }
+
+        .demo-header {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: end;
+            gap: 40px;
+            margin-bottom: 32px;
+        }
+
+        .demo-h2 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(3em, 8vw, 6em);
+            line-height: 0.9;
+            color: var(--white);
+            letter-spacing: 0.02em;
+        }
+
+        .demo-instructions {
+            max-width: 320px;
+            font-size: 0.8em;
+            color: var(--grey);
+            line-height: 1.7;
+            text-align: right;
+            border-right: 2px solid var(--grey-dark);
+            padding-right: 20px;
+        }
+
+        kbd {
+            font-family: 'Courier Prime', monospace;
+            font-size: 0.9em;
+            color: var(--red);
+            border: 1px solid var(--red-dim);
+            padding: 1px 6px;
+            background: rgba(232, 33, 10, 0.07);
+        }
+
+        .terminal-wrapper {
+            border: 2px solid var(--grey-dark);
+        }
+
+        .terminal-top-bar {
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tdot { width: 11px; height: 11px; border-radius: 50%; }
+        .tdot.r { background: #ff5f56; }
+        .tdot.y { background: #ffbd2e; }
+        .tdot.g { background: #27c93f; }
+
+        .tbar-title {
+            margin-left: auto;
+            font-size: 0.8em;
+            color: var(--grey-dark);
+            letter-spacing: 0.05em;
+        }
+
+        #terminal {
+            width: 100%;
+            height: 680px;
+            border: none;
+            display: block;
+            background: #000;
+        }
+
+        /* ── FEATURES ── */
+        .features-section {
+            padding: 60px 0;
+            border-bottom: 4px solid var(--border);
+        }
+
+        .features-header {
+            display: flex;
+            align-items: baseline;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .features-h2 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(3em, 6vw, 5em);
+            line-height: 1;
+            color: var(--white);
+        }
+
+        .features-sub {
+            font-size: 0.8em;
+            color: var(--grey);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+            border: 1px solid var(--border);
+        }
+
+        .feature {
+            padding: 32px 24px;
+            border-right: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+
+        .feature:last-child { border-right: none; }
+        .feature:hover { background: #0d0d0d; }
+
+        .feature-num {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 3.5em;
+            color: var(--grey-dark);
+            line-height: 1;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .feature h3 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.6em;
+            letter-spacing: 0.04em;
+            color: var(--white);
+            margin-bottom: 10px;
+            line-height: 1.1;
+        }
+
+        .feature p {
+            font-size: 0.8em;
+            color: var(--grey);
+            line-height: 1.65;
+        }
+
+        /* ── TWO-COL SECTION ── */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            border-bottom: 4px solid var(--border);
+        }
+
+        .col-block {
+            padding: 60px 40px 60px 0;
+        }
+
+        .col-block:last-child {
+            padding: 60px 0 60px 40px;
+            border-left: 2px solid var(--border);
+        }
+
+        .col-h2 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(2.5em, 5vw, 4.5em);
+            line-height: 0.95;
+            color: var(--white);
+            margin-bottom: 28px;
+        }
+
+        /* Feature list */
+        .feature-list {
+            list-style: none;
+        }
+
+        .feature-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9em;
+            color: var(--grey);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            transition: color 0.15s;
+        }
+
+        .feature-list li:last-child { border-bottom: none; }
+
+        .feature-list li:hover { color: var(--white); }
+
+        .feature-list li::before {
+            content: '—';
+            color: var(--red);
+            font-weight: bold;
+        }
+
+        /* Tech stack */
+        .tech-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            border: 1px solid var(--border);
+        }
+
+        .tech-row {
+            display: flex;
+            align-items: center;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+            gap: 20px;
+            transition: background 0.15s;
+        }
+
+        .tech-row:last-child { border-bottom: none; }
+        .tech-row:hover { background: #0d0d0d; }
+
+        .tech-key {
+            font-size: 0.7em;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--red);
+            width: 90px;
+            flex-shrink: 0;
+        }
+
+        .tech-val {
+            font-size: 0.9em;
+            color: var(--white);
+        }
+
+        /* ── ROADMAP ── */
+        .roadmap-section {
+            padding: 60px 0;
+            border-bottom: 4px solid var(--border);
+        }
+
+        .roadmap-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0;
+            border: 1px solid var(--border);
+            margin-top: 32px;
+        }
+
+        .roadmap-item {
+            padding: 36px 28px;
+            border-right: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+
+        .roadmap-item:last-child { border-right: none; }
+        .roadmap-item:hover { background: #0a0a0a; }
+
+        .roadmap-status {
+            font-family: 'Courier Prime', monospace;
+            font-size: 0.7em;
+            letter-spacing: 0.2em;
+            color: var(--red);
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .roadmap-item h3 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.8em;
+            letter-spacing: 0.04em;
+            color: var(--white);
+            margin-bottom: 12px;
+            line-height: 1.1;
+        }
+
+        .roadmap-item p {
+            font-size: 0.82em;
+            color: var(--grey);
+            line-height: 1.65;
+        }
+
+        .roadmap-item code {
+            font-family: 'Courier Prime', monospace;
+            color: var(--white);
+            background: #111;
+            padding: 2px 6px;
+            border: 1px solid var(--border);
+            font-size: 0.9em;
+        }
+
+        /* ── FOOTER ── */
+        footer {
+            padding: 40px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75em;
+            color: var(--grey);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            border-top: 2px solid var(--red);
+        }
+
+        footer a {
+            color: var(--grey);
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+
+        footer a:hover { color: var(--white); }
+
+        .footer-logo {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 2.5em;
+            color: var(--grey-dark);
+            letter-spacing: 0.05em;
+        }
+
+        /* GitHub btn */
+        .github-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 42px;
+            height: 42px;
+            border: 2px solid var(--grey-dark);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--grey);
+            text-decoration: none;
+            background: var(--black);
+            transition: all 0.15s;
+            z-index: 1000;
+        }
+
+        .github-btn:hover {
+            border-color: var(--white);
+            color: var(--white);
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .masthead-hero { grid-template-columns: 1fr; }
+            .masthead-right { text-align: left; }
+            .features-grid { grid-template-columns: repeat(2, 1fr); }
+            .feature { border-bottom: 1px solid var(--border); }
+            .two-col { grid-template-columns: 1fr; }
+            .col-block:last-child { padding: 60px 0 60px 0; border-left: none; border-top: 2px solid var(--border); }
+            .roadmap-grid { grid-template-columns: 1fr; }
+            .roadmap-item { border-right: none; border-bottom: 1px solid var(--border); }
+            .demo-header { grid-template-columns: 1fr; }
+            .demo-instructions { text-align: left; border-right: none; border-left: 2px solid var(--grey-dark); padding-left: 14px; padding-right: 0; max-width: 100%; }
+            .masthead-top, .headline-strip, .body { padding-left: 20px; padding-right: 20px; }
+            #terminal { height: 450px; }
+        }
+    </style>
+</head>
+<body>
+
+    <a href="https://github.com/ianjamesburke/fido" target="_blank" class="github-btn" aria-label="GitHub">
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+    </a>
+
+    <header class="masthead">
+        <div class="masthead-top">
+            <span>Terminal Social Network &nbsp;·&nbsp; Issue No. 001</span>
+            <span>Built in Rust &nbsp;·&nbsp; Privacy First</span>
+            <span>2025</span>
+        </div>
+        <div class="masthead-hero" style="padding: 40px 40px 0; max-width: 1200px; margin: 0 auto;">
+            <div class="masthead-left">
+                <span class="issue-label">// For developers who live in the terminal</span>
+                <span class="logo-text">FIDO</span>
+                <p class="masthead-tagline">Keyboard-driven &nbsp;·&nbsp; No algorithms &nbsp;·&nbsp; No ads &nbsp;·&nbsp; 100% terminal</p>
+            </div>
+            <div class="masthead-right">
+                <div class="install-box">
+                    <div class="install-label">Install Now</div>
+                    <code class="install-code">cargo install fido</code>
+                </div>
+            </div>
+        </div>
+        <div class="headline-strip">
+            <span class="hl-item">Lightning Fast</span>
+            <span class="hl-item">Keyboard-Driven</span>
+            <span class="hl-item">Privacy First</span>
+            <span class="hl-item">Built with Rust + Ratatui</span>
+            <span class="hl-item">Open Source</span>
+            <span class="hl-item">No Tracking</span>
+        </div>
+    </header>
+
+    <div class="body">
+
+        <section class="demo-section">
+            <span class="section-label">Live Demo</span>
+            <div class="demo-header">
+                <h2 class="demo-h2">Try It In<br>Your Browser</h2>
+                <p class="demo-instructions">
+                    Full terminal experience, running live.<br>
+                    <kbd>Tab</kbd> to switch tabs &nbsp;·&nbsp;
+                    <kbd>j</kbd>/<kbd>k</kbd> to scroll &nbsp;·&nbsp;
+                    <kbd>n</kbd> to compose a post
+                </p>
+            </div>
+            <div class="terminal-wrapper">
+                <div class="terminal-top-bar">
+                    <span class="tdot r"></span>
+                    <span class="tdot y"></span>
+                    <span class="tdot g"></span>
+                    <span class="tbar-title">fido-tui &nbsp;·&nbsp; demo session</span>
+                </div>
+                <iframe id="terminal" src="/ttyd/" title="Fido Terminal Demo"></iframe>
+            </div>
+        </section>
+
+        <section class="features-section">
+            <div class="features-header">
+                <h2 class="features-h2">Why Fido</h2>
+                <span class="features-sub">Four reasons</span>
+            </div>
+            <div class="features-grid">
+                <div class="feature">
+                    <span class="feature-num">01</span>
+                    <h3>Lightning Fast</h3>
+                    <p>Terminal-native UI optimized for speed. Zero JavaScript overhead.</p>
+                </div>
+                <div class="feature">
+                    <span class="feature-num">02</span>
+                    <h3>Keyboard-Driven</h3>
+                    <p>Every action accessible via shortcuts. Mouse is optional.</p>
+                </div>
+                <div class="feature">
+                    <span class="feature-num">03</span>
+                    <h3>Privacy-First</h3>
+                    <p>No algorithms. No ads. No tracking. Just the content you want.</p>
+                </div>
+                <div class="feature">
+                    <span class="feature-num">04</span>
+                    <h3>Built with Rust</h3>
+                    <p>Modern, memory-safe, and blazingly fast. Ships as a single binary.</p>
+                </div>
+            </div>
+        </section>
+
+        <div class="two-col">
+            <div class="col-block">
+                <span class="section-label">Features</span>
+                <h2 class="col-h2">What You Get</h2>
+                <ul class="feature-list">
+                    <li>Direct messaging</li>
+                    <li>Follow hashtags</li>
+                    <li>Follow users</li>
+                    <li>Upvote / downvote posts</li>
+                    <li>Customizable color schemes</li>
+                    <li>Configurable sorting &amp; display</li>
+                </ul>
+            </div>
+            <div class="col-block">
+                <span class="section-label">Tech Stack</span>
+                <h2 class="col-h2">Under the Hood</h2>
+                <div class="tech-stack">
+                    <div class="tech-row">
+                        <span class="tech-key">Frontend</span>
+                        <span class="tech-val">Rust + Ratatui</span>
+                    </div>
+                    <div class="tech-row">
+                        <span class="tech-key">Backend</span>
+                        <span class="tech-val">Axum REST API</span>
+                    </div>
+                    <div class="tech-row">
+                        <span class="tech-key">Database</span>
+                        <span class="tech-val">SQLite</span>
+                    </div>
+                    <div class="tech-row">
+                        <span class="tech-key">Deploy</span>
+                        <span class="tech-val">Docker + ttyd</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section class="roadmap-section">
+            <span class="section-label">Roadmap</span>
+            <h2 class="features-h2" style="margin-top: 8px;">What's Next</h2>
+            <div class="roadmap-grid">
+                <div class="roadmap-item">
+                    <span class="roadmap-status">// Planned</span>
+                    <h3>CLI for Instant DMs</h3>
+                    <p>Send direct messages without opening the TUI: <code>fido dm @user "message"</code></p>
+                </div>
+                <div class="roadmap-item">
+                    <span class="roadmap-status">// Planned</span>
+                    <h3>Group Chats</h3>
+                    <p>Multi-user conversations and channels for teams and communities.</p>
+                </div>
+                <div class="roadmap-item">
+                    <span class="roadmap-status">// Planned</span>
+                    <h3>WebSocket Real-time</h3>
+                    <p>Live feed updates without polling. Always in sync.</p>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <span>Built for <a href="https://kiro.dev/" target="_blank">Kiroween 2025</a></span>
+            <span class="footer-logo">FIDO</span>
+            <span><a href="https://github.com/ianjamesburke/fido" target="_blank">View on GitHub →</a></span>
+        </footer>
+
+    </div>
+
+</body>
+</html>

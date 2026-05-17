@@ -16,11 +16,9 @@ use crate::security::validation::validate_username;
 use crate::security::{create_session_cookie, is_https, AuditEvent, AuditEventType};
 use crate::state::AppState;
 
-// Temporary in-memory storage for device codes during OAuth flow
-// Maps device_code -> (timestamp, optional session_token)
-// In production, this should use Redis or a database table
+// In-memory store for active device codes: device_code -> unix timestamp of creation
 lazy_static::lazy_static! {
-    static ref DEVICE_CODES: Arc<Mutex<HashMap<String, (i64, Option<String>)>>> =
+    static ref DEVICE_CODES: Arc<Mutex<HashMap<String, i64>>> =
         Arc::new(Mutex::new(HashMap::new()));
 }
 
@@ -125,15 +123,6 @@ pub async fn login(
             "Only test users can login via this endpoint".to_string(),
         ));
     }
-
-    // Invalidate all existing sessions for this user before creating a new one
-    // This ensures that previous sessions are invalidated on login for security
-    let _ = state
-        .session_manager
-        .invalidate_user_sessions(user.id)
-        .map_err(|e| {
-            tracing::warn!("Failed to invalidate user sessions: {}", e);
-        });
 
     // Create session
     let session_token = state
@@ -262,11 +251,11 @@ pub async fn github_device_flow(
     let now = chrono::Utc::now().timestamp();
     {
         let mut codes = DEVICE_CODES.lock().unwrap();
-        codes.insert(device_response.device_code.clone(), (now, None));
+        codes.insert(device_response.device_code.clone(), now);
 
         // Clean up expired codes (older than 15 minutes)
         let expired_threshold = now - 900;
-        codes.retain(|_, (timestamp, _)| *timestamp > expired_threshold);
+        codes.retain(|_, timestamp| *timestamp > expired_threshold);
     }
 
     // Log device code generation
@@ -307,7 +296,7 @@ pub async fn github_device_poll(
     // Check if device code exists and is not expired
     let is_valid = {
         let codes = DEVICE_CODES.lock().unwrap();
-        if let Some((timestamp, _)) = codes.get(&payload.device_code) {
+        if let Some(timestamp) = codes.get(&payload.device_code) {
             let now = chrono::Utc::now().timestamp();
             now - timestamp < 900 // 15 minutes
         } else {
@@ -378,15 +367,6 @@ pub async fn github_device_poll(
             github_user.name.as_deref(),
         )
         .map_err(|e| ApiError::InternalError(format!("Failed to create/update user: {}", e)))?;
-
-    // Invalidate all existing sessions for this user before creating a new one
-    // This ensures that previous sessions are invalidated on login for security
-    let _ = state
-        .session_manager
-        .invalidate_user_sessions(user.id)
-        .map_err(|e| {
-            tracing::warn!("Failed to invalidate user sessions: {}", e);
-        });
 
     // Create session
     let session_token = state

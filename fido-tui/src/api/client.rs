@@ -103,6 +103,11 @@ impl ApiClient {
         self.session_token = token;
     }
 
+    /// Server URL used to scope local session storage.
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     /// Helper to add session token to request if available
     fn add_auth_header(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         if let Some(token) = &self.session_token {

@@ -513,23 +513,6 @@
             color: var(--rule-mid);
         }
 
-        /* ── MOBILE PREVIEW ── */
-        .mobile-preview { display: none; }
-
-        .mobile-preview-msg {
-            text-align: center;
-            padding: 16px 20px 12px;
-            font-size: 0.72em;
-            letter-spacing: 0.1em;
-            color: var(--text-faint);
-            background: var(--bg-1);
-        }
-
-        .mobile-preview-img {
-            width: 100%;
-            display: block;
-        }
-
         /* ── RESPONSIVE ── */
         @media (max-width: 860px) {
             nav { padding: 0 24px; }
@@ -541,11 +524,9 @@
             .roadmap-row { grid-template-columns: 1fr; }
             .roadmap-left { border-right: none; border-bottom: 1px solid var(--rule); padding: 18px 20px; }
             footer { flex-direction: column; gap: 16px; text-align: center; }
-            #terminal { display: none; }
-            .mobile-preview { display: block; }
+            #terminal { height: 450px; }
             .hero-meta { flex-wrap: wrap; gap: 24px; }
             .section-head { flex-direction: column; gap: 8px; }
-            .section-hint { display: none; }
             .nav-links { gap: 18px; }
         }
     </style>
@@ -629,10 +610,6 @@
                     <span class="term-title">fido-tui — demo</span>
                 </div>
                 <iframe id="terminal" src="/ttyd/" title="Fido Terminal Demo"></iframe>
-                <div class="mobile-preview">
-                    <p class="mobile-preview-msg">Visit on desktop for a preview</p>
-                    <img src="/fido-demo.png" alt="Fido terminal demo" class="mobile-preview-img">
-                </div>
             </div>
         </section>
 

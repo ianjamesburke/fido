@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fido — Mockup 1: CRT Terminal</title>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --green: #00ff41;
+            --green-dim: #00aa2a;
+            --green-dimmer: #006617;
+            --green-glow: rgba(0, 255, 65, 0.4);
+            --green-glow-soft: rgba(0, 255, 65, 0.15);
+            --bg: #000000;
+            --bg-card: #030d04;
+            --amber: #ffb300;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* CRT scanline overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.18) 2px,
+                rgba(0, 0, 0, 0.18) 4px
+            );
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* CRT vignette */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.7) 100%);
+            pointer-events: none;
+            z-index: 9998;
+        }
+
+        @keyframes flicker {
+            0%, 89%, 91%, 94%, 96%, 100% { opacity: 1; }
+            90% { opacity: 0.85; }
+            92%, 95% { opacity: 0.93; }
+            93% { opacity: 1; }
+        }
+
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+
+        @keyframes typein {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+
+        @keyframes glow-pulse {
+            0%, 100% { text-shadow: 0 0 6px var(--green), 0 0 20px var(--green-glow); }
+            50% { text-shadow: 0 0 10px var(--green), 0 0 30px var(--green-glow), 0 0 60px var(--green-glow-soft); }
+        }
+
+        body {
+            font-family: 'Share Tech Mono', monospace;
+            background: var(--bg);
+            color: var(--green);
+            line-height: 1.5;
+            min-height: 100vh;
+            animation: flicker 12s infinite;
+            overflow-x: hidden;
+        }
+
+        .glow {
+            text-shadow: 0 0 6px var(--green), 0 0 20px var(--green-glow);
+        }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+        }
+
+        /* ── HEADER ── */
+        header {
+            padding: 60px 0 50px;
+            border-bottom: 1px solid var(--green-dimmer);
+            margin-bottom: 60px;
+        }
+
+        .prompt-line {
+            color: var(--green-dim);
+            font-family: 'VT323', monospace;
+            font-size: 1.1em;
+            margin-bottom: 8px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .prompt-line .prompt-symbol {
+            color: var(--green);
+            text-shadow: 0 0 8px var(--green-glow);
+        }
+
+        .ascii-logo {
+            font-family: 'VT323', monospace;
+            font-size: clamp(2.8em, 7vw, 5.5em);
+            line-height: 1;
+            color: var(--green);
+            text-shadow: 0 0 10px var(--green), 0 0 40px var(--green-glow), 0 0 80px var(--green-glow-soft);
+            animation: glow-pulse 3s ease-in-out infinite;
+            letter-spacing: 0.05em;
+            margin: 16px 0 4px;
+        }
+
+        .tagline-block {
+            margin: 24px 0;
+        }
+
+        .tagline-line {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.95em;
+            color: var(--green-dim);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 6px 0;
+        }
+
+        .tagline-line::before {
+            content: '//';
+            color: var(--green-dimmer);
+        }
+
+        /* Install box */
+        .install-block {
+            margin-top: 36px;
+            display: inline-block;
+            border: 1px solid var(--green-dimmer);
+            padding: 0;
+            background: var(--bg-card);
+            box-shadow: 0 0 20px rgba(0,255,65,0.05), inset 0 0 30px rgba(0,0,0,0.5);
+        }
+
+        .install-header {
+            background: var(--green-dimmer);
+            padding: 4px 12px;
+            font-family: 'VT323', monospace;
+            font-size: 0.85em;
+            color: var(--bg);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .install-body {
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .install-body .prompt-sym {
+            color: var(--green-dim);
+            font-family: 'VT323', monospace;
+            font-size: 1.3em;
+        }
+
+        .install-cmd {
+            font-family: 'VT323', monospace;
+            font-size: 1.7em;
+            color: var(--green);
+            text-shadow: 0 0 8px var(--green-glow);
+            letter-spacing: 0.05em;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 1.2em;
+            background: var(--green);
+            box-shadow: 0 0 8px var(--green-glow);
+            vertical-align: text-bottom;
+            animation: blink 1s step-end infinite;
+        }
+
+        /* ── SECTION HEADERS ── */
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 32px;
+            font-family: 'VT323', monospace;
+            font-size: 1.4em;
+            color: var(--green-dim);
+        }
+
+        .section-header .cmd {
+            color: var(--green);
+            text-shadow: 0 0 8px var(--green-glow);
+        }
+
+        .section-header::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(to right, var(--green-dimmer), transparent);
+        }
+
+        /* ── DEMO ── */
+        .demo {
+            margin-bottom: 70px;
+        }
+
+        .demo-instructions {
+            color: var(--green-dim);
+            font-size: 0.9em;
+            margin-bottom: 24px;
+            padding-left: 20px;
+            border-left: 2px solid var(--green-dimmer);
+        }
+
+        .demo-instructions span {
+            color: var(--green);
+        }
+
+        kbd {
+            font-family: 'VT323', monospace;
+            font-size: 1.1em;
+            color: var(--amber);
+            text-shadow: 0 0 6px rgba(255, 179, 0, 0.5);
+            border: 1px solid rgba(255,179,0,0.4);
+            padding: 0 6px;
+            border-radius: 2px;
+            background: rgba(255,179,0,0.05);
+        }
+
+        .terminal-container {
+            border: 1px solid var(--green-dimmer);
+            background: #000;
+            box-shadow: 0 0 40px rgba(0,255,65,0.08);
+        }
+
+        .terminal-chrome {
+            background: #0a0a0a;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid var(--green-dimmer);
+        }
+
+        .dot { width: 11px; height: 11px; border-radius: 50%; }
+        .dot.r { background: #3a1111; border: 1px solid #5a1010; }
+        .dot.y { background: #2a2209; border: 1px solid #4a3a09; }
+        .dot.g { background: #0d2e0d; border: 1px solid #1a4a1a; }
+
+        .chrome-title {
+            margin-left: auto;
+            font-family: 'VT323', monospace;
+            font-size: 1em;
+            color: var(--green-dimmer);
+            letter-spacing: 0.1em;
+        }
+
+        #terminal {
+            width: 100%;
+            height: 680px;
+            border: none;
+            display: block;
+            background: #000;
+        }
+
+        /* ── FEATURES GRID ── */
+        .features-section {
+            margin-bottom: 70px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1px;
+            background: var(--green-dimmer);
+            border: 1px solid var(--green-dimmer);
+        }
+
+        .feature {
+            background: var(--bg);
+            padding: 28px 24px;
+            transition: background 0.2s;
+        }
+
+        .feature:hover {
+            background: var(--bg-card);
+        }
+
+        .feature-number {
+            font-family: 'VT323', monospace;
+            font-size: 2.5em;
+            color: var(--green-dimmer);
+            display: block;
+            margin-bottom: 4px;
+            text-shadow: none;
+        }
+
+        .feature h3 {
+            font-family: 'VT323', monospace;
+            font-size: 1.5em;
+            color: var(--green);
+            text-shadow: 0 0 6px var(--green-glow);
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+
+        .feature p {
+            color: var(--green-dim);
+            font-size: 0.85em;
+            line-height: 1.6;
+        }
+
+        /* ── INFO LIST ── */
+        .info-section {
+            margin-bottom: 70px;
+        }
+
+        .info-list {
+            list-style: none;
+            border: 1px solid var(--green-dimmer);
+        }
+
+        .info-list li {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--green-dimmer);
+            color: var(--green-dim);
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .info-list li:last-child { border-bottom: none; }
+
+        .info-list li:hover {
+            background: var(--bg-card);
+            color: var(--green);
+        }
+
+        .info-list li::before {
+            content: '►';
+            color: var(--green-dimmer);
+            font-size: 0.8em;
+            flex-shrink: 0;
+            transition: color 0.2s;
+        }
+
+        .info-list li:hover::before {
+            color: var(--green);
+        }
+
+        /* ── TECH STACK ── */
+        .tech-section {
+            margin-bottom: 70px;
+        }
+
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .tech-item {
+            border: 1px solid var(--green-dimmer);
+            padding: 20px 18px;
+            background: var(--bg-card);
+        }
+
+        .tech-item .label {
+            font-family: 'VT323', monospace;
+            font-size: 0.85em;
+            color: var(--green-dimmer);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .tech-item .value {
+            font-family: 'VT323', monospace;
+            font-size: 1.4em;
+            color: var(--green);
+            text-shadow: 0 0 6px var(--green-glow);
+        }
+
+        /* ── ROADMAP ── */
+        .roadmap-section {
+            margin-bottom: 70px;
+        }
+
+        .roadmap-items {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            border: 1px solid var(--green-dimmer);
+        }
+
+        .roadmap-item {
+            padding: 24px 20px;
+            border-bottom: 1px solid var(--green-dimmer);
+            display: grid;
+            grid-template-columns: 40px 1fr;
+            gap: 20px;
+            align-items: start;
+            transition: background 0.2s;
+        }
+
+        .roadmap-item:last-child { border-bottom: none; }
+        .roadmap-item:hover { background: var(--bg-card); }
+
+        .roadmap-index {
+            font-family: 'VT323', monospace;
+            font-size: 1.8em;
+            color: var(--green-dimmer);
+            text-align: center;
+            padding-top: 2px;
+        }
+
+        .roadmap-content h3 {
+            font-family: 'VT323', monospace;
+            font-size: 1.4em;
+            color: var(--green);
+            text-shadow: 0 0 6px var(--green-glow);
+            margin-bottom: 6px;
+        }
+
+        .roadmap-content p {
+            color: var(--green-dim);
+            font-size: 0.88em;
+            line-height: 1.6;
+        }
+
+        .roadmap-content code {
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--amber);
+            text-shadow: 0 0 6px rgba(255,179,0,0.4);
+            font-size: 0.9em;
+        }
+
+        /* ── FOOTER ── */
+        footer {
+            border-top: 1px solid var(--green-dimmer);
+            padding: 32px 0 0;
+            text-align: center;
+            color: var(--green-dimmer);
+            font-size: 0.85em;
+        }
+
+        footer a {
+            color: var(--green-dim);
+            text-decoration: none;
+            transition: color 0.2s, text-shadow 0.2s;
+        }
+
+        footer a:hover {
+            color: var(--green);
+            text-shadow: 0 0 8px var(--green-glow);
+        }
+
+        .footer-prompt {
+            font-family: 'VT323', monospace;
+            font-size: 1.2em;
+            margin-top: 20px;
+            color: var(--green-dimmer);
+        }
+
+        /* GitHub button */
+        .github-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 42px;
+            height: 42px;
+            border: 1px solid var(--green-dimmer);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--green-dim);
+            text-decoration: none;
+            background: var(--bg);
+            transition: all 0.2s;
+            z-index: 1000;
+        }
+
+        .github-btn:hover {
+            border-color: var(--green);
+            color: var(--green);
+            box-shadow: 0 0 12px var(--green-glow);
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .features-grid { grid-template-columns: 1fr; }
+            .ascii-logo { font-size: 2.5em; }
+            #terminal { height: 450px; }
+        }
+    </style>
+</head>
+<body>
+
+    <a href="https://github.com/ianjamesburke/fido" target="_blank" class="github-btn" aria-label="GitHub">
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+    </a>
+
+    <div class="container">
+
+        <header>
+            <div class="prompt-line">
+                <span class="prompt-symbol">$</span>
+                <span>ssh dev@fido.social</span>
+            </div>
+            <div class="ascii-logo">FIDO</div>
+            <div class="tagline-block">
+                <div class="tagline-line">Keyboard-driven social network for developers</div>
+                <div class="tagline-line">Built in Rust &nbsp;·&nbsp; 100% in the terminal</div>
+                <div class="tagline-line">No algorithms &nbsp;·&nbsp; No ads &nbsp;·&nbsp; No tracking</div>
+            </div>
+            <div class="install-block">
+                <div class="install-header">// INSTALL</div>
+                <div class="install-body">
+                    <span class="prompt-sym">$</span>
+                    <span class="install-cmd">cargo install fido</span>
+                    <span class="cursor"></span>
+                </div>
+            </div>
+        </header>
+
+        <section class="demo">
+            <div class="section-header">
+                <span class="cmd">$ fido --demo</span>
+            </div>
+            <div class="demo-instructions">
+                Live demo running in your browser. Navigate with <kbd>Tab</kbd> to switch tabs,
+                <kbd>j</kbd>/<kbd>k</kbd> to scroll, <kbd>n</kbd> to compose.
+            </div>
+            <div class="terminal-container">
+                <div class="terminal-chrome">
+                    <span class="dot r"></span>
+                    <span class="dot y"></span>
+                    <span class="dot g"></span>
+                    <span class="chrome-title">fido-tui &nbsp;·&nbsp; demo</span>
+                </div>
+                <iframe id="terminal" src="/ttyd/" title="Fido Terminal Demo"></iframe>
+            </div>
+        </section>
+
+        <section class="features-section">
+            <div class="section-header">
+                <span class="cmd">$ fido --features</span>
+            </div>
+            <div class="features-grid">
+                <div class="feature">
+                    <span class="feature-number">01</span>
+                    <h3>Lightning Fast</h3>
+                    <p>Terminal-native UI. Zero overhead. Renders in microseconds.</p>
+                </div>
+                <div class="feature">
+                    <span class="feature-number">02</span>
+                    <h3>Keyboard-Driven</h3>
+                    <p>Every action on a keybind. Mouse optional. Vim-style navigation.</p>
+                </div>
+                <div class="feature">
+                    <span class="feature-number">03</span>
+                    <h3>Privacy-First</h3>
+                    <p>No algorithms. No ads. No data harvesting. Just signal.</p>
+                </div>
+                <div class="feature">
+                    <span class="feature-number">04</span>
+                    <h3>Built with Rust</h3>
+                    <p>Memory-safe. Blazingly fast. Compiled to a single binary.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="info-section">
+            <div class="section-header">
+                <span class="cmd">$ fido --list-features</span>
+            </div>
+            <ul class="info-list">
+                <li>Direct messaging</li>
+                <li>Follow hashtags</li>
+                <li>Follow users</li>
+                <li>Upvote / downvote posts</li>
+                <li>Customizable color schemes</li>
+                <li>Configurable sorting and display options</li>
+            </ul>
+        </section>
+
+        <section class="tech-section">
+            <div class="section-header">
+                <span class="cmd">$ cat /etc/fido/stack.conf</span>
+            </div>
+            <div class="tech-grid">
+                <div class="tech-item">
+                    <span class="label">FRONTEND</span>
+                    <span class="value">Rust + Ratatui</span>
+                </div>
+                <div class="tech-item">
+                    <span class="label">BACKEND</span>
+                    <span class="value">Axum REST API</span>
+                </div>
+                <div class="tech-item">
+                    <span class="label">DATABASE</span>
+                    <span class="value">SQLite</span>
+                </div>
+                <div class="tech-item">
+                    <span class="label">DEPLOY</span>
+                    <span class="value">Docker + ttyd</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="roadmap-section">
+            <div class="section-header">
+                <span class="cmd">$ cat TODO.md</span>
+            </div>
+            <div class="roadmap-items">
+                <div class="roadmap-item">
+                    <div class="roadmap-index">[ ]</div>
+                    <div class="roadmap-content">
+                        <h3>CLI for Instant DMs</h3>
+                        <p>Send messages without opening the TUI: <code>fido dm @user "message"</code></p>
+                    </div>
+                </div>
+                <div class="roadmap-item">
+                    <div class="roadmap-index">[ ]</div>
+                    <div class="roadmap-content">
+                        <h3>Group Chats</h3>
+                        <p>Multi-user conversations and channels for your team.</p>
+                    </div>
+                </div>
+                <div class="roadmap-item">
+                    <div class="roadmap-index">[ ]</div>
+                    <div class="roadmap-content">
+                        <h3>WebSocket Real-time</h3>
+                        <p>Live feed updates. No polling. No refresh.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>Built for <a href="https://kiro.dev/" target="_blank">Kiroween 2025</a> &nbsp;·&nbsp; <a href="https://github.com/ianjamesburke/fido" target="_blank">View on GitHub</a></p>
+            <div class="footer-prompt">$ █</div>
+        </footer>
+
+    </div>
+
+</body>
+</html>
