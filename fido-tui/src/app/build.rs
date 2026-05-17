@@ -166,6 +166,7 @@ impl App {
             user_profile_view: None,
             log_config: crate::logging::LogConfig::default(),
             is_demo_mode,
+            pending_vote_tasks: Vec::new(),
             update_available: None,
         }
     }

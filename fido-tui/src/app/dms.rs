@@ -59,7 +59,9 @@ impl App {
                 // Select first conversation if available, otherwise stay on NewConversation
                 if !self.dms_state.conversations.is_empty() {
                     self.dms_state.selection = DMSelection::Conversation(0);
-                    self.dms_state.needs_message_load = true;
+                    self.dms_state.messages.clear();
+                    self.dms_state.current_conversation_user = None;
+                    self.dms_state.needs_message_load = false;
                 } else {
                     self.dms_state.selection = DMSelection::NewConversation;
                     self.dms_state.messages.clear();
@@ -91,6 +93,9 @@ impl App {
             DMSelection::PendingDraft => return Ok(()),    // Nothing to load yet
             DMSelection::Conversation(index) => *index,
         };
+        if selected_index >= self.dms_state.conversations.len() {
+            return Ok(());
+        }
 
         let conversation = &self.dms_state.conversations[selected_index];
         let other_user_id = conversation.other_user_id;

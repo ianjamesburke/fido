@@ -11,8 +11,9 @@ use serde_json::{json, Map, Value};
 use uuid::Uuid;
 
 use crate::stores::{
-    AuditStore, ConfigStore, DirectMessageStore, FriendStore, HashtagStore, PostStore,
-    RateLimitStore, SessionRecord, SessionStore, Stores, UserStore, VoteStore,
+    AuditStore, ConfigStore, DirectMessageConversationSummary, DirectMessageStore, FriendStore,
+    HashtagStore, PostStore, RateLimitStore, SessionRecord, SessionStore, Stores, UserStore,
+    VoteStore,
 };
 use fido_types::{
     ColorScheme, DirectMessage, Post, SortOrder, User, UserConfig, Vote, VoteDirection,
@@ -1530,17 +1531,12 @@ impl DirectMessageStore for FirestoreDirectMessageStore {
             .set_document(COLLECTION_DMS, &dm.id.to_string(), dm_to_fields(dm), None)
     }
 
-    fn get_conversation(&self, user1_id: &Uuid, user2_id: &Uuid) -> Result<Vec<DirectMessage>> {
-        let mut dms = self.query_messages_between(user1_id, user2_id)?;
-        dms.extend(self.query_messages_between(user2_id, user1_id)?);
-
-        dms.sort_by(|a, b| a.created_at.cmp(&b.created_at));
-        Ok(dms)
-    }
-
-    fn get_conversations_list(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
+    fn get_conversation_summaries(
+        &self,
+        user_id: &Uuid,
+    ) -> Result<Vec<DirectMessageConversationSummary>> {
         let user_id_str = user_id.to_string();
-        let mut latest_by_user = HashMap::new();
+        let mut latest_by_user = HashMap::<Uuid, DirectMessageConversationSummary>::new();
 
         let sent = self
             .client
@@ -1570,20 +1566,36 @@ impl DirectMessageStore for FirestoreDirectMessageStore {
             } else {
                 dm.from_user_id
             };
+            let unread_increment = usize::from(dm.to_user_id == *user_id && !dm.is_read);
 
             latest_by_user
                 .entry(other_user_id)
-                .and_modify(|latest: &mut DateTime<Utc>| {
-                    if dm.created_at > *latest {
-                        *latest = dm.created_at;
+                .and_modify(|summary| {
+                    summary.unread_count += unread_increment;
+                    if dm.created_at > summary.last_message_time {
+                        summary.last_message = dm.content.clone();
+                        summary.last_message_time = dm.created_at;
                     }
                 })
-                .or_insert(dm.created_at);
+                .or_insert_with(|| DirectMessageConversationSummary {
+                    other_user_id,
+                    last_message: dm.content.clone(),
+                    last_message_time: dm.created_at,
+                    unread_count: unread_increment,
+                });
         }
 
-        let mut out = latest_by_user.into_iter().collect::<Vec<_>>();
-        out.sort_by(|a, b| b.1.cmp(&a.1));
-        Ok(out.into_iter().map(|(user_id, _)| user_id).collect())
+        let mut out = latest_by_user.into_values().collect::<Vec<_>>();
+        out.sort_by(|a, b| b.last_message_time.cmp(&a.last_message_time));
+        Ok(out)
+    }
+
+    fn get_conversation(&self, user1_id: &Uuid, user2_id: &Uuid) -> Result<Vec<DirectMessage>> {
+        let mut dms = self.query_messages_between(user1_id, user2_id)?;
+        dms.extend(self.query_messages_between(user2_id, user1_id)?);
+
+        dms.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+        Ok(dms)
     }
 
     fn mark_as_read(&self, user_id: &Uuid, other_user_id: &Uuid) -> Result<()> {

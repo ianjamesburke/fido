@@ -10,8 +10,8 @@ use crate::db::repositories::{
 };
 use crate::db::DbPool;
 use crate::stores::{
-    AuditStore, ConfigStore, DirectMessageStore, FriendStore, HashtagStore, PostStore,
-    RateLimitStore, SessionRecord, SessionStore, UserStore, VoteStore,
+    AuditStore, ConfigStore, DirectMessageConversationSummary, DirectMessageStore, FriendStore,
+    HashtagStore, PostStore, RateLimitStore, SessionRecord, SessionStore, UserStore, VoteStore,
 };
 use fido_types::{Post, SortOrder, User, UserConfig, Vote, VoteDirection};
 
@@ -382,16 +382,19 @@ impl DirectMessageStore for SqliteDirectMessageStore {
         self.repo.create(dm)
     }
 
+    fn get_conversation_summaries(
+        &self,
+        user_id: &Uuid,
+    ) -> anyhow::Result<Vec<DirectMessageConversationSummary>> {
+        self.repo.get_conversation_summaries(user_id)
+    }
+
     fn get_conversation(
         &self,
         user1_id: &Uuid,
         user2_id: &Uuid,
     ) -> anyhow::Result<Vec<fido_types::DirectMessage>> {
         self.repo.get_conversation(user1_id, user2_id)
-    }
-
-    fn get_conversations_list(&self, user_id: &Uuid) -> anyhow::Result<Vec<Uuid>> {
-        self.repo.get_conversations_list(user_id)
     }
 
     fn mark_as_read(&self, user_id: &Uuid, other_user_id: &Uuid) -> anyhow::Result<()> {

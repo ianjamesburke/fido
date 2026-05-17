@@ -46,6 +46,7 @@ impl EventLoop {
 
             // Handle pending loads
             self.handle_pending_loads(app).await?;
+            app.flush_finished_vote_tasks().await;
 
             // Check modal state changes and load data as needed
             self.modal_tracker.check_and_load(app).await?;
@@ -193,13 +194,14 @@ impl EventLoop {
             return Ok(());
         }
 
-        let needs_load =
-            app.dms_state.selection != self.last_dm_selection || app.dms_state.needs_message_load;
+        let needs_load = app.dms_state.needs_message_load;
 
         if needs_load && !app.dms_state.conversations.is_empty() {
             app.load_conversation_messages().await?;
             self.last_dm_selection = app.dms_state.selection.clone();
             app.dms_state.needs_message_load = false;
+        } else if app.dms_state.selection != self.last_dm_selection {
+            self.last_dm_selection = app.dms_state.selection.clone();
         }
 
         Ok(())

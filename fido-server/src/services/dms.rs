@@ -1,7 +1,8 @@
 //! Direct message related business logic.
 
-use chrono::Utc;
 use uuid::Uuid;
+
+use chrono::Utc;
 
 use crate::api::{ApiError, ApiResult};
 use crate::stores::Stores;
@@ -27,39 +28,22 @@ impl DMService {
     }
 
     pub fn get_conversations(&self, user_id: &Uuid) -> ApiResult<Vec<ConversationSummary>> {
-        let conversation_user_ids = self.stores.dms.get_conversations_list(user_id)?;
+        let summaries = self.stores.dms.get_conversation_summaries(user_id)?;
 
-        let mut conversations = Vec::new();
-        for other_user_id in conversation_user_ids {
+        let mut conversations = Vec::with_capacity(summaries.len());
+        for summary in summaries {
             let user = self
                 .stores
                 .users
-                .get_by_id(&other_user_id)?
+                .get_by_id(&summary.other_user_id)?
                 .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
-            let messages = self.stores.dms.get_conversation(user_id, &other_user_id)?;
-
-            let unread_count = messages
-                .iter()
-                .filter(|m| m.to_user_id == *user_id && !m.is_read)
-                .count();
-
-            if messages.is_empty() {
-                continue;
-            }
-
-            let (last_message, last_message_time) = if let Some(last_msg) = messages.last() {
-                (last_msg.content.clone(), last_msg.created_at.to_rfc3339())
-            } else {
-                ("No messages yet".to_string(), Utc::now().to_rfc3339())
-            };
-
             conversations.push(ConversationSummary {
-                other_user_id: other_user_id.to_string(),
+                other_user_id: summary.other_user_id.to_string(),
                 other_username: user.username,
-                last_message,
-                last_message_time,
-                unread_count,
+                last_message: summary.last_message,
+                last_message_time: summary.last_message_time.to_rfc3339(),
+                unread_count: summary.unread_count,
             });
         }
 

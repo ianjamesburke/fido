@@ -3,7 +3,10 @@ use uuid::Uuid;
 
 use fido_types::DirectMessage;
 
-use crate::db::{row, DbPool};
+use crate::{
+    db::{row, DbPool},
+    stores::DirectMessageConversationSummary,
+};
 
 pub struct DirectMessageRepository {
     pool: DbPool,
@@ -76,41 +79,69 @@ impl DirectMessageRepository {
         Ok(messages)
     }
 
-    /// Get list of users the current user has conversations with (excluding deleted conversations)
-    pub fn get_conversations_list(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
+    /// Get conversation summaries without loading full message histories.
+    pub fn get_conversation_summaries(
+        &self,
+        user_id: &Uuid,
+    ) -> Result<Vec<DirectMessageConversationSummary>> {
         let conn = self.pool.get()?;
+        let user_id_str = user_id.to_string();
         let mut stmt = conn.prepare(
-            "SELECT DISTINCT 
-                CASE 
-                    WHEN from_user_id = ? THEN to_user_id 
-                    ELSE from_user_id 
-                END as other_user_id
-             FROM direct_messages
-             WHERE ((from_user_id = ? AND deleted_by_from_user = 0) 
-                OR (to_user_id = ? AND deleted_by_to_user = 0))
-             ORDER BY (SELECT MAX(created_at) 
-                      FROM direct_messages dm2 
-                      WHERE ((dm2.from_user_id = ? AND dm2.to_user_id = other_user_id AND dm2.deleted_by_from_user = 0)
-                         OR (dm2.to_user_id = ? AND dm2.from_user_id = other_user_id AND dm2.deleted_by_to_user = 0))) DESC"
+            "WITH visible_messages AS (
+                SELECT
+                    CASE
+                        WHEN from_user_id = ? THEN to_user_id
+                        ELSE from_user_id
+                    END AS other_user_id,
+                    content,
+                    created_at,
+                    CASE
+                        WHEN to_user_id = ? AND is_read = 0 THEN 1
+                        ELSE 0
+                    END AS unread
+                FROM direct_messages
+                WHERE (from_user_id = ? AND deleted_by_from_user = 0)
+                   OR (to_user_id = ? AND deleted_by_to_user = 0)
+             ),
+             ranked_messages AS (
+                SELECT
+                    other_user_id,
+                    content,
+                    created_at,
+                    unread,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY other_user_id
+                        ORDER BY created_at DESC
+                    ) AS recency_rank
+                FROM visible_messages
+             )
+             SELECT
+                other_user_id,
+                MAX(CASE WHEN recency_rank = 1 THEN content END) AS last_message,
+                MAX(CASE WHEN recency_rank = 1 THEN created_at END) AS last_message_time,
+                SUM(unread) AS unread_count
+             FROM ranked_messages
+             GROUP BY other_user_id
+             ORDER BY last_message_time DESC",
         )?;
 
-        let user_ids = stmt
+        let summaries = stmt
             .query_map(
-                (
-                    user_id.to_string(),
-                    user_id.to_string(),
-                    user_id.to_string(),
-                    user_id.to_string(),
-                    user_id.to_string(),
-                ),
+                (&user_id_str, &user_id_str, &user_id_str, &user_id_str),
                 |row| {
-                    let id_str: String = row.get(0)?;
-                    Ok(row::parse_uuid(&id_str, 0)?)
+                    let other_user_id: String = row.get(0)?;
+                    let last_message_time: String = row.get(2)?;
+                    Ok(DirectMessageConversationSummary {
+                        other_user_id: row::parse_uuid(&other_user_id, 0)?,
+                        last_message: row.get(1)?,
+                        last_message_time: row::parse_datetime(&last_message_time, 2)?,
+                        unread_count: row.get::<_, i64>(3)? as usize,
+                    })
                 },
             )?
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(user_ids)
+        Ok(summaries)
     }
 
     /// Mark messages as read (only non-deleted messages)

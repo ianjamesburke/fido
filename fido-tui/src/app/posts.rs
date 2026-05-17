@@ -4,6 +4,40 @@ use super::{categorize_error, App, FilterTab, InputMode, PostFilter};
 use crossterm::event::{KeyCode, KeyEvent};
 
 impl App {
+    pub fn queue_vote_on_post(
+        &mut self,
+        post_id: uuid::Uuid,
+        direction: crate::api::VoteDirection,
+    ) {
+        let mut api_client = self.api_client.clone();
+        let handle =
+            tokio::spawn(
+                async move { (post_id, api_client.vote_on_post(post_id, direction).await) },
+            );
+        self.pending_vote_tasks.push(handle);
+    }
+
+    pub async fn flush_finished_vote_tasks(&mut self) {
+        let mut i = 0;
+        while i < self.pending_vote_tasks.len() {
+            if !self.pending_vote_tasks[i].is_finished() {
+                i += 1;
+                continue;
+            }
+
+            let handle = self.pending_vote_tasks.swap_remove(i);
+            match handle.await {
+                Ok((_, Ok(_))) => {}
+                Ok((_, Err(e))) => {
+                    self.posts_state.error = Some(categorize_error(&e.to_string()));
+                }
+                Err(e) => {
+                    self.posts_state.error = Some(format!("Vote update failed: {}", e));
+                }
+            }
+        }
+    }
+
     /// Load posts from API
     pub async fn load_posts(&mut self) -> Result<()> {
         self.posts_state.loading = true;
@@ -177,22 +211,26 @@ impl App {
             // Send vote to server (don't reload feed)
             let vote_direction = crate::api::VoteDirection::from_str(direction)
                 .ok_or_else(|| anyhow::anyhow!("Invalid vote direction: {}", direction))?;
-            match self.api_client.vote_on_post(post_id, vote_direction).await {
-                Ok(_) => {
-                    // Success - optimistic update is already applied
-                    // Preserve selection - no reload, no re-sort
-                }
-                Err(e) => {
-                    // Revert optimistic update on error
-                    let selected_post = &mut self.posts_state.posts[selected_index];
-                    selected_post.upvotes = original_upvotes;
-                    selected_post.downvotes = original_downvotes;
-                    selected_post.user_vote = original_user_vote;
+            if self.is_demo_mode {
+                match self.api_client.vote_on_post(post_id, vote_direction).await {
+                    Ok(_) => {
+                        // Success - optimistic update is already applied
+                        // Preserve selection - no reload, no re-sort
+                    }
+                    Err(e) => {
+                        // Revert optimistic update on error
+                        let selected_post = &mut self.posts_state.posts[selected_index];
+                        selected_post.upvotes = original_upvotes;
+                        selected_post.downvotes = original_downvotes;
+                        selected_post.user_vote = original_user_vote;
 
-                    // Categorize errors for better user feedback
-                    let error_msg = categorize_error(&e.to_string());
-                    self.posts_state.error = Some(error_msg);
+                        // Categorize errors for better user feedback
+                        let error_msg = categorize_error(&e.to_string());
+                        self.posts_state.error = Some(error_msg);
+                    }
                 }
+            } else {
+                self.queue_vote_on_post(post_id, vote_direction);
             }
         }
         Ok(())

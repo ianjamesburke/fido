@@ -116,14 +116,25 @@ pub trait RateLimitStore: Send + Sync {
 
 pub trait DirectMessageStore: Send + Sync {
     fn create(&self, dm: &DirectMessage) -> anyhow::Result<()>;
+    fn get_conversation_summaries(
+        &self,
+        user_id: &Uuid,
+    ) -> anyhow::Result<Vec<DirectMessageConversationSummary>>;
     fn get_conversation(
         &self,
         user1_id: &Uuid,
         user2_id: &Uuid,
     ) -> anyhow::Result<Vec<DirectMessage>>;
-    fn get_conversations_list(&self, user_id: &Uuid) -> anyhow::Result<Vec<Uuid>>;
     fn mark_as_read(&self, user_id: &Uuid, other_user_id: &Uuid) -> anyhow::Result<()>;
     fn delete_conversation(&self, user_id: &Uuid, other_user_id: &Uuid) -> anyhow::Result<()>;
+}
+
+#[derive(Debug, Clone)]
+pub struct DirectMessageConversationSummary {
+    pub other_user_id: Uuid,
+    pub last_message: String,
+    pub last_message_time: DateTime<Utc>,
+    pub unread_count: usize,
 }
 
 pub trait SessionStore: Send + Sync {

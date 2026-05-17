@@ -1023,6 +1023,33 @@ pub fn render_messages(frame: &mut Frame, app: &mut App, area: Rect) {
         return;
     }
 
+    if let Some(selected_index) = app.dms_state.selection.conversation_index() {
+        if let Some(conversation) = app.dms_state.conversations.get(selected_index) {
+            if app.dms_state.current_conversation_user != Some(conversation.other_user_id) {
+                let empty_text = vec![
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        format!("@{}", conversation.other_username),
+                        Style::default()
+                            .fg(theme.success)
+                            .add_modifier(Modifier::BOLD),
+                    )),
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        "Press Enter to open this conversation",
+                        Style::default().fg(theme.text),
+                    )),
+                    Line::from(""),
+                ];
+                let empty = Paragraph::new(empty_text)
+                    .alignment(Alignment::Center)
+                    .block(Block::default().borders(Borders::ALL).title("Messages"));
+                frame.render_widget(empty, area);
+                return;
+            }
+        }
+    }
+
     if app.dms_state.messages.is_empty() {
         render_empty_state_block(
             frame,

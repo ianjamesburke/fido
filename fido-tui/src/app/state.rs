@@ -158,6 +158,8 @@ pub struct App {
     pub user_profile_view: Option<UserProfileViewState>,
     pub log_config: crate::logging::LogConfig,
     pub is_demo_mode: bool,
+    pub pending_vote_tasks:
+        Vec<tokio::task::JoinHandle<(uuid::Uuid, crate::api::ApiResult<serde_json::Value>)>>,
     /// Latest version available on crates.io (if newer than current)
     pub update_available: Option<String>,
 }
