@@ -20,7 +20,11 @@ pub struct AuthFlow {
 impl AuthFlow {
     /// Creates a new AuthFlow instance.
     pub fn new(api_client: Backend) -> Result<Self> {
-        let session_store = SessionStore::new().context("Failed to initialize session store")?;
+        let session_store = match api_client.session_scope() {
+            Some(server_url) => SessionStore::for_server(server_url)
+                .context("Failed to initialize server-scoped session store")?,
+            None => SessionStore::new().context("Failed to initialize session store")?,
+        };
 
         Ok(Self {
             api_client,

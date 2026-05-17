@@ -170,7 +170,9 @@ impl SecurityConfig {
         }
 
         match environment {
-            Environment::Production => vec!["https://fido-web-production.up.railway.app".to_string()],
+            Environment::Production => {
+                vec!["https://fido-web-production.up.railway.app".to_string()]
+            }
             Environment::Development => {
                 vec![
                     "http://localhost:3000".to_string(),

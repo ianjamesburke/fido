@@ -8,7 +8,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["Ian Burke"]
 license = "MIT"
@@ -57,4 +57,4 @@ urlencoding = "2.1"
 lazy_static = "1.4"
 
 # Internal workspace crates
-fido-types = { path = "fido-types", version = "0.2.0" }
+fido-types = { path = "fido-types", version = "0.2.1" }
