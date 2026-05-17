@@ -85,7 +85,7 @@ pub struct SessionConfigStatus {
 ///   "errors": [],
 ///   "warnings": [],
 ///   "security": {
-///     "allowed_origins": ["https://fido-prod-ijb.web.app"],
+///     "allowed_origins": ["https://fido-web-production.up.railway.app"],
 ///     "https_redirect_enabled": true,
 ///     "max_request_size": 1048576,
 ///     "github_oauth_configured": true

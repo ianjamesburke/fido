@@ -170,7 +170,7 @@ impl SecurityConfig {
         }
 
         match environment {
-            Environment::Production => vec!["https://fido-prod-ijb.web.app".to_string()],
+            Environment::Production => vec!["https://fido-web-production.up.railway.app".to_string()],
             Environment::Development => {
                 vec![
                     "http://localhost:3000".to_string(),
@@ -321,7 +321,7 @@ mod tests {
         let config = SecurityConfig {
             environment: Environment::Production,
             github_client_id: "test_client_id".to_string(),
-            allowed_origins: vec!["https://fido-prod-ijb.web.app".to_string()],
+            allowed_origins: vec!["https://fido-web-production.up.railway.app".to_string()],
             ..Default::default()
         };
         assert!(config.validate().is_ok());
@@ -355,7 +355,7 @@ mod tests {
     fn test_get_allowed_origins_production() {
         let origins = SecurityConfig::get_allowed_origins(&Environment::Production);
         assert_eq!(origins.len(), 1);
-        assert!(origins.contains(&"https://fido-prod-ijb.web.app".to_string()));
+        assert!(origins.contains(&"https://fido-web-production.up.railway.app".to_string()));
     }
 
     #[test]

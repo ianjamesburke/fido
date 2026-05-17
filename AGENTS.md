@@ -308,41 +308,24 @@ let log_config = logging::LogConfig::default();
 - Keep `clear_on_startup: true` to avoid massive log files
 - Include relevant context in log messages (IDs, states, etc.)
 
-### Production Server Logs (Cloud Run)
-To get logs from the deployed Cloud Run service, use:
+### Production Server Logs (Railway)
 ```bash
-gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="fido-web"' --limit=50 --format='value(timestamp,severity,textPayload,jsonPayload.message)'
+railway logs --deployment
 ```
-
-**Important**: Always use `--limit` with a specific number (e.g., 50) to limit output.
 
 ## Deployment
 
-- Deployed on Firebase Hosting + Cloud Run
-- Docker-based deployment (`Dockerfile`)
-- Logs: `fly logs -a fido-social --tail 50` (always use --tail to avoid blocking)
+- Deployed on Railway (Docker-based)
+- Auto-deploys from `main` branch
+- Volume at `/data` for SQLite persistence
+- Logs: `railway logs`
 
-### Troubleshooting: Firebase Hosted ttyd Preview Blank
+### Troubleshooting: ttyd Preview Blank
 
-If `/ttyd/` works directly but the embedded terminal on `https://<project>.web.app` is blank:
+If `/ttyd/` works directly but the embedded terminal is blank:
 
-- Use the Cloud Run ttyd URL directly in `web/index.html` iframe `src` (for this project: `https://fido-web-934696923362.us-central1.run.app/ttyd/`) instead of `/ttyd/`.
-- Ensure ttyd response headers allow embedding from Firebase Hosting domains via CSP `frame-ancestors`.
-  - Update `nginx.conf` and `start.sh` `/ttyd/` location to include:
-    - `https://fido-prod-ijb.web.app`
-    - `https://fido-prod-ijb.firebaseapp.com`
-- Do not rely on `X-Frame-Options` for multi-origin embedding; use CSP `frame-ancestors`.
-
-Verification checklist:
-
-- Confirm iframe source in deployed homepage:
-  - `curl -sS https://fido-prod-ijb.web.app/ | rg "iframe|ttyd|run.app"`
-- Confirm ttyd endpoint allows embedding:
-  - `curl -I -sS https://fido-web-934696923362.us-central1.run.app/ttyd/`
-  - Expect `content-security-policy` containing allowed Firebase domains.
-- Confirm websocket activity in Cloud Run logs:
-  - `gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="fido-web" AND textPayload:"/ttyd/ws"' --limit=50 --format='value(timestamp,textPayload)'`
-  - Expect websocket connect lines (`WS /ttyd/ws`) and HTTP `101` upgrades.
+- The iframe in `web/index.html` must use a relative `/ttyd/` path (not an absolute URL).
+- Ensure ttyd response headers allow embedding via CSP `frame-ancestors` in `nginx.conf`.
 
 Important runtime pitfall:
 
@@ -356,7 +339,7 @@ Fido has two distinct modes of operation:
 
 ### Local TUI (Production Mode)
 - **Client**: Native `fido-tui` binary running locally on user's machine
-- **Server**: Connects to production API server (https://fido-prod-ijb.web.app or local server)
+- **Server**: Connects to production API server (https://fido-web-production.up.railway.app or local server)
 - **Database**: Uses persistent SQLite database (`fido.db`) on the server
 - **Authentication**: GitHub OAuth with session stored in `~/.fido/session`
 - **Data**: All posts, DMs, and user data persists across sessions

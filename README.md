@@ -13,7 +13,7 @@ Built for the Kiroween 2025.
 Fido is a social network that lives in your terminal. Think Twitter, but keyboard-driven and without the noise. Post updates, chat with other developers, upvote good content, downvote lame content.
 
 ## Live Demo Here
-Production demo: https://fido-prod-ijb.web.app/
+Production demo: https://fido-web-production.up.railway.app/
 
 
 ## Installation
@@ -90,17 +90,15 @@ This script:
 
 The script works in both local development and Docker environments.
 
-### Firebase Deployment (Hosting + Cloud Run)
+### Railway Deployment
 
-To deploy the current web terminal stack (nginx + ttyd + fido-server) on Firebase:
+The app deploys automatically from `main` via Railway. Manual deploy:
 
 ```bash
-export FIREBASE_PROJECT_ID=your-project-id
-export GITHUB_CLIENT_ID=your-github-oauth-client-id
-./scripts/deploy-firebase.sh
+railway up
 ```
 
-Full instructions: [FIREBASE_DEPLOYMENT.md](FIREBASE_DEPLOYMENT.md)
+Required env vars on Railway: `GITHUB_CLIENT_ID`, `RUST_LOG`. Volume mounted at `/data` for SQLite.
 
 ### Publishing to Crates.io
 
@@ -135,7 +133,7 @@ Built with Rust using a workspace architecture:
 - **tokio** - Async runtime
 - **oauth2** - GitHub authentication
 - **Security**: Input validation, audit logging, rate limiting, security headers
-- Deployed on Firebase Hosting + Cloud Run with HTTPS enforcement
+- Deployed on Railway with HTTPS and persistent volume for SQLite
 
 ## Documentation
 
@@ -189,11 +187,6 @@ The following environment variables must be set before starting the server:
 
 - **DB_BACKEND**: Storage backend (`sqlite` or `firestore`, default: `sqlite`)
 - **GOOGLE_CLOUD_PROJECT** or **FIREBASE_PROJECT_ID**: Required when `DB_BACKEND=firestore`
-- **FIRESTORE_EMULATOR_HOST**: Firestore emulator host (example: `127.0.0.1:8088`)
-- **FIRESTORE_SEED_TEST_DATA**: Auto-seed test users/posts in emulator mode (default: enabled, set `false`/`0` to disable)
-- **FIRESTORE_ACCESS_TOKEN**: Bearer token for Firestore REST API when not using emulator
-  - On Cloud Run, prefer Application Default Credentials (metadata service token) instead of static keys
-
 - **ENVIRONMENT** or **RUST_ENV**: Application environment (`development` or `production`, default: `development`)
   - Controls security features like CORS origins, HTTPS enforcement, and configuration validation
   - Production mode enforces stricter security requirements
@@ -202,7 +195,7 @@ The following environment variables must be set before starting the server:
 - **PORT**: Server port (default: `3000`)
 - **DATABASE_PATH**: SQLite database file path (default: `fido.db`)
 - **FIDO_SERVER_URL**: Runtime server URL override for TUI client
-- **ALLOWED_ORIGINS**: Comma-separated CORS allowlist (for example: `https://your-project.web.app,https://your-project.firebaseapp.com`)
+- **ALLOWED_ORIGINS**: Comma-separated CORS allowlist (for example: `https://your-app.up.railway.app`)
 
 #### Security Configuration Variables
 
@@ -311,7 +304,7 @@ All HTTP responses include security headers for defense-in-depth:
 
 Environment-aware Cross-Origin Resource Sharing:
 
-- **Production**: Uses `ALLOWED_ORIGINS` when set, otherwise defaults to `https://fido-prod-ijb.web.app`
+- **Production**: Uses `ALLOWED_ORIGINS` when set, otherwise defaults to `https://fido-web-production.up.railway.app`
 - **Development**: Localhost origins allowed for local testing
 - **CLI/TUI Clients**: Requests without Origin header always allowed
 
