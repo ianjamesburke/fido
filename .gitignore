@@ -40,3 +40,4 @@ logs/
 
 # Firebase
 .firebase/
+.plexi-beta/

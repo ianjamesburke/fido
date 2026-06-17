@@ -128,8 +128,7 @@ Built with Rust using a workspace architecture:
 ### Technologies
 - **Ratatui** - Terminal UI framework
 - **Axum** - Fast, ergonomic web framework
-- **Firestore** - Primary backend for production/runtime when `DB_BACKEND=firestore`
-- **SQLite** - Legacy/local backend and migration source
+- **SQLite** - Embedded database backend (bundled, file-backed on a persistent volume)
 - **tokio** - Async runtime
 - **oauth2** - GitHub authentication
 - **Security**: Input validation, audit logging, rate limiting, security headers
@@ -185,8 +184,6 @@ The following environment variables must be set before starting the server:
 
 #### Optional Environment Variables
 
-- **DB_BACKEND**: Storage backend (`sqlite` or `firestore`, default: `sqlite`)
-- **GOOGLE_CLOUD_PROJECT** or **FIREBASE_PROJECT_ID**: Required when `DB_BACKEND=firestore`
 - **ENVIRONMENT** or **RUST_ENV**: Application environment (`development` or `production`, default: `development`)
   - Controls security features like CORS origins, HTTPS enforcement, and configuration validation
   - Production mode enforces stricter security requirements
@@ -218,9 +215,6 @@ cargo test
 cargo test -p fido-server
 cargo test -p fido-tui
 cargo test -p fido-types
-
-# Firestore emulator smoke check
-just firestore-emulator-check
 
 # Format code
 cargo fmt

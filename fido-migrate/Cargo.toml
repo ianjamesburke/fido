@@ -37,10 +37,6 @@ path = "src/bin/test_query.rs"
 name = "migrate-hashtags"
 path = "src/bin/migrate_hashtags.rs"
 
-[[bin]]
-name = "sqlite-to-firestore"
-path = "src/bin/sqlite_to_firestore.rs"
-
 [dependencies]
 # Workspace crates
 fido-server = { path = "../fido-server" }

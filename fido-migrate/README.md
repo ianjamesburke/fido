@@ -1,11 +1,10 @@
 # Fido Migration Utilities
 
-One-time migration tools for SQLite legacy data and Firestore cutover.
+One-time migration tools for SQLite data.
 
 ## Overview
 
 - `fido-migrate`: Backfills hashtag tables in SQLite from post content.
-- `sqlite-to-firestore`: Migrates SQLite entities into Firestore collections.
 
 ## Usage
 
@@ -31,32 +30,6 @@ cargo run --package fido-migrate -- --yes
 - `-n, --dry-run` - Perform a dry run without making changes
 - `-y, --yes` - Skip confirmation prompt
 - `-h, --help` - Print help information
-
-### SQLite -> Firestore (`sqlite-to-firestore`)
-
-```bash
-# Dry run
-cargo run -p fido-migrate --bin sqlite-to-firestore -- \
-  --sqlite-path ./fido.db \
-  --project-id demo-fido \
-  --emulator-host 127.0.0.1:8088 \
-  --dry-run
-
-# Execute and validate Firestore collection counts
-cargo run -p fido-migrate --bin sqlite-to-firestore -- \
-  --sqlite-path ./fido.db \
-  --project-id demo-fido \
-  --emulator-host 127.0.0.1:8088 \
-  --validate
-```
-
-Flags:
-- `--sqlite-path <PATH>`
-- `--project-id <PROJECT_ID>`
-- `--emulator-host <HOST:PORT>`
-- `--access-token <TOKEN>` (required for non-emulator migrations)
-- `--dry-run`
-- `--validate`
 
 ### Examples
 

@@ -8,7 +8,6 @@ use uuid::Uuid;
 use crate::db::DbPool;
 use fido_types::{DirectMessage, Post, SortOrder, User, UserConfig, Vote, VoteDirection};
 
-pub mod firestore;
 pub mod sqlite;
 
 #[derive(Debug, Clone)]
@@ -150,6 +149,7 @@ pub trait SessionStore: Send + Sync {
     fn update_activity(&self, token: &str, at: DateTime<Utc>) -> anyhow::Result<()>;
     fn delete_session(&self, token: &str) -> anyhow::Result<usize>;
     fn cleanup_expired_sessions(&self, now: DateTime<Utc>) -> anyhow::Result<usize>;
+    #[allow(dead_code)]
     fn invalidate_user_sessions(&self, user_id: Uuid) -> anyhow::Result<usize>;
 }
 
@@ -180,18 +180,6 @@ pub struct Stores {
 }
 
 impl Stores {
-    pub fn from_env(pool: DbPool) -> anyhow::Result<Self> {
-        let backend = std::env::var("DB_BACKEND").unwrap_or_else(|_| "sqlite".to_string());
-        match backend.to_lowercase().as_str() {
-            "sqlite" => Ok(Self::sqlite(pool)),
-            "firestore" => {
-                firestore::validate_firestore_env()?;
-                firestore::stores_from_env()
-            }
-            other => anyhow::bail!("Unsupported DB_BACKEND '{}'", other),
-        }
-    }
-
     pub fn sqlite(pool: DbPool) -> Self {
         Self {
             posts: Arc::new(sqlite::SqlitePostStore::new(pool.clone())),

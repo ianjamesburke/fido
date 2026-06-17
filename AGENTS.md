@@ -2,13 +2,6 @@
 
 This file provides guidance to AI coding assistants when working with code in this repository.
 
-## Task Tracking Workflow
-
-- Use `TASKS.md` at the repository root as the canonical checklist for Firestore migration and Firebase deployment work.
-- Before starting substantial implementation, review `TASKS.md` and select the next unchecked items.
-- As each item is completed, update `TASKS.md` by changing `- [ ]` to `- [x]`.
-- Keep `TASKS.md` current in the same change set as related code updates so status always reflects reality.
-
 ## Project Overview
 
 Fido is a blazing-fast, keyboard-driven terminal social platform for developers, built as a Rust workspace with four crates:

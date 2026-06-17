@@ -112,25 +112,7 @@ async fn main() {
         std::process::exit(1);
     }
 
-    let backend = std::env::var("DB_BACKEND").unwrap_or_else(|_| "sqlite".to_string());
-    let backend = backend.to_ascii_lowercase();
-
-    let db = if backend == "firestore" {
-        tracing::info!(
-            "DB_BACKEND=firestore selected; skipping SQLite file initialization and using Firestore-backed stores"
-        );
-        match db::Database::in_memory() {
-            Ok(db) => db,
-            Err(e) => {
-                tracing::error!("Failed to create placeholder in-memory database: {}", e);
-                eprintln!(
-                    "FATAL: Failed to create placeholder in-memory database: {}",
-                    e
-                );
-                std::process::exit(1);
-            }
-        }
-    } else {
+    let db = {
         // Check database directory permissions
         let db_path = std::path::Path::new(&settings.database.path);
         if let Some(parent) = db_path.parent() {
@@ -206,14 +188,7 @@ async fn main() {
         db
     };
 
-    let stores = match Stores::from_env(db.pool.clone()) {
-        Ok(stores) => stores,
-        Err(e) => {
-            tracing::error!("Failed to initialize stores: {}", e);
-            eprintln!("FATAL: Failed to initialize stores: {}", e);
-            std::process::exit(1);
-        }
-    };
+    let stores = Stores::sqlite(db.pool.clone());
 
     // Create application state
     let state = AppState::new_with_stores(db, stores);
