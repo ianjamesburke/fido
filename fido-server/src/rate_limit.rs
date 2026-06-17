@@ -46,7 +46,7 @@ impl RateLimiter {
     /// Check if a request should be allowed
     /// Returns detailed information about the rate limit status
     pub fn check_rate_limit(&self, token: &str) -> RateLimitInfo {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
 
         // Clean up old entries periodically (simple cleanup)

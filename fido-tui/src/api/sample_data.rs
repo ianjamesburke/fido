@@ -49,7 +49,7 @@ pub fn create_sample_posts(users: &[User]) -> Vec<Post> {
 
     // Helper to find user by username
     let find_user =
-        |username: &str| -> &User { users.iter().find(|u| u.username == username).unwrap() };
+        |username: &str| -> &User { users.iter().find(|u| u.username == username).expect("sample data: username not found in users list") };
 
     // Top-level posts (15-20 posts)
 
@@ -525,7 +525,7 @@ pub fn create_sample_conversations(users: &[User]) -> Vec<DirectMessage> {
 
     // Helper to find user by username
     let find_user =
-        |username: &str| -> &User { users.iter().find(|u| u.username == username).unwrap() };
+        |username: &str| -> &User { users.iter().find(|u| u.username == username).expect("sample data: username not found in users list") };
 
     // Conversation 1: demo_user <-> alice (4 messages)
     messages.push(DirectMessage {

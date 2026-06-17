@@ -250,7 +250,7 @@ pub async fn github_device_flow(
     // Store device code with current timestamp
     let now = chrono::Utc::now().timestamp();
     {
-        let mut codes = DEVICE_CODES.lock().unwrap();
+        let mut codes = DEVICE_CODES.lock().unwrap_or_else(|e| e.into_inner());
         codes.insert(device_response.device_code.clone(), now);
 
         // Clean up expired codes (older than 15 minutes)
@@ -295,7 +295,7 @@ pub async fn github_device_poll(
 
     // Check if device code exists and is not expired
     let is_valid = {
-        let codes = DEVICE_CODES.lock().unwrap();
+        let codes = DEVICE_CODES.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(timestamp) = codes.get(&payload.device_code) {
             let now = chrono::Utc::now().timestamp();
             now - timestamp < 900 // 15 minutes
@@ -330,7 +330,7 @@ pub async fn github_device_poll(
         }
         Err(e) => {
             // Remove device code on error
-            DEVICE_CODES.lock().unwrap().remove(&payload.device_code);
+            DEVICE_CODES.lock().unwrap_or_else(|e| e.into_inner()).remove(&payload.device_code);
             // Log login failure
             let _ = state.audit_logger.log(
                 AuditEvent::new(AuditEventType::LoginFailure)
@@ -375,7 +375,7 @@ pub async fn github_device_poll(
         .map_err(|e| ApiError::InternalError(format!("Failed to create session: {}", e)))?;
 
     // Remove device code after successful authentication
-    DEVICE_CODES.lock().unwrap().remove(&payload.device_code);
+    DEVICE_CODES.lock().unwrap_or_else(|e| e.into_inner()).remove(&payload.device_code);
 
     // Log successful GitHub login
     let _ = state.audit_logger.log(

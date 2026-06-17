@@ -88,11 +88,11 @@ impl ConfigManager {
 
     /// Generate a unique instance ID
     pub fn generate_instance_id() -> String {
-        use std::time::{SystemTime, UNIX_EPOCH};
+        use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or(Duration::ZERO)
             .as_millis();
 
         format!("{}", timestamp)

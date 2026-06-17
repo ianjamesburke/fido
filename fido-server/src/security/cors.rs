@@ -100,12 +100,11 @@ impl CorsConfig {
             }
 
             // In development, allow any localhost origin
-            if is_development {
-                if origin_str.starts_with("http://localhost:")
-                    || origin_str.starts_with("http://127.0.0.1:")
-                {
-                    return true;
-                }
+            if is_development
+                && (origin_str.starts_with("http://localhost:")
+                    || origin_str.starts_with("http://127.0.0.1:"))
+            {
+                return true;
             }
 
             false

@@ -15,30 +15,25 @@ impl App {
         let (following_result, followers_result, mutual_result) =
             tokio::join!(following_future, followers_future, mutual_future);
 
-        // Check for errors and provide detailed messages
-        if let Err(e) = &following_result {
+        // Extract values, handling errors inline
+        let following = following_result.map_err(|e| {
             let error_msg = format!("Failed to load following: {}", e);
             self.friends_state.error = Some(error_msg.clone());
             self.friends_state.loading = false;
-            return Err(anyhow::anyhow!(error_msg));
-        }
-        if let Err(e) = &followers_result {
+            anyhow::anyhow!(error_msg)
+        })?;
+        let followers = followers_result.map_err(|e| {
             let error_msg = format!("Failed to load followers: {}", e);
             self.friends_state.error = Some(error_msg.clone());
             self.friends_state.loading = false;
-            return Err(anyhow::anyhow!(error_msg));
-        }
-        if let Err(e) = &mutual_result {
+            anyhow::anyhow!(error_msg)
+        })?;
+        let mutual = mutual_result.map_err(|e| {
             let error_msg = format!("Failed to load mutual friends: {}", e);
             self.friends_state.error = Some(error_msg.clone());
             self.friends_state.loading = false;
-            return Err(anyhow::anyhow!(error_msg));
-        }
-
-        // All succeeded, unwrap safely
-        let following = following_result.unwrap();
-        let followers = followers_result.unwrap();
-        let mutual = mutual_result.unwrap();
+            anyhow::anyhow!(error_msg)
+        })?;
 
         self.friends_state.following = following
             .into_iter()

@@ -11,7 +11,7 @@ fn mention_regex() -> &'static Regex {
         // Match @username where username is alphanumeric and underscores
         // Must be preceded by whitespace or start of string
         // Must not be followed by alphanumeric characters
-        Regex::new(r"(?:^|[^@\w])@([a-zA-Z0-9_]+)").unwrap()
+        Regex::new(r"(?:^|[^@\w])@([a-zA-Z0-9_]+)").expect("Valid regex pattern")
     })
 }
 

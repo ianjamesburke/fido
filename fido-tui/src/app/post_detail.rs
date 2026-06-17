@@ -176,11 +176,18 @@ impl App {
                 None => return Ok(()),
             }
         };
+        let reply_idx = match (is_reply, reply_index) {
+            (true, Some(idx)) => idx,
+            (true, None) => return Ok(()),
+            (false, _) => 0, // dummy value, not used
+        };
         let (previous_vote, original_upvotes, original_downvotes) = if is_reply {
-            let reply = &detail_state.replies[reply_index.unwrap()];
+            let reply = &detail_state.replies[reply_idx];
             (reply.user_vote.clone(), reply.upvotes, reply.downvotes)
         } else {
-            let post = detail_state.post.as_ref().unwrap();
+            let post = detail_state.post.as_ref().ok_or_else(|| {
+                anyhow::anyhow!("No post loaded in detail view")
+            })?;
             (post.user_vote.clone(), post.upvotes, post.downvotes)
         };
         if let Some(ref prev_direction) = previous_vote {
@@ -189,7 +196,7 @@ impl App {
             }
         }
         if is_reply {
-            let reply = &mut detail_state.replies[reply_index.unwrap()];
+            let reply = &mut detail_state.replies[reply_idx];
             match (&previous_vote, direction) {
                 (None, "up") => {
                     reply.upvotes += 1;
@@ -211,8 +218,7 @@ impl App {
                 }
                 _ => {}
             }
-        } else {
-            let post = detail_state.post.as_mut().unwrap();
+        } else if let Some(post) = detail_state.post.as_mut() {
             match (&previous_vote, direction) {
                 (None, "up") => {
                     post.upvotes += 1;
@@ -241,19 +247,20 @@ impl App {
             match self.api_client.vote_on_post(post_id, vote_direction).await {
                 Ok(_) => {}
                 Err(e) => {
-                    let detail_state = self.post_detail_state.as_mut().unwrap();
-                    if is_reply {
-                        let reply = &mut detail_state.replies[reply_index.unwrap()];
-                        reply.upvotes = original_upvotes;
-                        reply.downvotes = original_downvotes;
-                        reply.user_vote = previous_vote;
-                    } else {
-                        let post = detail_state.post.as_mut().unwrap();
-                        post.upvotes = original_upvotes;
-                        post.downvotes = original_downvotes;
-                        post.user_vote = previous_vote;
+                    if let Some(detail_state) = self.post_detail_state.as_mut() {
+                        if is_reply {
+                            if let Some(reply) = detail_state.replies.get_mut(reply_idx) {
+                                reply.upvotes = original_upvotes;
+                                reply.downvotes = original_downvotes;
+                                reply.user_vote = previous_vote;
+                            }
+                        } else if let Some(post) = detail_state.post.as_mut() {
+                            post.upvotes = original_upvotes;
+                            post.downvotes = original_downvotes;
+                            post.user_vote = previous_vote;
+                        }
+                        detail_state.error = Some(categorize_error(&e.to_string()));
                     }
-                    detail_state.error = Some(categorize_error(&e.to_string()));
                 }
             }
         } else {
@@ -395,7 +402,10 @@ impl App {
         }
 
         // Optimistic update - find and update the post
-        let detail_state = self.post_detail_state.as_mut().unwrap();
+        let detail_state = match self.post_detail_state.as_mut() {
+            Some(s) => s,
+            None => return Ok(()),
+        };
 
         // Check if it's the main post
         if let Some(post) = &mut detail_state.post {
@@ -459,7 +469,9 @@ impl App {
                 }
                 Err(e) => {
                     // Revert optimistic update on error
-                    let detail_state = self.post_detail_state.as_mut().unwrap();
+                    let Some(detail_state) = self.post_detail_state.as_mut() else {
+                        return Ok(());
+                    };
 
                     // Revert main post if needed
                     if let Some(post) = &mut detail_state.post {

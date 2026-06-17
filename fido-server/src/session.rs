@@ -190,6 +190,7 @@ impl SessionManager {
     ///
     /// # Returns
     /// * `Result<usize>` - The number of sessions invalidated
+    #[allow(dead_code)]
     pub fn invalidate_user_sessions(&self, user_id: Uuid) -> Result<usize> {
         let rows_affected = self
             .store

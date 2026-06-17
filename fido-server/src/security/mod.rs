@@ -29,9 +29,10 @@ pub enum SecurityConfigError {
 }
 
 /// Application environment
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Environment {
     /// Development environment - relaxed security for local testing
+    #[default]
     Development,
     /// Production environment - strict security enforcement
     Production,
@@ -39,7 +40,7 @@ pub enum Environment {
 
 impl Environment {
     /// Parse environment from string
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "production" | "prod" => Environment::Production,
             _ => Environment::Development,
@@ -63,12 +64,6 @@ impl fmt::Display for Environment {
             Environment::Development => write!(f, "development"),
             Environment::Production => write!(f, "production"),
         }
-    }
-}
-
-impl Default for Environment {
-    fn default() -> Self {
-        Environment::Development
     }
 }
 
@@ -121,7 +116,7 @@ impl SecurityConfig {
     pub fn from_env() -> Result<Self, SecurityConfigError> {
         let environment = std::env::var("ENVIRONMENT")
             .or_else(|_| std::env::var("RUST_ENV"))
-            .map(|s| Environment::from_str(&s))
+            .map(|s| Environment::parse(&s))
             .unwrap_or(Environment::Development);
 
         let github_client_id = std::env::var("GITHUB_CLIENT_ID").unwrap_or_default();
@@ -260,15 +255,15 @@ mod tests {
 
     #[test]
     fn test_environment_from_str() {
-        assert_eq!(Environment::from_str("production"), Environment::Production);
-        assert_eq!(Environment::from_str("prod"), Environment::Production);
-        assert_eq!(Environment::from_str("PRODUCTION"), Environment::Production);
+        assert_eq!(Environment::parse("production"), Environment::Production);
+        assert_eq!(Environment::parse("prod"), Environment::Production);
+        assert_eq!(Environment::parse("PRODUCTION"), Environment::Production);
         assert_eq!(
-            Environment::from_str("development"),
+            Environment::parse("development"),
             Environment::Development
         );
-        assert_eq!(Environment::from_str("dev"), Environment::Development);
-        assert_eq!(Environment::from_str("anything"), Environment::Development);
+        assert_eq!(Environment::parse("dev"), Environment::Development);
+        assert_eq!(Environment::parse("anything"), Environment::Development);
     }
 
     #[test]
