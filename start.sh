@@ -18,7 +18,7 @@ APP_PORT=${PORT:-8080}
 FIDO_SERVER_PORT=${FIDO_SERVER_PORT:-3000}
 TTYD_PORT=${TTYD_PORT:-7681}
 NGINX_PORT=${NGINX_PORT:-$APP_PORT}
-DATABASE_PATH=${DATABASE_PATH:-./fido.db}
+DATABASE_PATH=${DATABASE_PATH:-${TMPDIR:-/tmp}/fido-web-demo.db}
 LOG_DIR=${LOG_DIR:-./logs}
 
 # Detect environment - check for pre-built binaries (Docker/Cloud Run) or local dev
@@ -117,6 +117,32 @@ check_local_deps() {
 
 # Create log directory
 mkdir -p "$LOG_DIR"
+
+# The hosted web terminal is a public demo. Keep it detached from any persisted
+# deployment volume and reset it on every boot so visitors only see fixture data.
+export FIDO_WEB_MODE=true
+if [ "${FIDO_DEMO_EPHEMERAL:-true}" != "false" ]; then
+    echo -e "${YELLOW}Resetting ephemeral demo database at $DATABASE_PATH...${NC}"
+    rm -f "$DATABASE_PATH" "$DATABASE_PATH-wal" "$DATABASE_PATH-shm"
+fi
+
+export FIDO_TUI_BIN
+FIDO_WEB_TUI_WRAPPER="$LOG_DIR/fido-web-tui.sh"
+cat > "$FIDO_WEB_TUI_WRAPPER" << 'EOF'
+#!/bin/sh
+set -eu
+
+home_dir="$(mktemp -d "${TMPDIR:-/tmp}/fido-web-home.XXXXXX")"
+cleanup() {
+    rm -rf "$home_dir"
+}
+trap cleanup EXIT INT TERM
+
+export HOME="$home_dir"
+export FIDO_WEB_MODE=true
+"$FIDO_TUI_BIN"
+EOF
+chmod +x "$FIDO_WEB_TUI_WRAPPER"
 
 # Local mode setup
 if [ "$ENV_MODE" = "local" ]; then
@@ -242,14 +268,13 @@ fi
 
 # Start ttyd
 echo -e "${YELLOW}Starting ttyd on port $TTYD_PORT...${NC}"
-export FIDO_WEB_MODE=true
 
 # Note: -O (check-origin) removed - nginx handles origin security
 # -W enables writable mode for interactive terminal
 if [ "$ENV_MODE" = "local" ]; then
-    ttyd -p $TTYD_PORT -W -b /ttyd -m 10 $FIDO_TUI_BIN > "$LOG_DIR/ttyd.log" 2>&1 &
+    ttyd -p $TTYD_PORT -W -b /ttyd -m 10 "$FIDO_WEB_TUI_WRAPPER" > "$LOG_DIR/ttyd.log" 2>&1 &
 else
-    /usr/local/bin/ttyd -p $TTYD_PORT -W -b /ttyd -m 10 $FIDO_TUI_BIN > "$LOG_DIR/ttyd.log" 2>&1 &
+    /usr/local/bin/ttyd -p $TTYD_PORT -W -b /ttyd -m 10 "$FIDO_WEB_TUI_WRAPPER" > "$LOG_DIR/ttyd.log" 2>&1 &
 fi
 TTYD_PID=$!
 echo -e "${GREEN}  ✓ ttyd started (PID: $TTYD_PID)${NC}"

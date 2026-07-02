@@ -276,6 +276,16 @@ mod tests {
             .expect("Failed to count test users");
 
         assert_eq!(count, 8);
+
+        let seed_repo: String = conn
+            .query_row(
+                "SELECT owner || '/' || name FROM communities WHERE id = '950e8400-e29b-41d4-a716-446655440001'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to fetch seed community");
+        assert_eq!(seed_repo, "demo-labs/terminal-forum");
+        assert_ne!(seed_repo, "ianjamesburke/fido");
     }
 
     #[test]

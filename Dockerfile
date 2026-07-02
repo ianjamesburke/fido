@@ -56,7 +56,7 @@ ENV PORT=8080
 # Internal API listener (fido-server) behind nginx.
 ENV FIDO_SERVER_PORT=3000
 ENV TTYD_PORT=7681
-ENV DATABASE_PATH=/data/fido.db
+ENV DATABASE_PATH=/tmp/fido-web-demo.db
 ENV LOG_DIR=/var/log/fido
 ENV RUST_LOG=info
 ENV RUST_BACKTRACE=1

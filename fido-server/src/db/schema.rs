@@ -247,7 +247,7 @@ INSERT OR IGNORE INTO users (id, username, bio, join_date, is_test_user, is_admi
 -- ============================================================================
 -- Seed community that owns all sample posts, plus its default #general channel.
 INSERT OR IGNORE INTO communities (id, github_repo_id, owner, name, claimed_by, require_thread_approval, created_at) VALUES
-    ('950e8400-e29b-41d4-a716-446655440001', 1, 'ianjamesburke', 'fido', '550e8400-e29b-41d4-a716-446655440001', 0, '2024-01-01T00:00:00Z');
+    ('950e8400-e29b-41d4-a716-446655440001', 1, 'demo-labs', 'terminal-forum', '550e8400-e29b-41d4-a716-446655440001', 0, '2024-01-01T00:00:00Z');
 
 INSERT OR IGNORE INTO channels (id, community_id, name, created_at) VALUES
     ('a50e8400-e29b-41d4-a716-446655440001', '950e8400-e29b-41d4-a716-446655440001', 'general', '2024-01-01T00:00:00Z');

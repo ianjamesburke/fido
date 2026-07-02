@@ -213,12 +213,18 @@ async fn main() -> Result<()> {
         App::new()
     };
 
+    if is_web_mode {
+        app.auth_state.show_github_option = false;
+    }
+
     app.log_config = log_config;
 
-    // The launch directory decides the community: inside a GitHub repo the
-    // board opens on that repo's community, elsewhere the Home list shows.
-    if let Ok(cwd) = std::env::current_dir() {
-        app.launch_repo = repo_context::detect_repo_context(&cwd);
+    // The launch directory decides the community for the installed/local TUI.
+    // Web mode is a public demo and must not infer a real repo from its host.
+    if !is_web_mode {
+        if let Ok(cwd) = std::env::current_dir() {
+            app.launch_repo = repo_context::detect_repo_context(&cwd);
+        }
     }
 
     // Check for updates (quick, non-blocking with 3s timeout, skip in web mode)
