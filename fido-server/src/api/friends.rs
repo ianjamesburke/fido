@@ -29,7 +29,7 @@ pub async fn search_users(
     State(state): State<AppState>,
     axum::extract::Query(query): axum::extract::Query<SearchQuery>,
 ) -> ApiResult<Json<Vec<UserSearchResponse>>> {
-    let service = FriendsService::new(state.stores.clone());
+    let service = FriendsService::new(state.repos.clone());
     let results = service.search_users(&query.q, 20)?;
 
     Ok(Json(
@@ -79,7 +79,7 @@ pub async fn get_user_profile(
     let profile_user_id = Uuid::parse_str(&user_id_str)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
-    let service = FriendsService::new(state.stores.clone());
+    let service = FriendsService::new(state.repos.clone());
     let profile = service.get_user_profile(viewer_id, &profile_user_id)?;
     let relationship = map_relationship(&profile.relationship);
 
@@ -104,7 +104,7 @@ pub async fn follow_user(
     let following_id = Uuid::parse_str(&user_id_str)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
-    let service = FriendsService::new(state.stores.clone());
+    let service = FriendsService::new(state.repos.clone());
     service.follow_user(&follower_id, &following_id)?;
 
     Ok(StatusCode::OK)
@@ -119,7 +119,7 @@ pub async fn unfollow_user(
     let following_id = Uuid::parse_str(&user_id_str)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
-    let service = FriendsService::new(state.stores.clone());
+    let service = FriendsService::new(state.repos.clone());
     let deleted = service.unfollow_user(&follower_id, &following_id)?;
 
     if !deleted {
@@ -142,7 +142,7 @@ pub async fn get_following_list(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<SocialUserResponse>>> {
-    let service = FriendsService::new(state.stores.clone());
+    let service = FriendsService::new(state.repos.clone());
     let users = service.get_following_list(&user_id)?;
 
     Ok(Json(
@@ -163,7 +163,7 @@ pub async fn get_followers_list(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<SocialUserResponse>>> {
-    let service = FriendsService::new(state.stores.clone());
+    let service = FriendsService::new(state.repos.clone());
     let users = service.get_followers_list(&user_id)?;
 
     Ok(Json(
@@ -184,7 +184,7 @@ pub async fn get_mutual_friends_list(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<SocialUserResponse>>> {
-    let service = FriendsService::new(state.stores.clone());
+    let service = FriendsService::new(state.repos.clone());
     let users = service.get_mutual_friends_list(&user_id)?;
 
     Ok(Json(

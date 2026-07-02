@@ -1,7 +1,6 @@
-use crate::stores::SessionStore;
+use crate::db::repositories::SessionRepository;
 use anyhow::{Context, Result};
 use chrono::{Duration, Utc};
-use std::sync::Arc;
 use uuid::Uuid;
 
 const DEFAULT_SESSION_MAX_AGE_DAYS: i64 = 30;
@@ -16,14 +15,14 @@ const DEFAULT_SESSION_IDLE_TIMEOUT_HOURS: i64 = 24 * 30;
 /// - Automatic cleanup of expired sessions
 #[derive(Clone)]
 pub struct SessionManager {
-    store: Arc<dyn SessionStore>,
+    store: SessionRepository,
     session_max_age_days: i64,
     session_idle_timeout_hours: i64,
 }
 
 impl SessionManager {
     /// Create a new session manager
-    pub fn new(store: Arc<dyn SessionStore>) -> Self {
+    pub fn new(store: SessionRepository) -> Self {
         let session_max_age_days = std::env::var("SESSION_MAX_AGE_DAYS")
             .ok()
             .and_then(|v| v.parse::<i64>().ok())
@@ -213,9 +212,7 @@ impl SessionManager {
 mod tests {
     use super::*;
     use crate::db::Database;
-    use crate::stores::sqlite::SqliteSessionStore;
     use chrono::DateTime;
-    use std::sync::Arc;
 
     fn setup_test_db() -> Database {
         let db = Database::in_memory().expect("Failed to create test database");
@@ -239,7 +236,7 @@ mod tests {
     }
 
     fn setup_manager(db: &Database) -> SessionManager {
-        SessionManager::new(Arc::new(SqliteSessionStore::new(db.pool.clone())))
+        SessionManager::new(SessionRepository::new(db.pool.clone()))
     }
 
     #[test]

@@ -5,7 +5,7 @@ use std::time::Instant;
 use tui_textarea::TextArea;
 use uuid::Uuid;
 
-use crate::api::Backend;
+use crate::api::ApiClient;
 
 /// Get platform-appropriate modifier key name for display
 /// Returns "Cmd" on macOS, "Ctrl" on other platforms
@@ -138,7 +138,7 @@ pub struct UserSearchResult {
 pub struct App {
     pub running: bool,
     pub current_screen: Screen,
-    pub api_client: Backend,
+    pub api_client: ApiClient,
     pub auth_state: AuthState,
     pub current_tab: Tab,
     pub posts_state: PostsState,
@@ -157,7 +157,6 @@ pub struct App {
     pub user_search_state: UserSearchState,
     pub user_profile_view: Option<UserProfileViewState>,
     pub log_config: crate::logging::LogConfig,
-    pub is_demo_mode: bool,
     pub pending_vote_tasks:
         Vec<tokio::task::JoinHandle<(uuid::Uuid, crate::api::ApiResult<serde_json::Value>)>>,
     /// Latest version available on crates.io (if newer than current)

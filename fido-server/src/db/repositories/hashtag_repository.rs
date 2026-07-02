@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 use crate::{db::DbPool, hashtag};
 
+#[derive(Clone)]
 pub struct HashtagRepository {
     pool: DbPool,
 }

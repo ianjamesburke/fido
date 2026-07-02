@@ -16,7 +16,7 @@ use fido_types::{DirectMessage, SendMessageRequest};
 /// Check if user has exceeded DM rate limit (1 DM per 1 second)
 fn check_dm_rate_limit(state: &AppState, user_id: &Uuid) -> Result<(), ApiError> {
     let last_dm_at = state
-        .stores
+        .repos
         .rate_limits
         .get_last_dm_at(user_id)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
@@ -40,7 +40,7 @@ fn check_dm_rate_limit(state: &AppState, user_id: &Uuid) -> Result<(), ApiError>
 /// Update the rate limit timestamp after successful DM creation
 fn update_dm_rate_limit(state: &AppState, user_id: &Uuid) -> Result<(), ApiError> {
     state
-        .stores
+        .repos
         .rate_limits
         .update_last_dm_at(user_id, Utc::now())
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
@@ -52,7 +52,7 @@ pub async fn get_conversations(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<ConversationSummary>>> {
-    let service = DMService::new(state.stores.clone());
+    let service = DMService::new(state.repos.clone());
     let conversations = service.get_conversations(&user_id)?;
 
     Ok(Json(conversations))
@@ -68,7 +68,7 @@ pub async fn get_conversation(
     let other_user_id = Uuid::parse_str(&other_user_id)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
-    let service = DMService::new(state.stores.clone());
+    let service = DMService::new(state.repos.clone());
     let messages = service.get_conversation(&user_id, &other_user_id)?;
 
     Ok(Json(messages))
@@ -84,7 +84,7 @@ pub async fn mark_messages_read(
     let other_user_id = Uuid::parse_str(&other_user_id)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
-    let service = DMService::new(state.stores.clone());
+    let service = DMService::new(state.repos.clone());
     service.mark_messages_read(&user_id, &other_user_id)?;
 
     Ok(Json(serde_json::json!({
@@ -99,7 +99,7 @@ pub async fn send_message(
     AuthenticatedUser(from_user_id): AuthenticatedUser,
     Json(payload): Json<SendMessageRequest>,
 ) -> ApiResult<Json<DirectMessage>> {
-    let service = DMService::new(state.stores.clone());
+    let service = DMService::new(state.repos.clone());
 
     // Check rate limit (1 DM per 1 second)
     check_dm_rate_limit(&state, &from_user_id)?;
@@ -121,7 +121,7 @@ pub async fn delete_conversation(
     let other_user_id = Uuid::parse_str(&other_user_id)
         .map_err(|_| ApiError::BadRequest("Invalid user ID format".to_string()))?;
 
-    let service = DMService::new(state.stores.clone());
+    let service = DMService::new(state.repos.clone());
     service.delete_conversation(&user_id, &other_user_id)?;
 
     Ok(Json(serde_json::json!({

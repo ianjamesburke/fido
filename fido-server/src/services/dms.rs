@@ -5,7 +5,7 @@ use uuid::Uuid;
 use chrono::Utc;
 
 use crate::api::{ApiError, ApiResult};
-use crate::stores::Stores;
+use crate::db::repositories::Repositories;
 use fido_types::DirectMessage;
 use serde::Serialize;
 
@@ -19,21 +19,21 @@ pub struct ConversationSummary {
 }
 
 pub struct DMService {
-    stores: Stores,
+    repos: Repositories,
 }
 
 impl DMService {
-    pub fn new(stores: Stores) -> Self {
-        Self { stores }
+    pub fn new(repos: Repositories) -> Self {
+        Self { repos }
     }
 
     pub fn get_conversations(&self, user_id: &Uuid) -> ApiResult<Vec<ConversationSummary>> {
-        let summaries = self.stores.dms.get_conversation_summaries(user_id)?;
+        let summaries = self.repos.dms.get_conversation_summaries(user_id)?;
 
         let mut conversations = Vec::with_capacity(summaries.len());
         for summary in summaries {
             let user = self
-                .stores
+                .repos
                 .users
                 .get_by_id(&summary.other_user_id)?
                 .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
@@ -55,22 +55,22 @@ impl DMService {
         user_id: &Uuid,
         other_user_id: &Uuid,
     ) -> ApiResult<Vec<DirectMessage>> {
-        self.stores
+        self.repos
             .users
             .get_by_id(other_user_id)?
             .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
-        let mut messages = self.stores.dms.get_conversation(user_id, other_user_id)?;
+        let mut messages = self.repos.dms.get_conversation(user_id, other_user_id)?;
 
         for msg in &mut messages {
             let from_user = self
-                .stores
+                .repos
                 .users
                 .get_by_id(&msg.from_user_id)?
                 .ok_or_else(|| ApiError::NotFound("Sender not found".to_string()))?;
 
             let to_user = self
-                .stores
+                .repos
                 .users
                 .get_by_id(&msg.to_user_id)?
                 .ok_or_else(|| ApiError::NotFound("Recipient not found".to_string()))?;
@@ -79,13 +79,13 @@ impl DMService {
             msg.to_username = to_user.username;
         }
 
-        self.stores.dms.mark_as_read(user_id, other_user_id)?;
+        self.repos.dms.mark_as_read(user_id, other_user_id)?;
 
         Ok(messages)
     }
 
     pub fn mark_messages_read(&self, user_id: &Uuid, other_user_id: &Uuid) -> ApiResult<()> {
-        self.stores.dms.mark_as_read(user_id, other_user_id)?;
+        self.repos.dms.mark_as_read(user_id, other_user_id)?;
         Ok(())
     }
 
@@ -102,7 +102,7 @@ impl DMService {
         }
 
         let to_user = self
-            .stores
+            .repos
             .users
             .get_by_username(to_username)?
             .ok_or_else(|| ApiError::NotFound(format!("User '{}' not found", to_username)))?;
@@ -114,7 +114,7 @@ impl DMService {
         }
 
         let from_user = self
-            .stores
+            .repos
             .users
             .get_by_id(from_user_id)?
             .ok_or_else(|| ApiError::NotFound("Sender not found".to_string()))?;
@@ -130,13 +130,13 @@ impl DMService {
             is_read: false,
         };
 
-        self.stores.dms.create(&message)?;
+        self.repos.dms.create(&message)?;
 
         Ok(message)
     }
 
     pub fn delete_conversation(&self, user_id: &Uuid, other_user_id: &Uuid) -> ApiResult<()> {
-        self.stores
+        self.repos
             .dms
             .delete_conversation(user_id, other_user_id)?;
         Ok(())

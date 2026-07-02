@@ -1,6 +1,5 @@
 use crate::app::{App, DMSelection, FilterTab, InputMode, PostFilter, Screen, Tab};
 use crate::auth::AuthFlow;
-use crate::log_reply;
 use crate::{log_key_event, ui};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
@@ -263,10 +262,6 @@ impl EventLoop {
                 );
 
                 // Handle async operations that were previously in main.rs
-                log_reply!(
-                    "EventLoop: Processing key event, composer_open={}",
-                    app.composer_state.is_open()
-                );
                 self.handle_async_key_events(app, key, auth_flow).await?;
             }
         }
@@ -338,12 +333,7 @@ impl EventLoop {
                 app.login_selected_user().await?;
             }
             KeyCode::Enter if app.composer_state.is_open() => {
-                log_reply!(
-                    "EventLoop: Enter key detected for composer, mode={:?}",
-                    app.composer_state.mode
-                );
                 app.submit_composer().await?;
-                log_reply!("EventLoop: submit_composer completed");
             }
             KeyCode::Enter if app.dms_state.show_new_conversation_modal => {
                 app.start_new_conversation().await?;

@@ -3,10 +3,9 @@
 //! This module provides comprehensive audit logging for security-relevant events
 //! such as authentication, session management, and suspicious activity detection.
 
-use crate::stores::AuditStore;
+use crate::db::repositories::AuditRepository;
 use chrono::Utc;
 use std::fmt;
-use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -119,12 +118,12 @@ impl AuditEvent {
 /// Audit logger for recording security events
 #[derive(Clone)]
 pub struct AuditLogger {
-    store: Arc<dyn AuditStore>,
+    store: AuditRepository,
 }
 
 impl AuditLogger {
-    /// Create a new AuditLogger with the given audit store
-    pub fn new(store: Arc<dyn AuditStore>) -> Self {
+    /// Create a new AuditLogger with the given audit repository
+    pub fn new(store: AuditRepository) -> Self {
         Self { store }
     }
 
@@ -147,10 +146,9 @@ impl AuditLogger {
 mod tests {
     use super::*;
     use crate::db::Database;
-    use crate::stores::sqlite::SqliteAuditStore;
 
     fn create_test_logger(db: &Database) -> AuditLogger {
-        AuditLogger::new(Arc::new(SqliteAuditStore::new(db.pool.clone())))
+        AuditLogger::new(AuditRepository::new(db.pool.clone()))
     }
 
     #[test]

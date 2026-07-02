@@ -5,8 +5,6 @@ use ratatui::style::Style;
 use tui_textarea::TextArea;
 use uuid::Uuid;
 
-use crate::log_reply;
-
 impl App {
     // UNIFIED COMPOSER METHODS (using tui-textarea)
     // ============================================================================
@@ -31,10 +29,6 @@ impl App {
         parent_author: String,
         parent_content: String,
     ) {
-        log_reply!(
-            "open_composer_reply: Opening reply composer for post_id={}",
-            parent_post_id
-        );
         self.composer_state.mode = Some(ComposerMode::Reply {
             parent_post_id,
             parent_author,
@@ -48,7 +42,6 @@ impl App {
         self.composer_state.textarea = textarea;
         self.composer_state.max_chars = 280;
         self.input_mode = InputMode::Typing;
-        log_reply!("open_composer_reply: Reply composer opened, input_mode set to Typing");
     }
 
     /// Open composer for editing bio
@@ -92,11 +85,6 @@ impl App {
 
     /// Handle keyboard input for composer (delegates to TextArea)
     pub fn handle_composer_input(&mut self, key: KeyEvent) {
-        log_reply!(
-            "handle_composer_input: Processing key={:?} for mode={:?}",
-            key.code,
-            self.composer_state.mode
-        );
         // Check if this is a character input that would exceed the limit
         if let KeyCode::Char(_c) = key.code {
             // Check current character count
@@ -129,10 +117,6 @@ impl App {
 
     /// Submit composer content based on mode
     pub async fn submit_composer(&mut self) -> Result<()> {
-        log_reply!(
-            "submit_composer: Starting submission, mode={:?}",
-            self.composer_state.mode
-        );
         let content = self.composer_state.get_content();
         let trimmed = content.trim();
 
@@ -191,7 +175,6 @@ impl App {
                 self.posts_state.error = None;
                 match self.api_client.create_post(parsed_content).await {
                     Ok(_) => {
-                        log_reply!("submit_composer: New post successful, closing composer");
                         self.close_composer();
                         self.load_posts().await?;
                     }
@@ -210,41 +193,12 @@ impl App {
                     .and_then(|s| s.post.as_ref().map(|p| p.id))
                     .unwrap_or(post_id);
 
-                // Debug logging to file
-                use std::io::Write;
-                let mut log = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open("fido_debug.log")
-                    .ok();
-
-                if let Some(ref mut f) = log {
-                    let _ = writeln!(f, "\n=== REPLY SUBMISSION START ===");
-                    let _ = writeln!(
-                        f,
-                        "Before reply - viewing_post_detail={}, show_full_post_modal={}",
-                        self.viewing_post_detail,
-                        self.post_detail_state
-                            .as_ref()
-                            .map(|s| s.show_full_post_modal)
-                            .unwrap_or(false)
-                    );
-                }
-
                 if let Some(detail_state) = &mut self.post_detail_state {
                     detail_state.error = None;
                 }
                 match self.api_client.create_reply(post_id, parsed_content).await {
                     Ok(new_reply) => {
                         let new_reply_id = new_reply.id;
-
-                        if let Some(ref mut f) = log {
-                            let _ = writeln!(
-                                f,
-                                "Reply created successfully, new_reply_id={}",
-                                new_reply_id
-                            );
-                        }
 
                         // Optimistic update: increment reply count in cached post
                         if let Some(cached_post) =
@@ -253,65 +207,25 @@ impl App {
                             cached_post.reply_count += 1;
                         }
 
-                        log_reply!("submit_composer: Reply successful, will close composer after modal restoration");
-
                         // Ensure we stay in thread view
                         self.viewing_post_detail = true;
 
-                        if let Some(ref mut f) = log {
-                            let _ = writeln!(
-                                f,
-                                "Before load_post_detail - root_post_id={}",
-                                root_post_id
-                            );
-                        }
-
                         // Reload the root thread, not the parent post
                         self.load_post_detail(root_post_id).await?;
-
-                        if let Some(ref mut f) = log {
-                            let _ = writeln!(f, "After load_post_detail - viewing_post_detail={}, show_full_post_modal={}, post_detail_state.is_some()={}", 
-                                self.viewing_post_detail,
-                                self.post_detail_state.as_ref().map(|s| s.show_full_post_modal).unwrap_or(false),
-                                self.post_detail_state.is_some());
-                        }
 
                         // Explicitly ensure modal is open after reload
                         if let Some(detail_state) = &mut self.post_detail_state {
                             detail_state.show_full_post_modal = true;
                             detail_state.full_post_modal_id = Some(root_post_id);
-                            if let Some(ref mut f) = log {
-                                let _ = writeln!(f, "Explicitly set show_full_post_modal=true");
-                            }
                         }
 
                         // Select the newly created reply in the modal
                         self.select_reply_in_modal(new_reply_id);
 
                         // Close composer AFTER all modal state has been restored
-                        log_reply!("submit_composer: Modal state restored, now closing composer");
                         self.close_composer();
-
-                        if let Some(ref mut f) = log {
-                            let _ = writeln!(
-                                f,
-                                "After close_composer - viewing_post_detail={}",
-                                self.viewing_post_detail
-                            );
-                            let _ = writeln!(
-                                f,
-                                "Final state - viewing_post_detail={}, show_full_post_modal={}",
-                                self.viewing_post_detail,
-                                self.post_detail_state
-                                    .as_ref()
-                                    .map(|s| s.show_full_post_modal)
-                                    .unwrap_or(false)
-                            );
-                            let _ = writeln!(f, "=== REPLY SUBMISSION END ===\n");
-                        }
                     }
                     Err(e) => {
-                        log_reply!("submit_composer: Reply failed with error: {}", e);
                         if let Some(detail_state) = &mut self.post_detail_state {
                             detail_state.error = Some(categorize_error(&e.to_string()));
                         }

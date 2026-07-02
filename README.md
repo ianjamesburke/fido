@@ -123,7 +123,6 @@ Built with Rust using a workspace architecture:
 - **fido-types** - Shared models and data structures
 - **fido-tui** - Terminal UI client (main binary, uses Ratatui)
 - **fido-server** - REST API server (Axum + SQLite)
-- **fido-migrate** - Database migration utilities
 
 ### Technologies
 - **Ratatui** - Terminal UI framework

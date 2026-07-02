@@ -1,13 +1,13 @@
+use crate::db::repositories::Repositories;
 use crate::db::Database;
 use crate::security::AuditLogger;
 use crate::session::SessionManager;
-use crate::stores::Stores;
 
 #[derive(Clone)]
 pub struct AppState {
     #[allow(dead_code)]
     pub db: Database,
-    pub stores: Stores,
+    pub repos: Repositories,
     pub session_manager: SessionManager,
     pub audit_logger: AuditLogger,
 }
@@ -15,16 +15,16 @@ pub struct AppState {
 impl AppState {
     #[allow(dead_code)]
     pub fn new(db: Database) -> Self {
-        let stores = Stores::sqlite(db.pool.clone());
-        Self::new_with_stores(db, stores)
+        let repos = Repositories::new(db.pool.clone());
+        Self::new_with_repos(db, repos)
     }
 
-    pub fn new_with_stores(db: Database, stores: Stores) -> Self {
-        let session_manager = SessionManager::new(stores.sessions.clone());
-        let audit_logger = AuditLogger::new(stores.audit.clone());
+    pub fn new_with_repos(db: Database, repos: Repositories) -> Self {
+        let session_manager = SessionManager::new(repos.sessions.clone());
+        let audit_logger = AuditLogger::new(repos.audit.clone());
         Self {
             db,
-            stores,
+            repos,
             session_manager,
             audit_logger,
         }

@@ -105,20 +105,6 @@ CREATE TABLE IF NOT EXISTS follows (
 CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower_id);
 CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(following_id);
 
--- Legacy friendships table (for backward compatibility during migration)
-CREATE TABLE IF NOT EXISTS friendships (
-    user_id TEXT NOT NULL,
-    friend_id TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    PRIMARY KEY (user_id, friend_id),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Indexes for efficient friend lookups
-CREATE INDEX IF NOT EXISTS idx_friendships_user ON friendships(user_id);
-CREATE INDEX IF NOT EXISTS idx_friendships_friend ON friendships(friend_id);
-
 -- Direct messages table
 CREATE TABLE IF NOT EXISTS direct_messages (
     id TEXT PRIMARY KEY,

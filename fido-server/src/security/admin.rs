@@ -130,7 +130,7 @@ pub async fn require_admin(
     };
 
     // Get the user from the database
-    let user = match state.stores.users.get_by_id(&user_id) {
+    let user = match state.repos.users.get_by_id(&user_id) {
         Ok(Some(u)) => u,
         Ok(None) => {
             tracing::error!("Admin check failed: user {} not found in database", user_id);

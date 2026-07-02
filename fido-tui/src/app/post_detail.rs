@@ -181,14 +181,15 @@ impl App {
             (true, None) => return Ok(()),
             (false, _) => 0, // dummy value, not used
         };
-        let (previous_vote, original_upvotes, original_downvotes) = if is_reply {
-            let reply = &detail_state.replies[reply_idx];
-            (reply.user_vote.clone(), reply.upvotes, reply.downvotes)
+        let previous_vote = if is_reply {
+            detail_state.replies[reply_idx].user_vote.clone()
         } else {
-            let post = detail_state.post.as_ref().ok_or_else(|| {
-                anyhow::anyhow!("No post loaded in detail view")
-            })?;
-            (post.user_vote.clone(), post.upvotes, post.downvotes)
+            detail_state
+                .post
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("No post loaded in detail view"))?
+                .user_vote
+                .clone()
         };
         if let Some(ref prev_direction) = previous_vote {
             if prev_direction == direction {
@@ -243,29 +244,7 @@ impl App {
         }
         let vote_direction = crate::api::VoteDirection::from_str(direction)
             .ok_or_else(|| anyhow::anyhow!("Invalid vote direction: {}", direction))?;
-        if self.is_demo_mode {
-            match self.api_client.vote_on_post(post_id, vote_direction).await {
-                Ok(_) => {}
-                Err(e) => {
-                    if let Some(detail_state) = self.post_detail_state.as_mut() {
-                        if is_reply {
-                            if let Some(reply) = detail_state.replies.get_mut(reply_idx) {
-                                reply.upvotes = original_upvotes;
-                                reply.downvotes = original_downvotes;
-                                reply.user_vote = previous_vote;
-                            }
-                        } else if let Some(post) = detail_state.post.as_mut() {
-                            post.upvotes = original_upvotes;
-                            post.downvotes = original_downvotes;
-                            post.user_vote = previous_vote;
-                        }
-                        detail_state.error = Some(categorize_error(&e.to_string()));
-                    }
-                }
-            }
-        } else {
-            self.queue_vote_on_post(post_id, vote_direction);
-        }
+        self.queue_vote_on_post(post_id, vote_direction);
         Ok(())
     }
 
@@ -379,20 +358,19 @@ impl App {
         };
 
         // Find the post to get its current vote state
-        let (previous_vote, original_upvotes, original_downvotes) =
-            if let Some(post) = &detail_state.post {
-                if post.id == post_id {
-                    (post.user_vote.clone(), post.upvotes, post.downvotes)
-                } else if let Some(reply) = detail_state.replies.iter().find(|r| r.id == post_id) {
-                    (reply.user_vote.clone(), reply.upvotes, reply.downvotes)
-                } else {
-                    return Ok(());
-                }
+        let previous_vote = if let Some(post) = &detail_state.post {
+            if post.id == post_id {
+                post.user_vote.clone()
             } else if let Some(reply) = detail_state.replies.iter().find(|r| r.id == post_id) {
-                (reply.user_vote.clone(), reply.upvotes, reply.downvotes)
+                reply.user_vote.clone()
             } else {
                 return Ok(());
-            };
+            }
+        } else if let Some(reply) = detail_state.replies.iter().find(|r| r.id == post_id) {
+            reply.user_vote.clone()
+        } else {
+            return Ok(());
+        };
 
         // Check if user is trying to vote the same direction again
         if let Some(ref prev_direction) = previous_vote {
@@ -462,39 +440,7 @@ impl App {
         // Send vote to server
         let vote_direction = crate::api::VoteDirection::from_str(direction)
             .ok_or_else(|| anyhow::anyhow!("Invalid vote direction: {}", direction))?;
-        if self.is_demo_mode {
-            match self.api_client.vote_on_post(post_id, vote_direction).await {
-                Ok(_) => {
-                    // Success - optimistic update is already applied
-                }
-                Err(e) => {
-                    // Revert optimistic update on error
-                    let Some(detail_state) = self.post_detail_state.as_mut() else {
-                        return Ok(());
-                    };
-
-                    // Revert main post if needed
-                    if let Some(post) = &mut detail_state.post {
-                        if post.id == post_id {
-                            post.upvotes = original_upvotes;
-                            post.downvotes = original_downvotes;
-                            post.user_vote = previous_vote.clone();
-                        }
-                    }
-
-                    // Revert reply if needed
-                    if let Some(reply) = detail_state.replies.iter_mut().find(|r| r.id == post_id) {
-                        reply.upvotes = original_upvotes;
-                        reply.downvotes = original_downvotes;
-                        reply.user_vote = previous_vote;
-                    }
-
-                    detail_state.error = Some(categorize_error(&e.to_string()));
-                }
-            }
-        } else {
-            self.queue_vote_on_post(post_id, vote_direction);
-        }
+        self.queue_vote_on_post(post_id, vote_direction);
 
         Ok(())
     }

@@ -1,13 +1,21 @@
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use fido_types::DirectMessage;
 
-use crate::{
-    db::{row, DbPool},
-    stores::DirectMessageConversationSummary,
-};
+use crate::db::{row, DbPool};
 
+/// Summary of a direct message conversation, without the full message history.
+#[derive(Debug, Clone)]
+pub struct DirectMessageConversationSummary {
+    pub other_user_id: Uuid,
+    pub last_message: String,
+    pub last_message_time: DateTime<Utc>,
+    pub unread_count: usize,
+}
+
+#[derive(Clone)]
 pub struct DirectMessageRepository {
     pool: DbPool,
 }

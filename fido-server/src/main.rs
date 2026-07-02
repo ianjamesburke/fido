@@ -10,7 +10,6 @@ mod security;
 mod services;
 mod session;
 mod state;
-mod stores;
 #[cfg(test)]
 mod test_utils;
 
@@ -21,9 +20,9 @@ use axum::{
 };
 use clap::Parser;
 use rate_limit::RateLimiter;
+use db::repositories::Repositories;
 use state::AppState;
 use std::net::SocketAddr;
-use stores::Stores;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -188,10 +187,10 @@ async fn main() {
         db
     };
 
-    let stores = Stores::sqlite(db.pool.clone());
+    let repos = Repositories::new(db.pool.clone());
 
     // Create application state
-    let state = AppState::new_with_stores(db, stores);
+    let state = AppState::new_with_repos(db, repos);
 
     // Run initial session cleanup on startup
     tracing::info!("Running initial session cleanup...");

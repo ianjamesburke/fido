@@ -21,7 +21,7 @@ use crate::{log_modal_state, log_rendering};
 
 pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
     let theme = get_theme_colors(app);
-    let layout = auth_layout(frame, app);
+    let layout = auth_layout(frame);
 
     // Header
     let header = Paragraph::new("Fido - Terminal Social Platform")
@@ -147,14 +147,8 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
             Style::default().fg(Color::White),
         )));
     } else {
-        let user_prompt = if app.is_demo_mode {
-            "Select a test user to explore the demo:"
-        } else {
-            "Select a test user (development only):"
-        };
-
         lines.push(Line::from(Span::styled(
-            user_prompt,
+            "Select a test user (development only):",
             Style::default()
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),

@@ -242,8 +242,6 @@ fi
 
 # Start ttyd
 echo -e "${YELLOW}Starting ttyd on port $TTYD_PORT...${NC}"
-# ttyd web terminal is demo-only auth (test users) by design.
-export FIDO_DEMO_MODE=true
 export FIDO_WEB_MODE=true
 
 # Note: -O (check-origin) removed - nginx handles origin security

@@ -6,6 +6,7 @@ use fido_types::{ColorScheme, SortOrder, UserConfig};
 
 use crate::db::{row, DbPool};
 
+#[derive(Clone)]
 pub struct ConfigRepository {
     pool: DbPool,
 }

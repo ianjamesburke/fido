@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 use crate::db::{row, DbPool};
 
+#[derive(Clone)]
 pub struct FriendRepository {
     pool: DbPool,
 }

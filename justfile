@@ -20,10 +20,6 @@ tui-local:
 web:
     ./start.sh
 
-# Start local web stack in explicit demo auth mode (test users only)
-web-demo:
-    FIDO_DEMO_MODE=true ./start.sh
-
 # Run full test suite
 test:
     cargo test --workspace
