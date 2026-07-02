@@ -173,7 +173,7 @@ impl App {
         match &self.composer_state.mode {
             Some(ComposerMode::NewPost) => {
                 self.posts_state.error = None;
-                let Some(community_id) = self.current_community_id else {
+                let Some(community_id) = self.community.as_ref().map(|c| c.id) else {
                     self.posts_state.error = Some("No community selected".to_string());
                     return Ok(());
                 };

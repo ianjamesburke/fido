@@ -2,11 +2,43 @@ set dotenv-load
 
 # Start the Fido server locally with SQLite
 server:
-    cargo run --bin fido-server
+    #!/usr/bin/env bash
+    set -euo pipefail
+    log="${FIDO_SERVER_LOG:-logs/fido-server.log}"
+    max_bytes="${FIDO_SERVER_LOG_MAX_BYTES:-10485760}"
+    mkdir -p "$(dirname "$log")"
+    : > "$log"
+    cargo run --bin fido-server 2>&1 | while IFS= read -r line; do
+        printf '%s\n' "$line"
+        printf '%s\n' "$line" >> "$log"
+        if [ "$(wc -c < "$log")" -ge "$max_bytes" ]; then
+            mv "$log" "$log.1"
+            : > "$log"
+        fi
+    done
 
 # Start the Fido server with fresh database (deletes and recreates)
 server-reset:
-    cargo run --bin fido-server -- --reset-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    log="${FIDO_SERVER_LOG:-logs/fido-server.log}"
+    max_bytes="${FIDO_SERVER_LOG_MAX_BYTES:-10485760}"
+    mkdir -p "$(dirname "$log")"
+    : > "$log"
+    cargo run --bin fido-server -- --reset-db 2>&1 | while IFS= read -r line; do
+        printf '%s\n' "$line"
+        printf '%s\n' "$line" >> "$log"
+        if [ "$(wc -c < "$log")" -ge "$max_bytes" ]; then
+            mv "$log" "$log.1"
+            : > "$log"
+        fi
+    done
+
+# Tail the local Fido server log written by `just server` / `just server-reset`
+server-log:
+    mkdir -p logs
+    touch logs/fido-server.log
+    tail -f logs/fido-server.log
 
 # Start the Fido TUI client
 tui:

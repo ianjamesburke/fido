@@ -140,10 +140,9 @@ impl GithubService {
         }
 
         let result = async {
-            let response = request
-                .send()
-                .await
-                .with_context(|| format!("GitHub get_repo request failed for {}/{}", owner, name))?;
+            let response = request.send().await.with_context(|| {
+                format!("GitHub get_repo request failed for {}/{}", owner, name)
+            })?;
             if response.status() == StatusCode::NOT_FOUND {
                 return Ok(None);
             }
@@ -158,7 +157,10 @@ impl GithubService {
                 .json::<GithubRepo>()
                 .await
                 .with_context(|| {
-                    format!("Failed to parse GitHub repo response for {}/{}", owner, name)
+                    format!(
+                        "Failed to parse GitHub repo response for {}/{}",
+                        owner, name
+                    )
                 })?;
             Ok(Some(repo))
         }

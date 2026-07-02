@@ -144,6 +144,7 @@ impl EventLoop {
         // Load initial data
         let _ = app.load_settings().await;
         app.load_filter_preference();
+        let _ = app.init_community_context().await;
         let _ = app.load_posts().await;
 
         Ok(())
@@ -348,7 +349,27 @@ impl EventLoop {
                     && !app.composer_state.is_open()
                     && !app.posts_state.show_filter_modal =>
             {
-                self.handle_post_selection(app).await?;
+                if app.is_home_list_active() {
+                    app.open_home_selection().await?;
+                } else {
+                    self.handle_post_selection(app).await?;
+                }
+            }
+            KeyCode::Char('c') | KeyCode::Char('C')
+                if app.show_community_modal
+                    && app.community.as_ref().map(|c| !c.claimed).unwrap_or(false) =>
+            {
+                app.claim_current_community().await?;
+            }
+            KeyCode::Char('r') | KeyCode::Char('R')
+                if app.current_screen == Screen::Main
+                    && app.current_tab == Tab::Posts
+                    && !app.viewing_post_detail
+                    && !app.composer_state.is_open()
+                    && (app.community_error.is_some()
+                        || (app.is_home_list_active() && app.home_state.error.is_some())) =>
+            {
+                app.retry_community().await?;
             }
             KeyCode::Enter
                 if app.current_tab == Tab::DMs

@@ -115,6 +115,18 @@ fn handle_global_keys(app: &mut App, key: KeyEvent) -> Result<bool> {
             app.toggle_help();
             Ok(true)
         }
+        // Esc from a board opened off the Home list returns to the list
+        // (repo mode has no list to return to, so Esc falls through to quit).
+        KeyCode::Esc
+            if app.input_mode == InputMode::Navigation
+                && app.current_screen == Screen::Main
+                && app.current_tab == Tab::Posts
+                && app.launch_repo.is_none()
+                && app.community.is_some() =>
+        {
+            app.close_community();
+            Ok(true)
+        }
         KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc
             if app.input_mode == InputMode::Navigation =>
         {

@@ -4,6 +4,17 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 /// Handle modal key events, returning Some(()) if a modal consumed the event
 pub fn handle_modal_keys(app: &mut App, key: KeyEvent) -> Result<Option<()>> {
+    // Community settings modal ('c' claim is async and handled by the event loop)
+    if app.show_community_modal {
+        if matches!(
+            key.code,
+            KeyCode::Esc | KeyCode::Char('i') | KeyCode::Char('I')
+        ) {
+            app.show_community_modal = false;
+        }
+        return Ok(Some(()));
+    }
+
     // Priority 3: Filter modal
     if app.posts_state.show_filter_modal {
         if matches!(key.code, KeyCode::Esc) {

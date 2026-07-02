@@ -61,16 +61,32 @@ impl App {
             .map(|c| c.max_posts_display)
             .unwrap_or(25);
 
+        let Some(community_id) = self.community.as_ref().map(|c| c.id) else {
+            self.posts_state.posts.clear();
+            self.posts_state.list_state.select(None);
+            self.posts_state.loading = false;
+            return Ok(());
+        };
+
+        self.posts_state.message = None;
+
         // Apply current filter
         let result = match &self.posts_state.current_filter {
             PostFilter::All => {
                 self.api_client
-                    .get_posts(Some(max_posts), Some(sort_order.clone()), None, None)
+                    .get_posts(
+                        community_id,
+                        Some(max_posts),
+                        Some(sort_order.clone()),
+                        None,
+                        None,
+                    )
                     .await
             }
             PostFilter::Hashtag(tag) => {
                 self.api_client
                     .get_posts(
+                        community_id,
                         Some(max_posts),
                         Some(sort_order.clone()),
                         Some(tag.clone()),
@@ -81,6 +97,7 @@ impl App {
             PostFilter::User(user) => {
                 self.api_client
                     .get_posts(
+                        community_id,
                         Some(max_posts),
                         Some(sort_order.clone()),
                         None,
@@ -97,6 +114,7 @@ impl App {
                     if let Ok(posts) = self
                         .api_client
                         .get_posts(
+                            community_id,
                             Some(max_posts),
                             Some(sort_order.clone()),
                             Some(hashtag.clone()),
@@ -113,6 +131,7 @@ impl App {
                     if let Ok(posts) = self
                         .api_client
                         .get_posts(
+                            community_id,
                             Some(max_posts),
                             Some(sort_order.clone()),
                             None,

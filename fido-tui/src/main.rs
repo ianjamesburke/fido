@@ -6,6 +6,7 @@ mod emoji;
 mod event_loop;
 #[macro_use]
 mod logging;
+mod repo_context;
 mod session;
 mod terminal;
 mod text_wrapper;
@@ -214,6 +215,12 @@ async fn main() -> Result<()> {
 
     app.log_config = log_config;
 
+    // The launch directory decides the community: inside a GitHub repo the
+    // board opens on that repo's community, elsewhere the Home list shows.
+    if let Ok(cwd) = std::env::current_dir() {
+        app.launch_repo = repo_context::detect_repo_context(&cwd);
+    }
+
     // Check for updates (quick, non-blocking with 3s timeout, skip in web mode)
     if !is_web_mode {
         if let Some(latest_version) = check_for_updates().await {
@@ -234,6 +241,7 @@ async fn main() -> Result<()> {
         // Load initial data
         let _ = app.load_settings().await;
         app.load_filter_preference();
+        let _ = app.init_community_context().await;
         let _ = app.load_posts().await;
     } else {
         log::info!("No valid session found, showing authentication screen");

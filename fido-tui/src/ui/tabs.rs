@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
     Frame,
 };
 
@@ -385,6 +385,11 @@ pub fn render_main_screen(frame: &mut Frame, app: &mut App) {
         render_user_profile_view(frame, app, area);
     }
 
+    // Render community settings modal
+    if app.show_community_modal {
+        render_community_modal(frame, app, area);
+    }
+
     // Render help modal (highest priority - render last)
     if app.show_help {
         render_help_modal(frame, app, area);
@@ -398,7 +403,12 @@ pub fn render_tab_header(frame: &mut Frame, app: &mut App, area: Rect) {
     // Calculate total unread count for DMs
     let total_unread: usize = app.dms_state.unread_counts.values().sum();
 
-    let tabs = ["Posts", "DMs", "Profile", "Settings"];
+    let board_label = if app.is_home_list_active() {
+        "Home"
+    } else {
+        "Board"
+    };
+    let tabs = [board_label, "DMs", "Profile", "Settings"];
     let current_index = match app.current_tab {
         crate::app::Tab::Posts => 0,
         crate::app::Tab::DMs => 1,
@@ -472,6 +482,151 @@ pub fn render_global_footer(frame: &mut Frame, app: &mut App, area: Rect) {
     );
 }
 
+/// Board title: repo community plus the caller's standing in it.
+fn community_board_title(app: &App) -> String {
+    match &app.community {
+        Some(c) => {
+            let role = c
+                .role
+                .map(|r| r.as_str().to_string())
+                .unwrap_or_else(|| "not a member".to_string());
+            let members = if c.member_count == 1 {
+                "1 member".to_string()
+            } else {
+                format!("{} members", c.member_count)
+            };
+            let mut title = format!(" {} · {} · {} ", c.full_name(), role, members);
+            if !c.claimed {
+                title.push_str("· unclaimed ");
+            }
+            title
+        }
+        None => "Board".to_string(),
+    }
+}
+
+/// Repo mode: the launch repo's community could not be opened.
+fn render_community_error(frame: &mut Frame, app: &mut App, area: Rect, error: &str) {
+    let theme = get_theme_colors(app);
+    let widget = Paragraph::new(vec![
+        Line::from(""),
+        Line::from(Span::styled(
+            error.to_string(),
+            Style::default()
+                .fg(theme.error)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Press 'r' to retry.",
+            Style::default().fg(theme.text_dim),
+        )),
+    ])
+    .alignment(Alignment::Center)
+    .wrap(Wrap { trim: true })
+    .block(Block::default().borders(Borders::ALL).title(" Community "));
+    frame.render_widget(widget, area);
+}
+
+/// Home mode: joined-communities list (launched outside a GitHub repo).
+fn render_home_list(frame: &mut Frame, app: &mut App, area: Rect) {
+    let theme = get_theme_colors(app);
+    let title = " Your Communities ";
+
+    if app.home_state.loading && app.home_state.communities.is_empty() {
+        render_panel_lines(
+            frame,
+            area,
+            title,
+            create_loading_display("Loading communities...", &theme),
+            &theme,
+        );
+        return;
+    }
+
+    if let Some(error) = &app.home_state.error {
+        let widget = Paragraph::new(vec![
+            Line::from(""),
+            Line::from(Span::styled(
+                error.clone(),
+                Style::default()
+                    .fg(theme.error)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Press 'r' to retry.",
+                Style::default().fg(theme.text_dim),
+            )),
+        ])
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true })
+        .block(Block::default().borders(Borders::ALL).title(title));
+        frame.render_widget(widget, area);
+        return;
+    }
+
+    if app.home_state.communities.is_empty() {
+        let widget = Paragraph::new(vec![
+            Line::from(""),
+            Line::from(Span::styled(
+                "No communities yet",
+                Style::default()
+                    .fg(theme.warning)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Launch fido inside a GitHub repo directory to join its community.",
+                Style::default().fg(theme.text_dim),
+            )),
+        ])
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true })
+        .block(Block::default().borders(Borders::ALL).title(title));
+        frame.render_widget(widget, area);
+        return;
+    }
+
+    let items: Vec<ListItem> = app
+        .home_state
+        .communities
+        .iter()
+        .map(|view| {
+            let role = view
+                .membership
+                .as_ref()
+                .map(|m| m.role.as_str())
+                .unwrap_or("member");
+            let members = if view.member_count == 1 {
+                "1 member".to_string()
+            } else {
+                format!("{} members", view.member_count)
+            };
+            ListItem::new(Line::from(vec![
+                Span::styled(
+                    format!("{}/{}", view.community.owner, view.community.name),
+                    Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("  {} · {}", role, members),
+                    Style::default().fg(theme.text_dim),
+                ),
+            ]))
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title(title))
+        .highlight_style(
+            Style::default()
+                .fg(theme.success)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("> ");
+    frame.render_stateful_widget(list, area, &mut app.home_state.list_state);
+}
+
 /// Render Posts tab with global feed
 pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) {
     // Log at start of render
@@ -506,12 +661,26 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
     // Main posts area (no inline compose box - use 'n' to open modal)
     let posts_area = layout.content;
 
+    // Repo mode: joining the launch repo's community failed.
+    if let Some(error) = app.community_error.clone() {
+        render_community_error(frame, app, posts_area, &error);
+        return;
+    }
+
+    // Home mode: show the joined-communities list instead of a board.
+    if app.is_home_list_active() {
+        render_home_list(frame, app, posts_area);
+        return;
+    }
+
+    let community_title = community_board_title(app);
+
     // Only show full-page loading on initial load (when there are no posts yet)
     if app.posts_state.loading && app.posts_state.posts.is_empty() {
         render_panel_lines(
             frame,
             posts_area,
-            "Global Feed",
+            &community_title,
             create_loading_display("Loading posts...", &theme),
             &theme,
         );
@@ -535,12 +704,16 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
             )),
             Line::from(""),
             Line::from(Span::styled(
-                "Press 'n' to create the first post!",
+                "Press 'n' to create the first post.",
                 Style::default().fg(theme.text_dim),
             )),
         ])
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).title("Global Feed"));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(community_title.as_str()),
+        );
         frame.render_widget(empty, posts_area);
 
         // Render filter modal if open (even when no posts)
@@ -670,12 +843,12 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
 
     // Build title with current filter
     let title = match &app.posts_state.current_filter {
-        crate::app::PostFilter::All => "Global Feed".to_string(),
-        crate::app::PostFilter::Hashtag(tag) => format!("#{}", tag),
-        crate::app::PostFilter::User(username) => format!("@{}", username),
+        crate::app::PostFilter::All => community_title,
+        crate::app::PostFilter::Hashtag(tag) => format!("{} / #{}", community_title, tag),
+        crate::app::PostFilter::User(username) => format!("{} / @{}", community_title, username),
         crate::app::PostFilter::Multi { hashtags, users } => {
             let total = hashtags.len() + users.len();
-            format!("Filtered ({} items)", total)
+            format!("{} / Filtered ({} items)", community_title, total)
         }
     };
 

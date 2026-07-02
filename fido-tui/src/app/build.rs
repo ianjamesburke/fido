@@ -162,7 +162,11 @@ impl App {
             log_config: crate::logging::LogConfig::default(),
             pending_vote_tasks: Vec::new(),
             update_available: None,
-            current_community_id: None,
+            launch_repo: None,
+            community: None,
+            community_error: None,
+            home_state: HomeState::new(),
+            show_community_modal: false,
         }
     }
 }

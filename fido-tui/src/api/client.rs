@@ -200,12 +200,14 @@ impl ApiClient {
     /// Get posts with optional limit, sort order, and filters
     pub async fn get_posts(
         &self,
+        community_id: Uuid,
         limit: Option<i32>,
         sort: Option<String>,
         hashtag: Option<String>,
         username: Option<String>,
     ) -> ApiResult<Vec<Post>> {
         let mut params = Vec::new();
+        params.push(("community_id", community_id.to_string()));
 
         if let Some(l) = limit {
             params.push(("limit", l.to_string()));
@@ -224,6 +226,47 @@ impl ApiClient {
         let url = self.build_url_with_params("/posts", &params_ref);
 
         let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
+    /// List communities joined by the authenticated user
+    pub async fn list_communities(&self) -> ApiResult<Vec<CommunityViewResponse>> {
+        let url = self.build_url("/communities");
+        let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
+    /// Join a repo community; the server resolves the repo via GitHub and
+    /// lazily creates the community on first join.
+    pub async fn join_community(
+        &self,
+        owner: &str,
+        name: &str,
+    ) -> ApiResult<CommunityViewResponse> {
+        let url = self.build_url("/communities/join");
+        let request = JoinCommunityRequest {
+            owner: owner.to_string(),
+            name: name.to_string(),
+        };
+        let req = self.add_auth_header(self.client.post(&url).json(&request));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
+    /// Get a community view by id (includes the caller's membership)
+    pub async fn get_community(&self, community_id: Uuid) -> ApiResult<CommunityViewResponse> {
+        let url = self.build_url(&format!("/communities/{}", community_id));
+        let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
+    /// Claim admin of a community (server verifies GitHub admin/maintain permission)
+    pub async fn claim_community(&self, community_id: Uuid) -> ApiResult<CommunityViewResponse> {
+        let url = self.build_url(&format!("/communities/{}/claim", community_id));
+        let req = self.add_auth_header(self.client.post(&url).json(&serde_json::json!({})));
         let response = req.send().await?;
         self.handle_response(response).await
     }
@@ -513,4 +556,30 @@ pub struct DevicePollRequest {
 pub struct ValidateSessionResponse {
     pub user: fido_types::User,
     pub valid: bool,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct CommunityViewResponse {
+    pub community: CommunityResponse,
+    pub membership: Option<MembershipResponse>,
+    pub member_count: i64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct CommunityResponse {
+    pub id: Uuid,
+    pub owner: String,
+    pub name: String,
+    pub claimed_by: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct MembershipResponse {
+    pub role: fido_types::MembershipRole,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct JoinCommunityRequest {
+    owner: String,
+    name: String,
 }

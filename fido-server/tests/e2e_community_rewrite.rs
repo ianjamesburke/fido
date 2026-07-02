@@ -161,7 +161,10 @@ async fn github_fixture_server() -> Result<String> {
         .route("/repos/octocat/Hello-World", get(repo))
         .route("/repos/octocat/Hello-World/contributors", get(contributors))
         .route("/repos/:owner/:name", get(dynamic_repo))
-        .route("/repos/:owner/:name/contributors", get(dynamic_contributors));
+        .route(
+            "/repos/:owner/:name/contributors",
+            get(dynamic_contributors),
+        );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
     tokio::spawn(async move {
@@ -336,10 +339,7 @@ async fn communities_join_list_detail_leave_e2e() -> Result<()> {
 
     // Invalid repo names are rejected.
     let response = alice_client
-        .post(
-            "/communities/join",
-            &json!({ "owner": "a/b", "name": "x" }),
-        )
+        .post("/communities/join", &json!({ "owner": "a/b", "name": "x" }))
         .await?;
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
@@ -607,7 +607,10 @@ async fn threads_board_scoped_and_approval_e2e() -> Result<()> {
     assert_eq!(response.status(), StatusCode::OK);
 
     let response = replier_client
-        .post(&format!("/posts/{}/vote", post_id), &json!({ "direction": "up" }))
+        .post(
+            &format!("/posts/{}/vote", post_id),
+            &json!({ "direction": "up" }),
+        )
         .await?;
     assert_eq!(response.status(), StatusCode::OK);
 

@@ -24,8 +24,11 @@ Fido is a blazing-fast, keyboard-driven terminal social platform for developers,
 The project uses a `justfile` for common development tasks. Environment variables are automatically loaded from `.env` if present.
 
 ```bash
-# Run the server
+# Run the server (writes logs/fido-server.log by default)
 just server
+
+# Run the server with fresh database (also writes logs/fido-server.log)
+just server-reset
 
 # Run the TUI client
 just tui
@@ -235,6 +238,32 @@ The TUI uses a configurable logging system with feature-specific macros:
 Configuration via `LogConfig` in `fido-tui/src/logging.rs`. See `LOGGING.md` for details.
 
 ## Debugging & Logging
+
+### Local Server Logs
+
+`just server` and `just server-reset` write startup and runtime output to `logs/fido-server.log` by default while still echoing to the terminal. The recipes cap the active log at 10 MiB by default and rotate one previous file to `logs/fido-server.log.1`.
+
+```bash
+just server
+just server-reset
+```
+
+Tail the current local server log with:
+
+```bash
+just server-log
+# or
+tail -f logs/fido-server.log
+```
+
+Override log path or size only when needed:
+
+```bash
+FIDO_SERVER_LOG=/tmp/fido-server.log just server-reset
+FIDO_SERVER_LOG_MAX_BYTES=20971520 just server
+```
+
+If a server is already running from an older direct command and `lsof -p <pid>` shows stdout/stderr attached to `/dev/tty*`, past startup logs are only in that terminal's scrollback. Restart with `just server` or `just server-reset` before debugging startup behavior.
 
 ### Cohesive Logging System
 Fido uses a unified logging system built on Rust's `log` and `simplelog` crates with configurable features.
