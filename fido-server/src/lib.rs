@@ -4,7 +4,6 @@
 pub mod api;
 pub mod config;
 pub mod db;
-pub mod hashtag;
 pub mod http;
 pub mod mention;
 pub mod oauth;
@@ -88,7 +87,6 @@ pub fn create_router(state: AppState) -> Router {
         // Profile routes
         .route("/users/:id/profile", get(api::profile::get_profile))
         .route("/users/:id/profile", put(api::profile::update_profile))
-        .route("/users/:id/hashtags", get(api::profile::get_user_hashtags))
         // DM routes
         .route("/dms/conversations", get(api::dms::get_conversations))
         .route(
@@ -107,18 +105,6 @@ pub fn create_router(state: AppState) -> Router {
         // Config routes
         .route("/config", get(api::config::get_config))
         .route("/config", put(api::config::update_config))
-        // Hashtag routes
-        .route(
-            "/hashtags/followed",
-            get(api::hashtags::get_followed_hashtags),
-        )
-        .route("/hashtags/follow", post(api::hashtags::follow_hashtag))
-        .route(
-            "/hashtags/follow/:name",
-            delete(api::hashtags::unfollow_hashtag),
-        )
-        .route("/hashtags/search", get(api::hashtags::search_hashtags))
-        .route("/hashtags/active", get(api::hashtags::get_active_hashtags))
         // User routes
         .route("/users/search", get(api::friends::search_users))
         .route(

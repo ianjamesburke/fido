@@ -15,8 +15,7 @@ impl App {
 
         // Call server logout endpoint to invalidate session (best effort)
         // We don't fail if this errors since we'll clear local session anyway
-        let session_store =
-            crate::session::SessionStore::for_server(self.api_client.base_url());
+        let session_store = crate::session::SessionStore::for_server(self.api_client.base_url());
 
         if let Ok(session_store) = session_store {
             if let Ok(Some(token)) = session_store.load() {

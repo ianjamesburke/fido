@@ -48,7 +48,7 @@ impl UserListItem for crate::app::UserInfo {
     }
 }
 
-impl<'a> UserListItem for &'a crate::app::UserInfo {
+impl UserListItem for &crate::app::UserInfo {
     fn username(&self) -> &str {
         &self.username
     }

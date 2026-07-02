@@ -330,7 +330,10 @@ pub async fn github_device_poll(
         }
         Err(e) => {
             // Remove device code on error
-            DEVICE_CODES.lock().unwrap_or_else(|e| e.into_inner()).remove(&payload.device_code);
+            DEVICE_CODES
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&payload.device_code);
             // Log login failure
             let _ = state.audit_logger.log(
                 AuditEvent::new(AuditEventType::LoginFailure)
@@ -375,7 +378,10 @@ pub async fn github_device_poll(
         .map_err(|e| ApiError::InternalError(format!("Failed to create session: {}", e)))?;
 
     // Remove device code after successful authentication
-    DEVICE_CODES.lock().unwrap_or_else(|e| e.into_inner()).remove(&payload.device_code);
+    DEVICE_CODES
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(&payload.device_code);
 
     // Log successful GitHub login
     let _ = state.audit_logger.log(

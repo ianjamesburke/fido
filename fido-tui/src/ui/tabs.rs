@@ -208,12 +208,10 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
         } else {
             "l: Load test users | q/Esc: Quit"
         }
+    } else if app.auth_state.show_github_option {
+        "↑/k: Up | ↓/j: Down | Enter: Login | g: GitHub | q/Esc: Quit"
     } else {
-        if app.auth_state.show_github_option {
-            "↑/k: Up | ↓/j: Down | Enter: Login | g: GitHub | q/Esc: Quit"
-        } else {
-            "↑/k: Up | ↓/j: Down | Enter: Login | q/Esc: Quit"
-        }
+        "↑/k: Up | ↓/j: Down | Enter: Login | q/Esc: Quit"
     };
 
     render_footer_with_style(
@@ -1216,47 +1214,43 @@ pub fn render_profile_stats(
     area: Rect,
 ) {
     let theme = get_theme_colors(app);
-    let mut lines = vec![];
-
-    lines.push(Line::from(vec![
-        Span::styled("Username: ", Style::default().fg(theme.primary)),
-        Span::styled(
-            &profile.username,
-            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-        ),
-    ]));
-
-    lines.push(Line::from(vec![
-        Span::styled("Bio: ", Style::default().fg(theme.primary)),
-        Span::styled(
-            profile.bio.as_deref().unwrap_or("No bio set"),
-            Style::default().fg(theme.text),
-        ),
-    ]));
-
-    lines.push(Line::from(""));
-
-    lines.push(Line::from(vec![
-        Span::styled("Karma: ", Style::default().fg(theme.success)),
-        Span::styled(
-            profile.karma.to_string(),
-            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-        ),
-        Span::raw("  "),
-        Span::styled("Posts: ", Style::default().fg(theme.secondary)),
-        Span::styled(
-            profile.post_count.to_string(),
-            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-        ),
-    ]));
-
-    lines.push(Line::from(vec![
-        Span::styled("Joined: ", Style::default().fg(theme.text_dim)),
-        Span::styled(
-            profile.join_date.format("%Y-%m-%d").to_string(),
-            Style::default().fg(theme.text),
-        ),
-    ]));
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled("Username: ", Style::default().fg(theme.primary)),
+            Span::styled(
+                &profile.username,
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("Bio: ", Style::default().fg(theme.primary)),
+            Span::styled(
+                profile.bio.as_deref().unwrap_or("No bio set"),
+                Style::default().fg(theme.text),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Karma: ", Style::default().fg(theme.success)),
+            Span::styled(
+                profile.karma.to_string(),
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("  "),
+            Span::styled("Posts: ", Style::default().fg(theme.secondary)),
+            Span::styled(
+                profile.post_count.to_string(),
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("Joined: ", Style::default().fg(theme.text_dim)),
+            Span::styled(
+                profile.join_date.format("%Y-%m-%d").to_string(),
+                Style::default().fg(theme.text),
+            ),
+        ]),
+    ];
 
     if !profile.recent_hashtags.is_empty() {
         lines.push(Line::from(""));

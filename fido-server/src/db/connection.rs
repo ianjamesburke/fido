@@ -152,7 +152,12 @@ mod tests {
 
         assert!(tables.contains(&"users".to_string()));
         assert!(tables.contains(&"posts".to_string()));
-        assert!(tables.contains(&"hashtags".to_string()));
+        assert!(tables.contains(&"communities".to_string()));
+        assert!(tables.contains(&"channels".to_string()));
+        assert!(tables.contains(&"messages".to_string()));
+        assert!(tables.contains(&"memberships".to_string()));
+        assert!(tables.contains(&"notifications".to_string()));
+        assert!(tables.contains(&"dm_conversations".to_string()));
         assert!(tables.contains(&"votes".to_string()));
         assert!(tables.contains(&"direct_messages".to_string()));
         assert!(tables.contains(&"user_configs".to_string()));

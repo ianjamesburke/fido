@@ -20,15 +20,17 @@ impl PostRepository {
     pub fn create(&self, post: &Post) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(
-            "INSERT INTO posts (id, author_id, content, created_at, upvotes, downvotes, parent_post_id, reply_to_user_id) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO posts (id, author_id, community_id, content, created_at, upvotes, downvotes, approved, parent_post_id, reply_to_user_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 post.id.to_string(),
                 post.author_id.to_string(),
+                post.community_id.to_string(),
                 &post.content,
                 post.created_at.to_rfc3339(),
                 post.upvotes,
                 post.downvotes,
+                if post.approved { 1 } else { 0 },
                 post.parent_post_id.map(|id| id.to_string()),
                 post.reply_to_user_id.map(|id| id.to_string()),
             ),
@@ -79,7 +81,7 @@ impl PostRepository {
         let query = format!(
             "SELECT p.id, p.author_id, u.username, p.content, p.created_at, p.upvotes, p.downvotes, p.parent_post_id,
                     (SELECT COUNT(*) FROM posts WHERE parent_post_id = p.id) as reply_count,
-                    p.reply_to_user_id, u2.username as reply_to_username
+                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved
              FROM posts p
              JOIN users u ON p.author_id = u.id
              LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
@@ -105,7 +107,7 @@ impl PostRepository {
         let mut stmt = conn.prepare(
             "SELECT p.id, p.author_id, u.username, p.content, p.created_at, p.upvotes, p.downvotes, p.parent_post_id,
                     (SELECT COUNT(*) FROM posts WHERE parent_post_id = p.id) as reply_count,
-                    p.reply_to_user_id, u2.username as reply_to_username
+                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved
              FROM posts p
              JOIN users u ON p.author_id = u.id
              LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
@@ -126,7 +128,7 @@ impl PostRepository {
         let mut stmt = conn.prepare(
             "SELECT p.id, p.author_id, u.username, p.content, p.created_at, p.upvotes, p.downvotes, p.parent_post_id,
                     (SELECT COUNT(*) FROM posts WHERE parent_post_id = p.id) as reply_count,
-                    p.reply_to_user_id, u2.username as reply_to_username
+                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved
              FROM posts p
              JOIN users u ON p.author_id = u.id
              LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
@@ -172,22 +174,6 @@ impl PostRepository {
         Ok(count)
     }
 
-    /// Extract hashtags from post content using regex
-    #[allow(dead_code)]
-    pub fn extract_hashtags(content: &str) -> Vec<String> {
-        let mut hashtags = Vec::new();
-        for word in content.split_whitespace() {
-            if word.starts_with('#') && word.len() > 1 {
-                // Remove the # and any trailing punctuation
-                let tag = word[1..].trim_end_matches(|c: char| !c.is_alphanumeric());
-                if !tag.is_empty() {
-                    hashtags.push(tag.to_lowercase());
-                }
-            }
-        }
-        hashtags
-    }
-
     /// Fetch all replies for a given post_id (recursively, maintaining tree structure)
     pub fn get_replies(&self, parent_post_id: &Uuid) -> Result<Vec<Post>> {
         let conn = self.pool.get()?;
@@ -196,23 +182,23 @@ impl PostRepository {
         let mut stmt = conn.prepare(
             "WITH RECURSIVE reply_tree AS (
                 -- Base case: direct replies to the parent post
-                SELECT p.id, p.author_id, p.content, p.created_at, p.upvotes, p.downvotes, 
-                       p.parent_post_id, p.reply_to_user_id, 0 as depth
+                SELECT p.id, p.author_id, p.content, p.created_at, p.upvotes, p.downvotes,
+                       p.parent_post_id, p.reply_to_user_id, p.community_id, p.approved, 0 as depth
                 FROM posts p
                 WHERE p.parent_post_id = ?
-                
+
                 UNION ALL
-                
+
                 -- Recursive case: replies to replies
                 SELECT p.id, p.author_id, p.content, p.created_at, p.upvotes, p.downvotes,
-                       p.parent_post_id, p.reply_to_user_id, rt.depth + 1
+                       p.parent_post_id, p.reply_to_user_id, p.community_id, p.approved, rt.depth + 1
                 FROM posts p
                 INNER JOIN reply_tree rt ON p.parent_post_id = rt.id
             )
-            SELECT rt.id, rt.author_id, u.username, rt.content, rt.created_at, 
+            SELECT rt.id, rt.author_id, u.username, rt.content, rt.created_at,
                    rt.upvotes, rt.downvotes, rt.parent_post_id,
                    (SELECT COUNT(*) FROM posts WHERE parent_post_id = rt.id) as reply_count,
-                   rt.reply_to_user_id, u2.username as reply_to_username, rt.depth
+                   rt.reply_to_user_id, u2.username as reply_to_username, rt.community_id, rt.approved, rt.depth
             FROM reply_tree rt
             JOIN users u ON rt.author_id = u.id
             LEFT JOIN users u2 ON rt.reply_to_user_id = u2.id
@@ -236,56 +222,6 @@ impl PostRepository {
             |row| row.get(0),
         )?;
         Ok(count > 0)
-    }
-
-    /// Get posts filtered by hashtag
-    ///
-    /// # SQL Injection Safety
-    /// This method uses format!() to build the ORDER BY clause, but it is safe because:
-    /// - The `sort_order` parameter is a validated enum (SortOrder), not user input
-    /// - The enum can only have three values: Newest, Popular, Controversial
-    /// - Each enum value maps to a hardcoded SQL clause
-    /// - The API layer validates sort order before calling this method
-    /// - All other parameters (hashtag_name, limit) use parameterized queries
-    pub fn get_posts_by_hashtag(
-        &self,
-        hashtag_name: &str,
-        sort_order: SortOrder,
-        limit: i32,
-    ) -> Result<Vec<Post>> {
-        let conn = self.pool.get()?;
-
-        // Safe: order_clause is built from whitelisted enum values only
-        let order_clause = match sort_order {
-            SortOrder::Newest => "ORDER BY p.created_at DESC",
-            SortOrder::Popular => "ORDER BY p.upvotes DESC, p.created_at DESC",
-            SortOrder::Controversial => {
-                "ORDER BY ABS(p.upvotes - p.downvotes) ASC, p.created_at DESC"
-            }
-        };
-
-        let query = format!(
-            "SELECT p.id, p.author_id, u.username, p.content, p.created_at, p.upvotes, p.downvotes, p.parent_post_id,
-                    (SELECT COUNT(*) FROM posts WHERE parent_post_id = p.id) as reply_count,
-                    p.reply_to_user_id, u2.username as reply_to_username
-             FROM posts p
-             JOIN users u ON p.author_id = u.id
-             LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
-             JOIN post_hashtags ph ON p.id = ph.post_id
-             JOIN hashtags h ON ph.hashtag_id = h.id
-             WHERE LOWER(h.name) = LOWER(?) AND p.parent_post_id IS NULL
-             {}
-             LIMIT ?",
-            order_clause
-        );
-
-        let mut stmt = conn.prepare(&query)?;
-
-        let posts = stmt
-            .query_map(params![hashtag_name, limit], map_post_row)?
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(posts)
     }
 
     /// Get posts filtered by username
@@ -317,7 +253,7 @@ impl PostRepository {
         let query = format!(
             "SELECT p.id, p.author_id, u.username, p.content, p.created_at, p.upvotes, p.downvotes, p.parent_post_id,
                     (SELECT COUNT(*) FROM posts WHERE parent_post_id = p.id) as reply_count,
-                    p.reply_to_user_id, u2.username as reply_to_username
+                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved
              FROM posts p
              JOIN users u ON p.author_id = u.id
              LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
@@ -335,57 +271,6 @@ impl PostRepository {
 
         Ok(posts)
     }
-
-    /// Get posts filtered by both hashtag and username
-    ///
-    /// # SQL Injection Safety
-    /// This method uses format!() to build the ORDER BY clause, but it is safe because:
-    /// - The `sort_order` parameter is a validated enum (SortOrder), not user input
-    /// - The enum can only have three values: Newest, Popular, Controversial
-    /// - Each enum value maps to a hardcoded SQL clause
-    /// - The API layer validates sort order before calling this method
-    /// - All other parameters (hashtag_name, username, limit) use parameterized queries
-    pub fn get_posts_by_hashtag_and_username(
-        &self,
-        hashtag_name: &str,
-        username: &str,
-        sort_order: SortOrder,
-        limit: i32,
-    ) -> Result<Vec<Post>> {
-        let conn = self.pool.get()?;
-
-        // Safe: order_clause is built from whitelisted enum values only
-        let order_clause = match sort_order {
-            SortOrder::Newest => "ORDER BY p.created_at DESC",
-            SortOrder::Popular => "ORDER BY p.upvotes DESC, p.created_at DESC",
-            SortOrder::Controversial => {
-                "ORDER BY ABS(p.upvotes - p.downvotes) ASC, p.created_at DESC"
-            }
-        };
-
-        let query = format!(
-            "SELECT p.id, p.author_id, u.username, p.content, p.created_at, p.upvotes, p.downvotes, p.parent_post_id,
-                    (SELECT COUNT(*) FROM posts WHERE parent_post_id = p.id) as reply_count,
-                    p.reply_to_user_id, u2.username as reply_to_username
-             FROM posts p
-             JOIN users u ON p.author_id = u.id
-             LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
-             JOIN post_hashtags ph ON p.id = ph.post_id
-             JOIN hashtags h ON ph.hashtag_id = h.id
-             WHERE LOWER(h.name) = LOWER(?) AND LOWER(u.username) = LOWER(?) AND p.parent_post_id IS NULL
-             {}
-             LIMIT ?",
-            order_clause
-        );
-
-        let mut stmt = conn.prepare(&query)?;
-
-        let posts = stmt
-            .query_map(params![hashtag_name, username, limit], map_post_row)?
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(posts)
-    }
 }
 
 fn map_post_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Post> {
@@ -394,17 +279,20 @@ fn map_post_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Post> {
     let created_at_str: String = row.get(4)?;
     let parent_post_id_str: Option<String> = row.get(7)?;
     let reply_to_user_id_str: Option<String> = row.get(9)?;
+    let community_id_str: String = row.get(11)?;
 
     Ok(Post {
         id: row::parse_uuid(&id_str, 0)?,
         author_id: row::parse_uuid(&author_id_str, 1)?,
         author_username: row.get(2)?,
+        community_id: row::parse_uuid(&community_id_str, 11)?,
         content: row.get(3)?,
         created_at: row::parse_datetime(&created_at_str, 4)?,
         upvotes: row.get(5)?,
         downvotes: row.get(6)?,
-        hashtags: Vec::new(), // Will be populated separately
-        user_vote: None,      // Will be populated by API layer if user is authenticated
+        approved: row.get::<_, i32>(12)? == 1,
+        hashtags: Vec::new(),
+        user_vote: None, // Will be populated by API layer if user is authenticated
         parent_post_id: row::parse_optional_uuid(parent_post_id_str.as_deref(), 7)?,
         reply_count: row.get(8)?,
         reply_to_user_id: row::parse_optional_uuid(reply_to_user_id_str.as_deref(), 9)?,

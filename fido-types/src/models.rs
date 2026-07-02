@@ -2,7 +2,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::enums::{ColorScheme, SortOrder, VoteDirection};
+use crate::enums::{
+    ColorScheme, DmConversationState, MembershipRole, NotificationType, SortOrder, VoteDirection,
+};
 
 // Custom serde module for DateTime to ensure RFC3339 string format
 mod datetime_format {
@@ -43,11 +45,14 @@ pub struct Post {
     pub id: Uuid,
     pub author_id: Uuid,
     pub author_username: String,
+    pub community_id: Uuid,
     pub content: String,
     #[serde(with = "datetime_format")]
     pub created_at: DateTime<Utc>,
     pub upvotes: i32,
     pub downvotes: i32,
+    /// Whether the thread is approved (top-level threads may await admin approval)
+    pub approved: bool,
     pub hashtags: Vec<String>,
     /// User's vote on this post (if authenticated)
     #[serde(default)]
@@ -146,9 +151,74 @@ impl Default for UserConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Community {
+    pub id: Uuid,
+    pub github_repo_id: i64,
+    pub owner: String,
+    pub name: String,
+    pub claimed_by: Option<Uuid>,
+    pub require_thread_approval: bool,
+    #[serde(with = "datetime_format")]
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Channel {
+    pub id: Uuid,
+    pub community_id: Uuid,
+    pub name: String,
+    #[serde(with = "datetime_format")]
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Message {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub author_id: Uuid,
+    pub content: String,
+    #[serde(with = "datetime_format")]
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Membership {
+    pub community_id: Uuid,
+    pub user_id: Uuid,
+    pub role: MembershipRole,
+    #[serde(with = "datetime_format")]
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Notification {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    #[serde(rename = "type")]
+    pub notification_type: NotificationType,
+    pub actor_id: Uuid,
+    pub subject_type: String,
+    pub subject_id: String,
+    pub read: bool,
+    #[serde(with = "datetime_format")]
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DmConversation {
+    pub user_a: Uuid,
+    pub user_b: Uuid,
+    pub state: DmConversationState,
+    pub initiator_id: Uuid,
+    #[serde(with = "datetime_format")]
+    pub created_at: DateTime<Utc>,
+}
+
 // Request/Response types for API
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreatePostRequest {
+    pub community_id: Uuid,
     pub content: String,
 }
 

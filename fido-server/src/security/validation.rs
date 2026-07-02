@@ -14,10 +14,6 @@ pub const MIN_USERNAME_LENGTH: usize = 3;
 pub const MAX_BIO_LENGTH: usize = 160;
 /// Maximum length for post content (characters)
 pub const MAX_POST_LENGTH: usize = 280;
-/// Maximum length for hashtags (characters, excluding #)
-pub const MAX_HASHTAG_LENGTH: usize = 50;
-/// Minimum length for hashtags (characters, excluding #)
-pub const MIN_HASHTAG_LENGTH: usize = 1;
 
 /// Validation error types
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
@@ -57,7 +53,7 @@ pub type ValidationResult<T> = Result<T, ValidationError>;
 /// Input validator for user-provided content
 ///
 /// Provides validation methods for various types of user input including
-/// usernames, bios, post content, and hashtags.
+/// usernames, bios, and post content.
 #[derive(Debug, Clone, Default)]
 pub struct InputValidator;
 
@@ -210,74 +206,6 @@ impl InputValidator {
         Ok(())
     }
 
-    /// Validate a hashtag
-    ///
-    /// Hashtags must:
-    /// - Be between 1 and 50 characters (excluding the # prefix)
-    /// - Contain only alphanumeric characters and underscores
-    /// - Start with a letter or number
-    ///
-    /// # Arguments
-    /// * `hashtag` - The hashtag to validate (with or without # prefix)
-    ///
-    /// # Returns
-    /// * `Ok(())` if valid
-    /// * `Err(ValidationError)` if invalid
-    pub fn validate_hashtag(&self, hashtag: &str) -> ValidationResult<()> {
-        // Remove # prefix if present
-        let tag = hashtag.trim_start_matches('#').trim();
-
-        // Check for empty
-        if tag.is_empty() {
-            return Err(ValidationError::Empty {
-                field: "Hashtag".to_string(),
-            });
-        }
-
-        // Check minimum length
-        if tag.len() < MIN_HASHTAG_LENGTH {
-            return Err(ValidationError::TooShort {
-                field: "Hashtag".to_string(),
-                min: MIN_HASHTAG_LENGTH,
-                current: tag.len(),
-            });
-        }
-
-        // Check maximum length
-        if tag.len() > MAX_HASHTAG_LENGTH {
-            return Err(ValidationError::TooLong {
-                field: "Hashtag".to_string(),
-                max: MAX_HASHTAG_LENGTH,
-                current: tag.len(),
-            });
-        }
-
-        // Check first character is alphanumeric
-        if let Some(first_char) = tag.chars().next() {
-            if !first_char.is_ascii_alphanumeric() {
-                return Err(ValidationError::InvalidCharacters {
-                    field: "Hashtag".to_string(),
-                    details: "must start with a letter or number".to_string(),
-                });
-            }
-        }
-
-        // Check all characters are valid (alphanumeric and underscore only)
-        for ch in tag.chars() {
-            if !ch.is_ascii_alphanumeric() && ch != '_' {
-                return Err(ValidationError::InvalidCharacters {
-                    field: "Hashtag".to_string(),
-                    details: format!(
-                        "only letters, numbers, and underscores are allowed (found '{}')",
-                        ch
-                    ),
-                });
-            }
-        }
-
-        Ok(())
-    }
-
     /// Check if text contains potentially dangerous patterns
     ///
     /// Detects common XSS attack patterns including:
@@ -352,11 +280,6 @@ pub fn validate_bio(bio: &str) -> ValidationResult<()> {
 /// Convenience function to validate post content
 pub fn validate_post_content(content: &str) -> ValidationResult<()> {
     InputValidator::new().validate_post_content(content)
-}
-
-/// Convenience function to validate a hashtag
-pub fn validate_hashtag(hashtag: &str) -> ValidationResult<()> {
-    InputValidator::new().validate_hashtag(hashtag)
 }
 
 #[cfg(test)]
@@ -488,60 +411,6 @@ mod tests {
         ));
     }
 
-    // Hashtag validation tests
-    #[test]
-    fn test_validate_hashtag_valid() {
-        let validator = InputValidator::new();
-        assert!(validator.validate_hashtag("rust").is_ok());
-        assert!(validator.validate_hashtag("#rust").is_ok());
-        assert!(validator.validate_hashtag("rust_lang").is_ok());
-        assert!(validator.validate_hashtag("Rust2024").is_ok());
-    }
-
-    #[test]
-    fn test_validate_hashtag_empty() {
-        let validator = InputValidator::new();
-        let result = validator.validate_hashtag("");
-        assert!(matches!(result, Err(ValidationError::Empty { .. })));
-
-        let result = validator.validate_hashtag("#");
-        assert!(matches!(result, Err(ValidationError::Empty { .. })));
-    }
-
-    #[test]
-    fn test_validate_hashtag_too_long() {
-        let validator = InputValidator::new();
-        let long_tag = "a".repeat(51);
-        let result = validator.validate_hashtag(&long_tag);
-        assert!(matches!(result, Err(ValidationError::TooLong { .. })));
-    }
-
-    #[test]
-    fn test_validate_hashtag_invalid_chars() {
-        let validator = InputValidator::new();
-        let result = validator.validate_hashtag("rust-lang");
-        assert!(matches!(
-            result,
-            Err(ValidationError::InvalidCharacters { .. })
-        ));
-
-        let result = validator.validate_hashtag("rust lang");
-        assert!(matches!(
-            result,
-            Err(ValidationError::InvalidCharacters { .. })
-        ));
-    }
-
-    #[test]
-    fn test_validate_hashtag_invalid_start() {
-        let validator = InputValidator::new();
-        let result = validator.validate_hashtag("_rust");
-        assert!(matches!(
-            result,
-            Err(ValidationError::InvalidCharacters { .. })
-        ));
-    }
-
     // Dangerous pattern detection tests
     #[test]
     fn test_dangerous_patterns_script_tags() {
@@ -580,7 +449,6 @@ mod tests {
         assert!(validate_username("alice").is_ok());
         assert!(validate_bio("Hello!").is_ok());
         assert!(validate_post_content("Hello world!").is_ok());
-        assert!(validate_hashtag("rust").is_ok());
     }
 
     #[test]

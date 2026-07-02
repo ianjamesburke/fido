@@ -161,6 +161,8 @@ pub struct App {
         Vec<tokio::task::JoinHandle<(uuid::Uuid, crate::api::ApiResult<serde_json::Value>)>>,
     /// Latest version available on crates.io (if newer than current)
     pub update_available: Option<String>,
+    /// Community whose board the composer posts to (wired by task 0011)
+    pub current_community_id: Option<Uuid>,
 }
 
 /// Settings tab state

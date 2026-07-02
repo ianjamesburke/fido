@@ -229,9 +229,12 @@ impl ApiClient {
     }
 
     /// Create a new post
-    pub async fn create_post(&self, content: String) -> ApiResult<Post> {
+    pub async fn create_post(&self, community_id: Uuid, content: String) -> ApiResult<Post> {
         let url = format!("{}/posts", self.base_url);
-        let request = CreatePostRequest { content };
+        let request = CreatePostRequest {
+            community_id,
+            content,
+        };
         let req = self.add_auth_header(self.client.post(&url).json(&request));
         let response = req.send().await?;
         self.handle_response(response).await

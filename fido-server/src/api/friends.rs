@@ -213,39 +213,3 @@ fn map_relationship(info: &RelationshipInfo) -> RelationshipStatus {
         RelationshipStatus::None
     }
 }
-
-#[cfg(all(test, feature = "sqlite-tests"))]
-mod tests {
-    use super::*;
-    use crate::db::repositories::UserRepository;
-    use crate::db::Database;
-    use crate::state::AppState;
-    use axum::http::{HeaderMap, HeaderValue};
-
-    fn setup_test_state() -> (AppState, Uuid, String) {
-        let db = Database::in_memory().expect("Failed to create test database");
-        db.seed_test_data().expect("Failed to seed test data");
-
-        let state = AppState::new(db);
-
-        // Create a test user and get session token
-        let user_repo = UserRepository::new(state.db.pool.clone());
-        let test_user = user_repo
-            .find_by_username("alice")
-            .expect("Failed to find user")
-            .expect("Alice user not found");
-
-        let session_token = state
-            .session_manager
-            .create_session(test_user.id)
-            .expect("Failed to create session");
-
-        (state, test_user.id, session_token)
-    }
-
-    fn create_headers(token: &str) -> HeaderMap {
-        let mut headers = HeaderMap::new();
-        headers.insert("X-Session-Token", HeaderValue::from_str(token).unwrap());
-        headers
-    }
-}
