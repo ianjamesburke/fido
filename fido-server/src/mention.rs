@@ -8,10 +8,10 @@ use std::sync::OnceLock;
 fn mention_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
-        // Match @username where username is alphanumeric and underscores
-        // Must be preceded by whitespace or start of string
-        // Must not be followed by alphanumeric characters
-        Regex::new(r"(?:^|[^@\w])@([a-zA-Z0-9_]+)").expect("Valid regex pattern")
+        // Match @username following GitHub login rules: alphanumeric with
+        // internal hyphens (no leading/trailing hyphen). Underscores kept for
+        // local test users. Must be preceded by whitespace or start of string.
+        Regex::new(r"(?:^|[^@\w])@([a-zA-Z0-9_]+(?:-[a-zA-Z0-9_]+)*)").expect("Valid regex pattern")
     })
 }
 
@@ -65,6 +65,15 @@ mod tests {
 
         // Duplicate mentions should only appear once
         assert_eq!(extract_mentions("@alice @bob @alice"), vec!["alice", "bob"]);
+
+        // GitHub logins allow internal hyphens
+        assert_eq!(
+            extract_mentions("cc @foo-bar and @a-b-c"),
+            vec!["foo-bar", "a-b-c"]
+        );
+
+        // Trailing hyphen is punctuation, not part of the username
+        assert_eq!(extract_mentions("@alice- hello"), vec!["alice"]);
 
         // Should not match email addresses
         assert_eq!(

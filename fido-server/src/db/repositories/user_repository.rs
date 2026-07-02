@@ -50,13 +50,14 @@ impl UserRepository {
         Ok(user)
     }
 
-    /// Get user by username
+    /// Get user by username. Case-insensitive: usernames are GitHub logins,
+    /// which GitHub treats as case-insensitive.
     pub fn get_by_username(&self, username: &str) -> Result<Option<User>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            "SELECT id, username, bio, join_date, is_test_user, is_admin 
-             FROM users 
-             WHERE username = ?",
+            "SELECT id, username, bio, join_date, is_test_user, is_admin
+             FROM users
+             WHERE username = ? COLLATE NOCASE",
         )?;
 
         let user = stmt.query_row([username], map_user_row).optional()?;
