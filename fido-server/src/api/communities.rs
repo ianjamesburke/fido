@@ -62,7 +62,6 @@ pub struct CommunityViewResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct JoinCommunityRequest {
-    pub github_repo_id: i64,
     pub owner: String,
     pub name: String,
 }
@@ -90,14 +89,7 @@ pub async fn join_community(
     validate_repo_name(&request.name, "name")?;
 
     let service = CommunityService::new(state.repos.clone(), state.github_service.clone());
-    let view = service
-        .join(
-            user_id,
-            request.github_repo_id,
-            &request.owner,
-            &request.name,
-        )
-        .await?;
+    let view = service.join(user_id, &request.owner, &request.name).await?;
 
     Ok(Json(map_community_view(view)))
 }

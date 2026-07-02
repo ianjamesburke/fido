@@ -161,8 +161,60 @@ pub struct App {
         Vec<tokio::task::JoinHandle<(uuid::Uuid, crate::api::ApiResult<serde_json::Value>)>>,
     /// Latest version available on crates.io (if newer than current)
     pub update_available: Option<String>,
-    /// Community whose board the composer posts to (wired by task 0011)
-    pub current_community_id: Option<Uuid>,
+    /// GitHub repo detected from the launch directory; decides the community
+    pub launch_repo: Option<crate::repo_context::RepoRef>,
+    /// The community whose board is currently shown
+    pub community: Option<CommunityContext>,
+    /// Why the launch repo's community could not be entered (repo mode only)
+    pub community_error: Option<String>,
+    /// Joined-communities list shown when launched outside a repo
+    pub home_state: HomeState,
+    /// Community settings modal (role, member count, claim)
+    pub show_community_modal: bool,
+}
+
+/// The community the board is scoped to, with the caller's standing in it
+#[derive(Debug, Clone)]
+pub struct CommunityContext {
+    pub id: Uuid,
+    pub owner: String,
+    pub name: String,
+    pub role: Option<fido_types::MembershipRole>,
+    pub member_count: i64,
+    pub claimed: bool,
+}
+
+impl CommunityContext {
+    pub fn full_name(&self) -> String {
+        format!("{}/{}", self.owner, self.name)
+    }
+}
+
+/// Home mode state: the joined-communities list (launched outside a repo)
+pub struct HomeState {
+    pub communities: Vec<crate::api::CommunityViewResponse>,
+    pub list_state: ListState,
+    pub loading: bool,
+    pub loaded: bool,
+    pub error: Option<String>,
+}
+
+impl HomeState {
+    pub fn new() -> Self {
+        Self {
+            communities: Vec::new(),
+            list_state: ListState::default(),
+            loading: false,
+            loaded: false,
+            error: None,
+        }
+    }
+
+    pub fn selected(&self) -> Option<&crate::api::CommunityViewResponse> {
+        self.list_state
+            .selected()
+            .and_then(|i| self.communities.get(i))
+    }
 }
 
 /// Settings tab state

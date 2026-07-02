@@ -118,6 +118,59 @@ impl GithubService {
         result
     }
 
+    /// Resolve a repo by owner/name. Uses the caller's stored token when present
+    /// (required for private repos), otherwise queries unauthenticated.
+    /// Returns Ok(None) when GitHub reports the repo does not exist (404).
+    pub async fn get_repo(
+        &self,
+        user_id: Uuid,
+        owner: &str,
+        name: &str,
+    ) -> Result<Option<GithubRepo>> {
+        let url = format!("{}/repos/{}/{}", self.api_base, owner, name);
+        let token = self.load_token(user_id)?;
+
+        let mut request = self
+            .client
+            .get(&url)
+            .header("User-Agent", GITHUB_USER_AGENT)
+            .header("Accept", GITHUB_API_ACCEPT);
+        if let Some(token) = token.as_deref() {
+            request = request.header("Authorization", format!("Bearer {}", token));
+        }
+
+        let result = async {
+            let response = request.send().await.with_context(|| {
+                format!("GitHub get_repo request failed for {}/{}", owner, name)
+            })?;
+            if response.status() == StatusCode::NOT_FOUND {
+                return Ok(None);
+            }
+            let repo = response
+                .error_for_status()
+                .with_context(|| {
+                    format!(
+                        "GitHub get_repo returned non-success status for {}/{}",
+                        owner, name
+                    )
+                })?
+                .json::<GithubRepo>()
+                .await
+                .with_context(|| {
+                    format!(
+                        "Failed to parse GitHub repo response for {}/{}",
+                        owner, name
+                    )
+                })?;
+            Ok(Some(repo))
+        }
+        .await;
+
+        let op = format!("GET /repos/{}/{}", owner, name);
+        self.log_result("get_repo", user_id, Some(&op), &result);
+        result
+    }
+
     pub async fn repo_permission(
         &self,
         user_id: Uuid,

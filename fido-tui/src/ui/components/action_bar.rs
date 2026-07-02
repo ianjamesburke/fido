@@ -13,7 +13,19 @@ pub fn action_bar_text(app: &App) -> &'static str {
 
     match app.current_tab {
         crate::app::Tab::Posts => {
-            "u/d: Vote | n: Post | f: Filter | s: Search | Space: View | p: Profile"
+            if app.show_community_modal {
+                if app.community.as_ref().map(|c| !c.claimed).unwrap_or(false) {
+                    "c: Claim admin | Esc: Close"
+                } else {
+                    "Esc: Close"
+                }
+            } else if app.community_error.is_some() {
+                "r: Retry"
+            } else if app.is_home_list_active() {
+                "↑/↓/j/k: Navigate | Enter: Open community"
+            } else {
+                "u/d: Vote | n: Post | i: Community | f: Filter | s: Search | Space: View"
+            }
         }
         crate::app::Tab::DMs => {
             let has_active_conversation = app.dms_state.selection.conversation_index().is_some();

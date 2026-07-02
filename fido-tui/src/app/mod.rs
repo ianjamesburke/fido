@@ -5,6 +5,7 @@ pub mod handlers;
 pub(crate) use error::categorize_error;
 mod auth;
 mod build;
+mod communities;
 mod composer;
 mod dms;
 mod friends;

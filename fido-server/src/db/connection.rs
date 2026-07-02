@@ -42,11 +42,11 @@ impl Database {
             return Ok(());
         }
 
-        let conn = rusqlite::Connection::open_with_flags(
-            path,
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-        )
-        .with_context(|| format!("Failed to open existing database at {}", path.display()))?;
+        let conn =
+            rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .with_context(|| {
+                    format!("Failed to open existing database at {}", path.display())
+                })?;
 
         let version: i32 = conn
             .query_row("PRAGMA user_version", [], |row| row.get(0))
@@ -92,16 +92,16 @@ impl Database {
             path.display(),
             backup.display()
         );
-        std::fs::rename(path, &backup)
-            .with_context(|| format!("Failed to archive legacy database to {}", backup.display()))?;
+        std::fs::rename(path, &backup).with_context(|| {
+            format!("Failed to archive legacy database to {}", backup.display())
+        })?;
         for suffix in ["-wal", "-shm"] {
             let sidecar = std::path::PathBuf::from(format!("{}{}", path.display(), suffix));
             if sidecar.exists() {
                 let sidecar_backup =
                     std::path::PathBuf::from(format!("{}{}", backup.display(), suffix));
-                std::fs::rename(&sidecar, &sidecar_backup).with_context(|| {
-                    format!("Failed to archive sidecar {}", sidecar.display())
-                })?;
+                std::fs::rename(&sidecar, &sidecar_backup)
+                    .with_context(|| format!("Failed to archive sidecar {}", sidecar.display()))?;
             }
         }
         Ok(())

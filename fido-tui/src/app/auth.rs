@@ -37,10 +37,15 @@ impl App {
         self.auth_state.current_user = None;
         self.current_screen = Screen::Auth;
         self.posts_state.posts.clear();
+        self.posts_state.message = None;
         self.profile_state.profile = None;
         self.dms_state.conversations.clear();
         self.dms_state.conversations_loaded = false;
         self.dms_state.messages.clear();
+        self.community = None;
+        self.community_error = None;
+        self.show_community_modal = false;
+        self.home_state = super::state::HomeState::new();
 
         // Reset GitHub Device Flow state
         self.auth_state.github_auth_in_progress = false;
@@ -125,6 +130,8 @@ impl App {
 
                 // Load filter preference
                 self.load_filter_preference();
+
+                let _ = self.init_community_context().await;
 
                 // Load posts after successful login (will use loaded settings and filter)
                 let _ = self.load_posts().await;

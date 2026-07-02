@@ -12,6 +12,20 @@ pub fn handle_posts_keys(app: &mut App, key: KeyEvent) -> Result<()> {
         return handle_post_detail_keys(app, key);
     }
 
+    // Home mode: the Posts tab shows the joined-communities list.
+    if app.is_home_list_active() {
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
+                app.next_home_community();
+            }
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => {
+                app.previous_home_community();
+            }
+            _ => {}
+        }
+        return Ok(());
+    }
+
     match key.code {
         KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
             app.next_post();
@@ -29,6 +43,11 @@ pub fn handle_posts_keys(app: &mut App, key: KeyEvent) -> Result<()> {
         }
         KeyCode::Char('s') | KeyCode::Char('S') => {
             app.open_user_search_modal();
+        }
+        KeyCode::Char('i') | KeyCode::Char('I') => {
+            if app.community.is_some() {
+                app.show_community_modal = true;
+            }
         }
         KeyCode::Char('p') | KeyCode::Char('P') => {}
         KeyCode::Enter => {}

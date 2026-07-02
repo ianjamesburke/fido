@@ -24,8 +24,11 @@ Fido is a blazing-fast, keyboard-driven terminal social platform for developers,
 The project uses a `justfile` for common development tasks. Environment variables are automatically loaded from `.env` if present.
 
 ```bash
-# Run the server
+# Run the server (writes logs/fido-server.log by default)
 just server
+
+# Run the server with fresh database (also writes logs/fido-server.log)
+just server-reset
 
 # Run the TUI client
 just tui
@@ -236,6 +239,32 @@ Configuration via `LogConfig` in `fido-tui/src/logging.rs`. See `LOGGING.md` for
 
 ## Debugging & Logging
 
+### Local Server Logs
+
+`just server` and `just server-reset` write startup and runtime output to `logs/fido-server.log` by default while still echoing to the terminal. The recipes cap the active log at 10 MiB by default and rotate one previous file to `logs/fido-server.log.1`.
+
+```bash
+just server
+just server-reset
+```
+
+Tail the current local server log with:
+
+```bash
+just server-log
+# or
+tail -f logs/fido-server.log
+```
+
+Override log path or size only when needed:
+
+```bash
+FIDO_SERVER_LOG=/tmp/fido-server.log just server-reset
+FIDO_SERVER_LOG_MAX_BYTES=20971520 just server
+```
+
+If a server is already running from an older direct command and `lsof -p <pid>` shows stdout/stderr attached to `/dev/tty*`, past startup logs are only in that terminal's scrollback. Restart with `just server` or `just server-reset` before debugging startup behavior.
+
 ### Cohesive Logging System
 Fido uses a unified logging system built on Rust's `log` and `simplelog` crates with configurable features.
 
@@ -338,8 +367,14 @@ mod tests {
 ```
 
 ### Integration Testing
-- **Server**: Test API endpoints with in-memory SQLite database
-- **End-to-End**: Test full stack with Docker containers
+- **Server**: Test API endpoints with in-memory SQLite database (`cargo test -p fido-server --features sqlite-tests`); `fido-server/tests/e2e_community_rewrite.rs` spins a real server plus a GitHub API fixture server via `GITHUB_API_BASE`.
+- **TUI End-to-End**: `just e2e-tui` (`scripts/e2e_tui.sh`) builds the real binaries, starts `fido-server` with a temp DB and a stubbed GitHub API (`scripts/github_stub.py`), then drives the TUI inside a detached tmux session with `send-keys`, asserting on `capture-pane` output, the SQLite database, and log files. Covers: test-user login, directory-scoped community join (launching inside a git repo with a GitHub origin), posting, the community settings modal, and Home mode outside a repo. On failure it dumps the pane, server log tail, and keeps artifacts in the temp workdir. Use this harness to verify TUI changes for real — don't stop at unit tests.
+
+### Directory-Scoped Communities
+The launch directory decides the community (see `docs/superpowers/specs/2026-07-02-directory-scoped-communities-design.md`):
+- Inside a git repo with a GitHub `origin`: the TUI joins that repo's community (lazily created server-side) and opens its board. Detection in `fido-tui/src/repo_context.rs`.
+- Anywhere else: Home mode — the Posts tab lists joined communities (Enter opens, Esc returns).
+- `i` on a board opens the community settings modal (role, member count, claim admin via GitHub permission check).
 
 ## Performance Characteristics
 

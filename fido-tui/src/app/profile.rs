@@ -25,29 +25,35 @@ impl App {
             }
 
             // Load user's posts
-            match self
-                .api_client
-                .get_posts(
-                    Some(100),
-                    Some("Newest".to_string()),
-                    None,
-                    Some(user.username.clone()),
-                )
-                .await
-            {
-                Ok(posts) => {
-                    self.profile_state.user_posts = posts;
-                    if !self.profile_state.user_posts.is_empty() {
-                        self.profile_state.list_state.select(Some(0));
-                    } else {
-                        self.profile_state.list_state.select(None);
+            if let Some(community_id) = self.community.as_ref().map(|c| c.id) {
+                match self
+                    .api_client
+                    .get_posts(
+                        community_id,
+                        Some(100),
+                        Some("Newest".to_string()),
+                        None,
+                        Some(user.username.clone()),
+                    )
+                    .await
+                {
+                    Ok(posts) => {
+                        self.profile_state.user_posts = posts;
+                        if !self.profile_state.user_posts.is_empty() {
+                            self.profile_state.list_state.select(Some(0));
+                        } else {
+                            self.profile_state.list_state.select(None);
+                        }
+                    }
+                    Err(e) => {
+                        let error_msg = categorize_error(&e.to_string());
+                        self.profile_state.error =
+                            Some(format!("{} (Switch tabs to retry)", error_msg));
                     }
                 }
-                Err(e) => {
-                    let error_msg = categorize_error(&e.to_string());
-                    self.profile_state.error =
-                        Some(format!("{} (Switch tabs to retry)", error_msg));
-                }
+            } else {
+                self.profile_state.user_posts.clear();
+                self.profile_state.list_state.select(None);
             }
 
             self.profile_state.loading = false;

@@ -2,6 +2,18 @@ use super::*;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use fido_types::Post;
 
+/// Put the app on a community board (the launch-repo path in production).
+fn set_test_community(app: &mut App) {
+    app.community = Some(crate::app::state::CommunityContext {
+        id: uuid::Uuid::new_v4(),
+        owner: "testowner".to_string(),
+        name: "testrepo".to_string(),
+        role: Some(fido_types::MembershipRole::Member),
+        member_count: 1,
+        claimed: false,
+    });
+}
+
 /// Helper to create a KeyEvent
 fn key_event(code: KeyCode) -> KeyEvent {
     let mut event = KeyEvent::new(code, KeyModifiers::empty());
@@ -129,6 +141,76 @@ fn test_escape_exits_app_when_no_modals() {
     app.handle_key_event(key_event(KeyCode::Esc)).unwrap();
 
     assert!(!app.running, "App should stop running");
+}
+
+#[test]
+fn test_escape_returns_to_home_list_from_opened_community() {
+    let mut app = App::new();
+    app.current_screen = Screen::Main;
+    app.current_tab = Tab::Posts;
+    app.running = true;
+    // Home mode (no launch repo) with a community opened from the list
+    app.launch_repo = None;
+    set_test_community(&mut app);
+
+    app.handle_key_event(key_event(KeyCode::Esc)).unwrap();
+
+    assert!(app.community.is_none(), "Board should close back to Home");
+    assert!(app.running, "App should still be running");
+
+    // Second Escape from the Home list quits
+    app.handle_key_event(key_event(KeyCode::Esc)).unwrap();
+    assert!(!app.running, "App should stop running from Home");
+}
+
+#[test]
+fn test_escape_quits_in_repo_mode() {
+    let mut app = App::new();
+    app.current_screen = Screen::Main;
+    app.current_tab = Tab::Posts;
+    app.running = true;
+    // Repo mode: launch repo decides the community; there is no list to return to
+    app.launch_repo = Some(crate::repo_context::RepoRef {
+        owner: "testowner".to_string(),
+        name: "testrepo".to_string(),
+    });
+    set_test_community(&mut app);
+
+    app.handle_key_event(key_event(KeyCode::Esc)).unwrap();
+    assert!(!app.running, "Esc quits directly in repo mode");
+}
+
+#[test]
+fn test_i_opens_community_modal_and_escape_closes_it() {
+    let mut app = App::new();
+    app.current_screen = Screen::Main;
+    app.current_tab = Tab::Posts;
+    app.input_mode = InputMode::Navigation;
+    set_test_community(&mut app);
+
+    app.handle_key_event(key_event(KeyCode::Char('i'))).unwrap();
+    assert!(app.show_community_modal, "'i' opens the community modal");
+
+    app.handle_key_event(key_event(KeyCode::Esc)).unwrap();
+    assert!(!app.show_community_modal, "Esc closes the community modal");
+    assert!(app.community.is_some(), "Board stays open behind the modal");
+}
+
+#[test]
+fn test_home_list_navigation_keys() {
+    let mut app = App::new();
+    app.current_screen = Screen::Main;
+    app.current_tab = Tab::Posts;
+    app.input_mode = InputMode::Navigation;
+    // Home mode with no community selected
+    assert!(app.is_home_list_active());
+
+    // 'n' must not open the composer while the home list is active
+    app.handle_key_event(key_event(KeyCode::Char('n'))).unwrap();
+    assert!(
+        app.composer_state.mode.is_none(),
+        "Composer must not open from the Home list"
+    );
 }
 
 #[test]
@@ -384,6 +466,7 @@ fn test_n_shows_new_post_modal_on_posts_tab() {
     app.current_screen = Screen::Main;
     app.current_tab = Tab::Posts;
     app.input_mode = InputMode::Navigation;
+    set_test_community(&mut app);
 
     // Press 'n'
     let key = key_event(KeyCode::Char('n'));
@@ -508,6 +591,7 @@ fn test_navigation_mode_allows_shortcuts() {
     app.current_screen = Screen::Main;
     app.current_tab = Tab::Posts;
     app.input_mode = InputMode::Navigation;
+    set_test_community(&mut app);
 
     // Add some posts
     app.posts_state.posts = vec![Post {
