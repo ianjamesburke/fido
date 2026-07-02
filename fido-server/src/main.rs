@@ -162,16 +162,16 @@ async fn main() {
                 db
             }
             Err(e) => {
-                tracing::error!("Failed to create database: {}", e);
-                eprintln!("FATAL: Failed to create database: {}", e);
+                tracing::error!("Failed to create database: {:#}", e);
+                eprintln!("FATAL: Failed to create database: {:#}", e);
                 std::process::exit(1);
             }
         };
 
         tracing::info!("Initializing database schema...");
         if let Err(e) = db.initialize() {
-            tracing::error!("Failed to initialize database schema: {}", e);
-            eprintln!("FATAL: Failed to initialize database schema: {}", e);
+            tracing::error!("Failed to initialize database schema: {:#}", e);
+            eprintln!("FATAL: Failed to initialize database schema: {:#}", e);
             std::process::exit(1);
         }
         tracing::info!("Database schema initialized successfully");

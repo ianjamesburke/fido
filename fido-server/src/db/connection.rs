@@ -8,6 +8,10 @@ use super::schema::{SCHEMA, TEST_DATA};
 /// SQLite in-memory database identifier
 const MEMORY_DB_PATH: &str = ":memory:";
 
+/// Current schema generation, stamped into `PRAGMA user_version`.
+/// v2 is the community rewrite (communities/channels/messages/notifications).
+const SCHEMA_VERSION: i32 = 2;
+
 pub type DbPool = Pool<SqliteConnectionManager>;
 pub type DbConnection = PooledConnection<SqliteConnectionManager>;
 
@@ -20,9 +24,87 @@ pub struct Database {
 impl Database {
     /// Create a new database connection pool
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let manager = Self::create_connection_manager(path)?;
+        let path_str = path.as_ref().to_string_lossy();
+        if !path_str.trim().eq_ignore_ascii_case(MEMORY_DB_PATH) {
+            Self::archive_if_legacy(path.as_ref())?;
+        }
+        let manager = Self::create_connection_manager(&path)?;
         let pool = Pool::new(manager).context("Failed to create database connection pool")?;
         Ok(Self { pool })
+    }
+
+    /// The v2 rewrite ships a fresh schema with no migration path (design
+    /// decision, stint 0003: no production data preserved). A pre-v2 database
+    /// file cannot be initialized in place, so archive it aside and let a
+    /// fresh v2 database be created at the original path.
+    fn archive_if_legacy(path: &Path) -> Result<()> {
+        if !path.exists() {
+            return Ok(());
+        }
+
+        let conn = rusqlite::Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .with_context(|| format!("Failed to open existing database at {}", path.display()))?;
+
+        let version: i32 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .context("Failed to read database user_version")?;
+        if version >= SCHEMA_VERSION {
+            return Ok(());
+        }
+
+        // user_version 0 is also what a brand-new empty file reports; only
+        // treat the file as legacy if it actually contains a pre-v2 schema
+        // (a posts table without community scoping, or hashtag tables).
+        let posts_missing_community: bool = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='posts')
+                 AND NOT EXISTS(SELECT 1 FROM pragma_table_info('posts') WHERE name='community_id')",
+                [],
+                |row| row.get(0),
+            )
+            .context("Failed to inspect posts table shape")?;
+        let has_hashtag_tables: bool = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='hashtags')",
+                [],
+                |row| row.get(0),
+            )
+            .context("Failed to inspect hashtag tables")?;
+        drop(conn);
+
+        if !posts_missing_community && !has_hashtag_tables {
+            return Ok(());
+        }
+
+        let backup = path.with_extension("v1.bak");
+        if backup.exists() {
+            anyhow::bail!(
+                "Legacy v1 database found at {} but backup target {} already exists; move it aside manually",
+                path.display(),
+                backup.display()
+            );
+        }
+        tracing::warn!(
+            "Legacy v1 database detected at {}; archiving to {} and starting fresh (v2 has no migration path)",
+            path.display(),
+            backup.display()
+        );
+        std::fs::rename(path, &backup)
+            .with_context(|| format!("Failed to archive legacy database to {}", backup.display()))?;
+        for suffix in ["-wal", "-shm"] {
+            let sidecar = std::path::PathBuf::from(format!("{}{}", path.display(), suffix));
+            if sidecar.exists() {
+                let sidecar_backup =
+                    std::path::PathBuf::from(format!("{}{}", backup.display(), suffix));
+                std::fs::rename(&sidecar, &sidecar_backup).with_context(|| {
+                    format!("Failed to archive sidecar {}", sidecar.display())
+                })?;
+            }
+        }
+        Ok(())
     }
 
     /// Create appropriate connection manager based on path
@@ -121,6 +203,9 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_github_tokens_updated_at ON github_tokens(updated_at);",
         );
 
+        conn.pragma_update(None, "user_version", SCHEMA_VERSION)
+            .context("Failed to stamp schema version")?;
+
         Ok(())
     }
 
@@ -215,6 +300,60 @@ mod tests {
 
         // Cleanup
         let _ = std::fs::remove_file(temp_path);
+    }
+
+    #[test]
+    fn test_legacy_v1_database_is_archived_and_rebuilt() {
+        let dir = std::env::temp_dir().join(format!("fido-legacy-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let db_path = dir.join("fido.db");
+
+        // Fabricate a v1 database: posts without community_id, plus hashtags.
+        {
+            let conn = rusqlite::Connection::open(&db_path).expect("open v1 db");
+            conn.execute_batch(
+                "CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT);
+                 CREATE TABLE posts (id TEXT PRIMARY KEY, author_id TEXT, content TEXT);
+                 CREATE TABLE hashtags (id TEXT PRIMARY KEY, name TEXT);
+                 INSERT INTO users VALUES ('u1', 'old-user');",
+            )
+            .expect("create v1 schema");
+        }
+
+        let db = Database::new(&db_path).expect("open archives legacy db");
+        db.initialize().expect("fresh v2 schema initializes");
+
+        let backup = db_path.with_extension("v1.bak");
+        assert!(backup.exists(), "legacy file should be archived");
+
+        let conn = db.connection().expect("connection");
+        let has_community_id: bool = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM pragma_table_info('posts') WHERE name='community_id')",
+                [],
+                |row| row.get(0),
+            )
+            .expect("inspect posts");
+        assert!(has_community_id, "rebuilt posts table is v2-shaped");
+        let old_users: i32 = conn
+            .query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))
+            .expect("count users");
+        assert_eq!(old_users, 0, "fresh database has no v1 rows");
+        let version: i32 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .expect("read version");
+        assert_eq!(version, SCHEMA_VERSION);
+
+        // Re-opening the rebuilt database must NOT archive it again.
+        drop(conn);
+        let db2 = Database::new(&db_path).expect("reopen v2 db");
+        db2.initialize().expect("reinitialize is idempotent");
+        assert!(
+            !db_path.with_extension("v1.bak.v1.bak").exists(),
+            "v2 database must never be re-archived"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
