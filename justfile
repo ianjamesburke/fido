@@ -67,11 +67,15 @@ deploy:
 
 # Publish crates to crates.io in dependency order (no auto-bump).
 # Usage:
-#   just deploy-cargo
-#   just deploy-cargo dry-run=true
-deploy-cargo dry-run="false":
+#   just deploy-cargo          # real publish
+#   just deploy-cargo-dry      # dry-run only, never publishes
+deploy-cargo:
     chmod +x ./scripts/deploy-cargo.sh
-    if [ "{{dry-run}}" = "true" ]; then ./scripts/deploy-cargo.sh --dry-run; else ./scripts/deploy-cargo.sh; fi
+    ./scripts/deploy-cargo.sh
+
+deploy-cargo-dry:
+    chmod +x ./scripts/deploy-cargo.sh
+    ./scripts/deploy-cargo.sh --dry-run
 
 # Bump version in workspace Cargo.toml (patch, minor, or major)
 # Usage:
