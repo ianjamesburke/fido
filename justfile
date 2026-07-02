@@ -56,6 +56,11 @@ web:
 test:
     cargo test --workspace
 
+# End-to-end test: drive the real TUI in tmux against a real local server
+e2e-tui:
+    chmod +x ./scripts/e2e_tui.sh
+    ./scripts/e2e_tui.sh
+
 # Deploy to Railway (triggers rebuild from current branch)
 deploy:
     railway up

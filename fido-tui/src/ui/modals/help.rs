@@ -245,8 +245,20 @@ pub fn add_posts_feed_shortcuts(
     app: &mut App,
     shortcuts: &mut Vec<(&'static str, Vec<(&'static str, &'static str)>)>,
 ) {
+    if app.is_home_list_active() {
+        shortcuts.push((
+            "Home",
+            vec![
+                ("↓/j", "Next community"),
+                ("↑/k", "Previous community"),
+                ("Enter", "Open community board"),
+            ],
+        ));
+        return;
+    }
+
     shortcuts.push((
-        "Posts Tab",
+        "Board",
         vec![
             ("↓/j", "Next post"),
             ("↑/k", "Previous post"),
@@ -254,6 +266,7 @@ pub fn add_posts_feed_shortcuts(
             ("u", "Upvote selected post"),
             ("d", "Downvote selected post"),
             ("n", "New post"),
+            ("i", "Community info & settings"),
             ("f", "Filter posts"),
             ("s", "Search users"),
             ("p", "View author profile"),
