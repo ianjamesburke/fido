@@ -7,6 +7,7 @@ mod config_repository;
 mod dm_conversation_repository;
 mod dm_repository;
 mod friend_repository;
+mod github_token_repository;
 mod membership_repository;
 mod message_repository;
 mod notification_repository;
@@ -23,6 +24,7 @@ pub use config_repository::ConfigRepository;
 pub use dm_conversation_repository::DmConversationRepository;
 pub use dm_repository::DirectMessageRepository;
 pub use friend_repository::FriendRepository;
+pub use github_token_repository::GitHubTokenRepository;
 pub use membership_repository::MembershipRepository;
 pub use message_repository::MessageRepository;
 pub use notification_repository::NotificationRepository;
@@ -44,6 +46,7 @@ pub struct Repositories {
     pub votes: VoteRepository,
     pub users: UserRepository,
     pub friends: FriendRepository,
+    pub github_tokens: GitHubTokenRepository,
     pub config: ConfigRepository,
     pub rate_limits: RateLimitRepository,
     pub dms: DirectMessageRepository,
@@ -64,6 +67,7 @@ impl Repositories {
             votes: VoteRepository::new(pool.clone()),
             users: UserRepository::new(pool.clone()),
             friends: FriendRepository::new(pool.clone()),
+            github_tokens: GitHubTokenRepository::new(pool.clone()),
             config: ConfigRepository::new(pool.clone()),
             rate_limits: RateLimitRepository::new(pool.clone()),
             dms: DirectMessageRepository::new(pool.clone()),

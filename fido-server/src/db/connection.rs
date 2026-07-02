@@ -110,6 +110,17 @@ impl Database {
             [],
         );
 
+        let _ = conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS github_tokens (
+                user_id TEXT PRIMARY KEY,
+                encrypted_token TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_github_tokens_updated_at ON github_tokens(updated_at);",
+        );
+
         Ok(())
     }
 
@@ -294,5 +305,14 @@ mod tests {
             user_indexes.iter().any(|idx| idx.contains("github_id")),
             "Should have index on github_id"
         );
+
+        let github_tokens_exists: i32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='github_tokens'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to check github_tokens table");
+        assert_eq!(github_tokens_exists, 1, "github_tokens table should exist");
     }
 }

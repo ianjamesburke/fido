@@ -174,6 +174,15 @@ CREATE TABLE IF NOT EXISTS user_configs (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- GitHub OAuth tokens (encrypted at rest)
+CREATE TABLE IF NOT EXISTS github_tokens (
+    user_id TEXT PRIMARY KEY,
+    encrypted_token TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- Post rate limiting table
 CREATE TABLE IF NOT EXISTS post_rate_limits (
     user_id TEXT PRIMARY KEY,

@@ -40,3 +40,5 @@ r2d2_sqlite = "0.31.0"
 regex = "1.10"
 once_cell = "1.19"
 lazy_static = "1.4"
+base64.workspace = true
+aes-gcm-siv.workspace = true

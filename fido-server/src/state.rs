@@ -1,7 +1,9 @@
 use crate::db::repositories::Repositories;
 use crate::db::Database;
 use crate::security::AuditLogger;
+use crate::services::github::GithubService;
 use crate::session::SessionManager;
+use anyhow::Result;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -10,24 +12,27 @@ pub struct AppState {
     pub repos: Repositories,
     pub session_manager: SessionManager,
     pub audit_logger: AuditLogger,
+    pub github_service: GithubService,
 }
 
 impl AppState {
     #[allow(dead_code)]
-    pub fn new(db: Database) -> Self {
+    pub fn new(db: Database) -> Result<Self> {
         let repos = Repositories::new(db.pool.clone());
         Self::new_with_repos(db, repos)
     }
 
-    pub fn new_with_repos(db: Database, repos: Repositories) -> Self {
+    pub fn new_with_repos(db: Database, repos: Repositories) -> Result<Self> {
         let session_manager = SessionManager::new(repos.sessions.clone());
         let audit_logger = AuditLogger::new(repos.audit.clone());
-        Self {
+        let github_service = GithubService::from_env(repos.clone())?;
+        Ok(Self {
             db,
             repos,
             session_manager,
             audit_logger,
-        }
+            github_service,
+        })
     }
 
     /// Get authenticated user ID from session token

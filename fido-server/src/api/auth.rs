@@ -172,6 +172,12 @@ pub async fn logout(
         .delete_session(&session_token)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
 
+    if let Some(user_id) = user_id {
+        if let Err(error) = state.github_service.revoke_and_delete_token(user_id).await {
+            tracing::warn!(%user_id, %error, "Best-effort GitHub token cleanup failed on logout");
+        }
+    }
+
     // Log session revocation
     let _ = state.audit_logger.log(
         AuditEvent::new(AuditEventType::SessionRevoked)
@@ -350,7 +356,7 @@ pub async fn github_device_poll(
 
     // Fetch GitHub user profile
     let github_user = oauth_config
-        .get_user(access_token)
+        .get_user(&access_token)
         .await
         .map_err(|e| ApiError::InternalError(format!("Failed to fetch GitHub user: {}", e)))?;
 
@@ -370,6 +376,11 @@ pub async fn github_device_poll(
             github_user.name.as_deref(),
         )
         .map_err(|e| ApiError::InternalError(format!("Failed to create/update user: {}", e)))?;
+
+    state
+        .github_service
+        .store_token(user.id, &access_token)
+        .map_err(|e| ApiError::InternalError(format!("Failed to persist GitHub token: {}", e)))?;
 
     // Create session
     let session_token = state

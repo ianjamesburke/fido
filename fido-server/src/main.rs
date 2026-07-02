@@ -189,7 +189,14 @@ async fn main() {
     let repos = Repositories::new(db.pool.clone());
 
     // Create application state
-    let state = AppState::new_with_repos(db, repos);
+    let state = match AppState::new_with_repos(db, repos) {
+        Ok(state) => state,
+        Err(e) => {
+            tracing::error!("Failed to build application state: {}", e);
+            eprintln!("FATAL: Failed to build application state: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     // Run initial session cleanup on startup
     tracing::info!("Running initial session cleanup...");
