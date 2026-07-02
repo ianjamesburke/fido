@@ -36,6 +36,23 @@ impl DmConversationRepository {
         Ok(conversation)
     }
 
+    /// List pending request conversations where `recipient_id` is not the initiator.
+    pub fn list_pending_for_recipient(&self, recipient_id: &Uuid) -> Result<Vec<DmConversation>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT user_a, user_b, state, initiator_id, created_at FROM dm_conversations
+             WHERE state = 'pending'
+               AND (user_a = ? OR user_b = ?)
+               AND initiator_id != ?
+             ORDER BY created_at DESC",
+        )?;
+        let recipient = recipient_id.to_string();
+        let conversations = stmt
+            .query_map((&recipient, &recipient, &recipient), map_conversation_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(conversations)
+    }
+
     /// Create a conversation for a pair of users, in any argument order.
     pub fn create(
         &self,
