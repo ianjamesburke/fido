@@ -42,3 +42,6 @@ logs/
 .firebase/
 .plexi-beta/
 .stint/
+.claude/
+worktrees/
+.codex/
