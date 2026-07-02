@@ -19,29 +19,16 @@ impl PostService {
         &self,
         sort_order: SortOrder,
         limit: i32,
-        hashtag: Option<&str>,
         username: Option<&str>,
         user_id: Option<Uuid>,
     ) -> ApiResult<Vec<Post>> {
-        let mut posts = match (hashtag, username) {
-            (Some(tag), Some(user)) => self
-                .repos
-                .posts
-                .get_posts_by_hashtag_and_username(tag, user, sort_order, limit)?,
-            (Some(tag), None) => self
-                .repos
-                .posts
-                .get_posts_by_hashtag(tag, sort_order, limit)?,
-            (None, Some(user)) => self
+        let mut posts = match username {
+            Some(user) => self
                 .repos
                 .posts
                 .get_posts_by_username(user, sort_order, limit)?,
-            (None, None) => self.repos.posts.get_posts(sort_order, limit)?,
+            None => self.repos.posts.get_posts(sort_order, limit)?,
         };
-
-        if let (Some(tag), Some(uid)) = (hashtag, user_id) {
-            let _ = self.repos.hashtags.increment_activity(&uid, tag);
-        }
 
         self.populate_posts(&mut posts, user_id)?;
 
@@ -102,16 +89,6 @@ impl PostService {
         Ok(())
     }
 
-    pub fn store_hashtags(&self, post_id: &Uuid, hashtags: &[String]) -> ApiResult<()> {
-        self.repos.hashtags.store_hashtags(post_id, hashtags)?;
-        Ok(())
-    }
-
-    pub fn delete_post_hashtags(&self, post_id: &Uuid) -> ApiResult<()> {
-        self.repos.hashtags.delete_by_post(post_id)?;
-        Ok(())
-    }
-
     pub fn update_post_content(&self, post_id: &Uuid, content: &str) -> ApiResult<()> {
         self.repos.posts.update_content(post_id, content)?;
         Ok(())
@@ -136,16 +113,7 @@ impl PostService {
         self.repos.votes.upsert_vote(user_id, post_id, direction)?;
         self.repos.posts.update_vote_counts(post_id)?;
 
-        let hashtags = self.repos.hashtags.get_by_post(post_id)?;
-        for hashtag in hashtags {
-            let _ = self.repos.hashtags.increment_activity(user_id, &hashtag);
-        }
-
         Ok(())
-    }
-
-    pub fn increment_hashtag_activity(&self, user_id: &Uuid, hashtag: &str) {
-        let _ = self.repos.hashtags.increment_activity(user_id, hashtag);
     }
 
     pub fn verify_ownership(&self, user_id: &Uuid, post_id: &Uuid) -> ApiResult<()> {
@@ -172,8 +140,6 @@ impl PostService {
     }
 
     fn populate_post(&self, post: &mut Post, user_id: Option<Uuid>) -> ApiResult<()> {
-        post.hashtags = self.repos.hashtags.get_by_post(&post.id)?;
-
         if let Some(uid) = user_id {
             if let Ok(Some(vote)) = self.repos.votes.get_vote(&uid, &post.id) {
                 post.user_vote = Some(vote.direction.as_str().to_string());

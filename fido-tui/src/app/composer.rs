@@ -173,7 +173,15 @@ impl App {
         match &self.composer_state.mode {
             Some(ComposerMode::NewPost) => {
                 self.posts_state.error = None;
-                match self.api_client.create_post(parsed_content).await {
+                let Some(community_id) = self.current_community_id else {
+                    self.posts_state.error = Some("No community selected".to_string());
+                    return Ok(());
+                };
+                match self
+                    .api_client
+                    .create_post(community_id, parsed_content)
+                    .await
+                {
                     Ok(_) => {
                         self.close_composer();
                         self.load_posts().await?;

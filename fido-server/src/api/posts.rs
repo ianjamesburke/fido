@@ -9,7 +9,6 @@ use uuid::Uuid;
 
 use crate::{
     api::{ApiError, ApiResult},
-    hashtag::extract_hashtags,
     http::{extract_client_ip, extract_user_agent, AuthenticatedUser, OptionalUser},
     security::validation::validate_post_content,
     security::{AuditEvent, AuditEventType},
@@ -63,8 +62,6 @@ pub struct GetPostsQuery {
     #[serde(default)]
     sort: Option<String>,
     #[serde(default)]
-    hashtag: Option<String>,
-    #[serde(default)]
     username: Option<String>,
 }
 
@@ -72,7 +69,7 @@ fn default_limit() -> i32 {
     25
 }
 
-/// GET /posts - Get posts with sorting and limit (optionally filtered by hashtag)
+/// GET /posts - Get posts with sorting and limit (optionally filtered by username)
 pub async fn get_posts(
     State(state): State<AppState>,
     OptionalUser(user_id): OptionalUser,
@@ -92,13 +89,7 @@ pub async fn get_posts(
         SortOrder::Newest
     };
 
-    let posts = service.get_posts(
-        sort_order,
-        query.limit,
-        query.hashtag.as_deref(),
-        query.username.as_deref(),
-        user_id,
-    )?;
+    let posts = service.get_posts(sort_order, query.limit, query.username.as_deref(), user_id)?;
 
     Ok(Json(posts))
 }
@@ -132,19 +123,18 @@ pub async fn create_post(
     // Get author username
     let author = service.get_user_by_id(&author_id)?;
 
-    // Extract hashtags using the new hashtag module
-    let hashtags = extract_hashtags(&payload.content);
-
     // Create post
     let post = Post {
         id: Uuid::new_v4(),
         author_id,
         author_username: author.username,
+        community_id: payload.community_id,
         content: payload.content,
         created_at: Utc::now(),
         upvotes: 0,
         downvotes: 0,
-        hashtags: hashtags.clone(),
+        approved: true,
+        hashtags: Vec::new(),
         user_vote: None,        // New posts have no votes yet
         parent_post_id: None,   // Top-level post
         reply_count: 0,         // Will be calculated dynamically
@@ -157,16 +147,6 @@ pub async fn create_post(
 
     // Update rate limit timestamp
     update_post_rate_limit(&state, &author_id)?;
-
-    // Store hashtags and track activity
-    if !hashtags.is_empty() {
-        service.store_hashtags(&post.id, &hashtags)?;
-
-        // Track user activity for each hashtag
-        for hashtag in &hashtags {
-            service.increment_hashtag_activity(&author_id, hashtag);
-        }
-    }
 
     Ok(Json(post))
 }
@@ -253,9 +233,6 @@ pub async fn create_reply(
     // Get author username
     let author = service.get_user_by_id(&author_id)?;
 
-    // Extract hashtags using the hashtag module
-    let hashtags = extract_hashtags(&payload.content);
-
     // Determine who is being replied to - always the direct parent's author
     let reply_to_user_id = Some(target_post.author_id);
     let reply_to_username = Some(target_post.author_username.clone());
@@ -280,11 +257,13 @@ pub async fn create_reply(
         id: Uuid::new_v4(),
         author_id,
         author_username: author.username,
+        community_id: target_post.community_id,
         content: final_content,
         created_at: Utc::now(),
         upvotes: 0,
         downvotes: 0,
-        hashtags: hashtags.clone(),
+        approved: true,
+        hashtags: Vec::new(),
         user_vote: None,
         parent_post_id: Some(actual_parent_id),
         reply_count: 0, // Will be calculated dynamically
@@ -297,16 +276,6 @@ pub async fn create_reply(
 
     // Update rate limit timestamp (replies count toward rate limit)
     update_post_rate_limit(&state, &author_id)?;
-
-    // Store hashtags and track activity
-    if !hashtags.is_empty() {
-        service.store_hashtags(&reply.id, &hashtags)?;
-
-        // Track user activity for each hashtag
-        for hashtag in &hashtags {
-            service.increment_hashtag_activity(&author_id, hashtag);
-        }
-    }
 
     Ok(Json(reply))
 }
@@ -348,19 +317,8 @@ pub async fn update_post(
     // Update content
     post.content = payload.content.clone();
 
-    // Extract new hashtags using the new hashtag module
-    let new_hashtags = extract_hashtags(&payload.content);
-    post.hashtags = new_hashtags.clone();
-
     // Update post in database
     service.update_post_content(&post_id, &payload.content)?;
-
-    // Update hashtags (delete old ones and insert new ones)
-    service.delete_post_hashtags(&post_id)?;
-
-    if !new_hashtags.is_empty() {
-        service.store_hashtags(&post_id, &new_hashtags)?;
-    }
 
     Ok(Json(post))
 }
@@ -382,7 +340,7 @@ pub async fn delete_post(
     // Check if post exists
     let _ = service.get_post(&post_id, None)?;
 
-    // Delete post (cascade will handle replies, hashtags, and votes)
+    // Delete post (cascade will handle replies and votes)
     service.delete_post(&post_id)?;
 
     Ok(Json(serde_json::json!({

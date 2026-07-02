@@ -1,7 +1,6 @@
 mod api;
 mod config;
 mod db;
-mod hashtag;
 mod http;
 mod mention;
 mod oauth;
@@ -19,8 +18,8 @@ use axum::{
     Router,
 };
 use clap::Parser;
-use rate_limit::RateLimiter;
 use db::repositories::Repositories;
+use rate_limit::RateLimiter;
 use state::AppState;
 use std::net::SocketAddr;
 use tower_http::limit::RequestBodyLimitLayer;
@@ -288,7 +287,6 @@ async fn main() {
         // Profile routes
         .route("/users/:id/profile", get(api::profile::get_profile))
         .route("/users/:id/profile", put(api::profile::update_profile))
-        .route("/users/:id/hashtags", get(api::profile::get_user_hashtags))
         // DM routes
         .route("/dms/conversations", get(api::dms::get_conversations))
         .route(
@@ -307,18 +305,6 @@ async fn main() {
         // Config routes
         .route("/config", get(api::config::get_config))
         .route("/config", put(api::config::update_config))
-        // Hashtag routes
-        .route(
-            "/hashtags/followed",
-            get(api::hashtags::get_followed_hashtags),
-        )
-        .route("/hashtags/follow", post(api::hashtags::follow_hashtag))
-        .route(
-            "/hashtags/follow/:name",
-            delete(api::hashtags::unfollow_hashtag),
-        )
-        .route("/hashtags/search", get(api::hashtags::search_hashtags))
-        .route("/hashtags/active", get(api::hashtags::get_active_hashtags))
         // User routes
         .route("/users/search", get(api::friends::search_users))
         .route(

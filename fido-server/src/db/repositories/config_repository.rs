@@ -42,10 +42,9 @@ impl ConfigRepository {
             .optional()?;
 
         // Return default config if not found
-        Ok(config.unwrap_or_else(|| {
-            let mut default = UserConfig::default();
-            default.user_id = *user_id;
-            default
+        Ok(config.unwrap_or_else(|| UserConfig {
+            user_id: *user_id,
+            ..Default::default()
         }))
     }
 
@@ -77,8 +76,10 @@ impl ConfigRepository {
     /// Create default configuration for a user
     #[allow(dead_code)]
     pub fn create_default(&self, user_id: &Uuid) -> Result<()> {
-        let mut config = UserConfig::default();
-        config.user_id = *user_id;
+        let config = UserConfig {
+            user_id: *user_id,
+            ..Default::default()
+        };
         self.update(&config)
     }
 }

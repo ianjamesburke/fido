@@ -258,10 +258,7 @@ mod tests {
         assert_eq!(Environment::parse("production"), Environment::Production);
         assert_eq!(Environment::parse("prod"), Environment::Production);
         assert_eq!(Environment::parse("PRODUCTION"), Environment::Production);
-        assert_eq!(
-            Environment::parse("development"),
-            Environment::Development
-        );
+        assert_eq!(Environment::parse("development"), Environment::Development);
         assert_eq!(Environment::parse("dev"), Environment::Development);
         assert_eq!(Environment::parse("anything"), Environment::Development);
     }

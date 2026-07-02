@@ -71,18 +71,3 @@ pub async fn update_profile(
         "user_id": user_id
     })))
 }
-
-/// GET /users/:id/hashtags - Get recent hashtags for user
-pub async fn get_user_hashtags(
-    State(state): State<AppState>,
-    Path(user_id): Path<String>,
-) -> ApiResult<Json<Vec<String>>> {
-    // Parse user ID
-    let user_id = Uuid::parse_str(&user_id)
-        .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
-
-    let service = ProfileService::new(state.repos.clone());
-    let hashtags = service.get_user_hashtags(&user_id, 10)?;
-
-    Ok(Json(hashtags))
-}

@@ -90,11 +90,11 @@ impl Settings {
     fn set_defaults(
         builder: ConfigBuilder<config::builder::DefaultState>,
     ) -> Result<ConfigBuilder<config::builder::DefaultState>, ConfigError> {
-        Ok(builder
+        builder
             .set_default("server.host", DEFAULT_HOST)?
             .set_default("server.port", DEFAULT_PORT)?
             .set_default("database.path", DEFAULT_DB_PATH)?
-            .set_default("oauth.github_client_id", "")?)
+            .set_default("oauth.github_client_id", "")
     }
 
     /// Apply environment variable overrides

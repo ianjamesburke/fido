@@ -24,12 +24,6 @@ impl ProfileService {
 
         let karma = self.repos.votes.calculate_karma(user_id)?;
         let post_count = self.repos.posts.get_post_count(user_id)?;
-        let active_hashtags = self.repos.hashtags.get_active_by_user(user_id, 5)?;
-
-        let recent_hashtags: Vec<String> = active_hashtags
-            .into_iter()
-            .map(|(name, _count)| name)
-            .collect();
 
         Ok(UserProfile {
             user_id: user.id,
@@ -38,7 +32,7 @@ impl ProfileService {
             karma,
             post_count,
             join_date: user.join_date,
-            recent_hashtags,
+            recent_hashtags: Vec::new(),
         })
     }
 
@@ -50,13 +44,5 @@ impl ProfileService {
 
         self.repos.users.update_bio(user_id, bio)?;
         Ok(())
-    }
-
-    pub fn get_user_hashtags(&self, user_id: &Uuid, limit: usize) -> ApiResult<Vec<String>> {
-        let active_hashtags = self.repos.hashtags.get_active_by_user(user_id, limit)?;
-        Ok(active_hashtags
-            .into_iter()
-            .map(|(name, _count)| name)
-            .collect())
     }
 }
