@@ -7,6 +7,7 @@ use fido_types::{Vote, VoteDirection};
 
 use crate::db::{row, DbPool};
 
+#[derive(Clone)]
 pub struct VoteRepository {
     pool: DbPool,
 }

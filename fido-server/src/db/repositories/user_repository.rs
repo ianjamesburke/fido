@@ -7,6 +7,7 @@ use fido_types::User;
 
 use crate::db::{row, DbPool};
 
+#[derive(Clone)]
 pub struct UserRepository {
     pool: DbPool,
 }

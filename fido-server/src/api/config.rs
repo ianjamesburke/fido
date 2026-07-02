@@ -16,7 +16,7 @@ pub async fn get_config(State(state): State<AppState>) -> ApiResult<Json<UserCon
 
     // Get configuration (returns default if not found)
     let config = state
-        .stores
+        .repos
         .config
         .get(&user_id)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
@@ -36,7 +36,7 @@ pub async fn update_config(
 
     // Get current config
     let mut config = state
-        .stores
+        .repos
         .config
         .get(&user_id)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
@@ -78,7 +78,7 @@ pub async fn update_config(
 
     // Save updated config
     state
-        .stores
+        .repos
         .config
         .update(&config)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;

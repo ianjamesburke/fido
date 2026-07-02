@@ -6,6 +6,7 @@ use fido_types::{Post, SortOrder};
 
 use crate::db::{row, DbPool};
 
+#[derive(Clone)]
 pub struct PostRepository {
     pool: DbPool,
 }

@@ -3,8 +3,7 @@
 use uuid::Uuid;
 
 use crate::api::ApiResult;
-use crate::stores::HashtagStore;
-use std::sync::Arc;
+use crate::db::repositories::HashtagRepository;
 
 #[derive(Debug)]
 pub struct HashtagWithCount {
@@ -19,11 +18,11 @@ pub struct ActiveHashtag {
 }
 
 pub struct HashtagService {
-    store: Arc<dyn HashtagStore>,
+    store: HashtagRepository,
 }
 
 impl HashtagService {
-    pub fn new(store: Arc<dyn HashtagStore>) -> Self {
+    pub fn new(store: HashtagRepository) -> Self {
         Self { store }
     }
 

@@ -48,7 +48,7 @@ pub struct ValidateSessionResponse {
 /// GET /users/test - List all test users
 pub async fn list_test_users(State(state): State<AppState>) -> ApiResult<Json<Vec<User>>> {
     let users = state
-        .stores
+        .repos
         .users
         .get_test_users()
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
@@ -79,7 +79,7 @@ pub async fn login(
     }
 
     // Find user by username
-    let user = match state.stores.users.get_by_username(&payload.username) {
+    let user = match state.repos.users.get_by_username(&payload.username) {
         Ok(Some(u)) => u,
         Ok(None) => {
             // Log login failure - user not found
@@ -359,7 +359,7 @@ pub async fn github_device_poll(
 
     // Create or update user in database
     let user = state
-        .stores
+        .repos
         .users
         .create_or_update_from_github(
             github_user.id,
@@ -433,7 +433,7 @@ pub async fn validate_session(
 
     // Get user information
     let user = state
-        .stores
+        .repos
         .users
         .get_by_id(&user_id)
         .map_err(|e| ApiError::InternalError(format!("Failed to get user: {}", e)))?
