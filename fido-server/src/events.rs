@@ -5,7 +5,10 @@ use fido_types::{DirectMessage, DmConversation, Message, Notification, Post};
 
 #[derive(Debug, Clone)]
 pub enum ServerEvent {
-    DmRequestCreated(DmConversation),
+    DmRequestCreated {
+        conversation: DmConversation,
+        message: DirectMessage,
+    },
     DmMessageCreated(DirectMessage),
     MessageCreated(Message),
     NotificationCreated(Notification),
@@ -15,32 +18,6 @@ pub enum ServerEvent {
 
 pub trait EventBus: Send + Sync {
     fn emit(&self, event: ServerEvent) -> Result<()>;
-}
-
-#[derive(Debug, Default)]
-pub struct NoopEventBus;
-
-impl EventBus for NoopEventBus {
-    fn emit(&self, event: ServerEvent) -> Result<()> {
-        match event {
-            ServerEvent::DmRequestCreated(conversation) => {
-                let _ = conversation.initiator_id;
-            }
-            ServerEvent::DmMessageCreated(message) => {
-                let _ = message.id;
-            }
-            ServerEvent::MessageCreated(message) => {
-                let _ = message.id;
-            }
-            ServerEvent::NotificationCreated(notification) => {
-                let _ = notification.id;
-            }
-            ServerEvent::ThreadCreated(post) | ServerEvent::ThreadPendingApproval(post) => {
-                let _ = post.id;
-            }
-        }
-        Ok(())
-    }
 }
 
 pub type SharedEventBus = Arc<dyn EventBus>;

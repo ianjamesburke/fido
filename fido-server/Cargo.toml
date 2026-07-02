@@ -42,3 +42,7 @@ once_cell = "1.19"
 lazy_static = "1.4"
 base64.workspace = true
 aes-gcm-siv.workspace = true
+
+[dev-dependencies]
+tokio-tungstenite = "0.24"
+futures-util = "0.3"

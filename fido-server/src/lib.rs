@@ -9,6 +9,7 @@ pub mod http;
 pub mod mention;
 pub mod oauth;
 pub mod rate_limit;
+pub mod realtime;
 pub mod security;
 pub mod services;
 pub mod session;
@@ -46,6 +47,8 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         // Health check
         .route("/health", get(health_check))
+        // Realtime WebSocket gateway
+        .route("/ws", get(api::ws::ws_handler))
         // Authentication routes
         .route("/users/test", get(api::auth::list_test_users))
         .route("/auth/login", post(api::auth::login))

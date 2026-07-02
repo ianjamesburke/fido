@@ -9,5 +9,6 @@ pub mod friends;
 pub mod notifications;
 pub mod posts;
 pub mod profile;
+pub mod ws;
 
 pub use error::{ApiError, ApiResult};

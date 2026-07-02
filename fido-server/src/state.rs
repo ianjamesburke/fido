@@ -1,6 +1,7 @@
 use crate::db::repositories::Repositories;
 use crate::db::Database;
-use crate::events::{NoopEventBus, SharedEventBus};
+use crate::events::SharedEventBus;
+use crate::realtime::RealtimeGateway;
 use crate::security::AuditLogger;
 use crate::services::github::GithubService;
 use crate::session::SessionManager;
@@ -16,6 +17,7 @@ pub struct AppState {
     pub audit_logger: AuditLogger,
     pub github_service: GithubService,
     pub event_bus: SharedEventBus,
+    pub realtime: Arc<RealtimeGateway>,
 }
 
 impl AppState {
@@ -29,7 +31,8 @@ impl AppState {
         let session_manager = SessionManager::new(repos.sessions.clone());
         let audit_logger = AuditLogger::new(repos.audit.clone());
         let github_service = GithubService::from_env(repos.clone())?;
-        let event_bus = Arc::new(NoopEventBus);
+        let realtime = Arc::new(RealtimeGateway::new(repos.clone()));
+        let event_bus: SharedEventBus = realtime.clone();
         Ok(Self {
             db,
             repos,
@@ -37,6 +40,7 @@ impl AppState {
             audit_logger,
             github_service,
             event_bus,
+            realtime,
         })
     }
 
