@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod auth;
+pub mod communities;
 pub mod config;
 pub mod dms;
 pub mod error;

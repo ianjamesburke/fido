@@ -312,6 +312,22 @@ async fn main() {
         // Config routes
         .route("/config", get(api::config::get_config))
         .route("/config", put(api::config::update_config))
+        // Community routes
+        .route(
+            "/communities/browse",
+            get(api::communities::browse_communities),
+        )
+        .route("/communities/join", post(api::communities::join_community))
+        .route("/communities", get(api::communities::list_communities))
+        .route("/communities/:id", get(api::communities::get_community))
+        .route(
+            "/communities/:id/claim",
+            post(api::communities::claim_community),
+        )
+        .route(
+            "/communities/:id/membership",
+            delete(api::communities::leave_community),
+        )
         // User routes
         .route("/users/search", get(api::friends::search_users))
         .route(

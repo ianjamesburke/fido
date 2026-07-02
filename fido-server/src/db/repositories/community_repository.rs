@@ -84,6 +84,20 @@ impl CommunityRepository {
         Ok(communities)
     }
 
+    /// List all communities in deterministic display order
+    pub fn list_all(&self) -> Result<Vec<Community>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, github_repo_id, owner, name, claimed_by, require_thread_approval, created_at
+             FROM communities
+             ORDER BY owner ASC, name ASC",
+        )?;
+        let communities = stmt
+            .query_map([], map_community_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(communities)
+    }
+
     /// Record the user who claimed the community
     pub fn set_claimed_by(&self, community_id: &Uuid, user_id: &Uuid) -> Result<()> {
         let conn = self.pool.get()?;

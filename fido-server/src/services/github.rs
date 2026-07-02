@@ -23,6 +23,7 @@ pub struct GithubService {
     repos: Repositories,
     client: Client,
     cipher: TokenCipher,
+    api_base: String,
     oauth_client_id: Option<String>,
     oauth_client_secret: Option<String>,
 }
@@ -81,6 +82,10 @@ impl GithubService {
             repos,
             client,
             cipher,
+            api_base: env::var("GITHUB_API_BASE")
+                .ok()
+                .filter(|v| !v.trim().is_empty())
+                .unwrap_or_else(|| GITHUB_API_BASE.to_string()),
             oauth_client_id: env::var("GITHUB_CLIENT_ID")
                 .ok()
                 .filter(|v| !v.trim().is_empty()),
@@ -105,7 +110,7 @@ impl GithubService {
         let result = self
             .get_with_token(
                 user_id,
-                format!("{}/user/starred", GITHUB_API_BASE),
+                format!("{}/user/starred", self.api_base),
                 "starred_repos",
             )
             .await;
@@ -119,7 +124,7 @@ impl GithubService {
         owner: &str,
         name: &str,
     ) -> Result<RepoPermission> {
-        let url = format!("{}/repos/{}/{}", GITHUB_API_BASE, owner, name);
+        let url = format!("{}/repos/{}/{}", self.api_base, owner, name);
         let result = self
             .get_with_token::<GithubRepoWithPermissions>(user_id, url, "repo_permission")
             .await
@@ -146,7 +151,7 @@ impl GithubService {
             .with_context(|| format!("Failed to load user {}", user_id))?
             .ok_or_else(|| anyhow!("User {} not found", user_id))?;
         let github_login = user.username;
-        let url = format!("{}/repos/{}/{}/contributors", GITHUB_API_BASE, owner, name);
+        let url = format!("{}/repos/{}/{}/contributors", self.api_base, owner, name);
         let result = self
             .get_public::<Vec<GithubContributor>>(url, "is_contributor")
             .await
@@ -234,7 +239,7 @@ impl GithubService {
             return;
         };
 
-        let revoke_url = format!("{}/applications/{}/grant", GITHUB_API_BASE, client_id);
+        let revoke_url = format!("{}/applications/{}/grant", self.api_base, client_id);
         let response = self
             .client
             .delete(revoke_url)
