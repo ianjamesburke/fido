@@ -5,7 +5,7 @@ use rusqlite::params;
 use rusqlite::types::Type;
 use uuid::Uuid;
 
-use fido_types::{Notification, NotificationType};
+use fido_types::{Notification, NotificationType, NotificationUnreadCount};
 
 use crate::db::{row, DbPool};
 
@@ -73,28 +73,32 @@ impl NotificationRepository {
         Ok(count)
     }
 
-    /// Unread notification counts grouped by subject_type (for rail badges)
-    pub fn unread_counts_by_subject_type(&self, user_id: &Uuid) -> Result<Vec<(String, i64)>> {
+    /// Unread notification counts grouped by subject (for rail badges)
+    pub fn unread_counts_by_subject(&self, user_id: &Uuid) -> Result<Vec<NotificationUnreadCount>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            "SELECT subject_type, COUNT(*) FROM notifications
+            "SELECT subject_type, subject_id, COUNT(*) FROM notifications
              WHERE user_id = ? AND read = 0
-             GROUP BY subject_type",
+             GROUP BY subject_type, subject_id",
         )?;
         let counts = stmt
             .query_map([user_id.to_string()], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+                Ok(NotificationUnreadCount {
+                    subject_type: row.get(0)?,
+                    subject_id: row.get(1)?,
+                    count: row.get(2)?,
+                })
             })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(counts)
     }
 
-    /// Mark a single notification as read
-    pub fn mark_read(&self, notification_id: &Uuid) -> Result<()> {
+    /// Mark a single notification as read for its owner.
+    pub fn mark_read_for_user(&self, user_id: &Uuid, notification_id: &Uuid) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(
-            "UPDATE notifications SET read = 1 WHERE id = ?",
-            [notification_id.to_string()],
+            "UPDATE notifications SET read = 1 WHERE id = ? AND user_id = ?",
+            (notification_id.to_string(), user_id.to_string()),
         )
         .context("Failed to mark notification as read")?;
         Ok(())
@@ -169,13 +173,22 @@ mod tests {
     }
 
     fn notification(user_id: Uuid, actor_id: Uuid, subject_type: &str) -> Notification {
+        notification_with_subject_id(user_id, actor_id, subject_type, Uuid::new_v4().to_string())
+    }
+
+    fn notification_with_subject_id(
+        user_id: Uuid,
+        actor_id: Uuid,
+        subject_type: &str,
+        subject_id: String,
+    ) -> Notification {
         Notification {
             id: Uuid::new_v4(),
             user_id,
             notification_type: NotificationType::Reply,
             actor_id,
             subject_type: subject_type.to_string(),
-            subject_id: Uuid::new_v4().to_string(),
+            subject_id,
             read: false,
             created_at: Utc::now(),
         }
@@ -185,17 +198,32 @@ mod tests {
     fn test_create_list_and_counts() -> Result<()> {
         let (db, recipient, actor) = setup()?;
         let repo = NotificationRepository::new(db.pool.clone());
+        let post_subject_id = Uuid::new_v4().to_string();
 
-        repo.create(&notification(recipient, actor, "post"))?;
-        repo.create(&notification(recipient, actor, "post"))?;
+        repo.create(&notification_with_subject_id(
+            recipient,
+            actor,
+            "post",
+            post_subject_id.clone(),
+        ))?;
+        repo.create(&notification_with_subject_id(
+            recipient,
+            actor,
+            "post",
+            post_subject_id,
+        ))?;
         repo.create(&notification(recipient, actor, "dm_conversation"))?;
 
         let listed = repo.list_for_user(&recipient, 10, 0)?;
         assert_eq!(listed.len(), 3);
         assert_eq!(repo.unread_count(&recipient)?, 3);
 
-        let grouped = repo.unread_counts_by_subject_type(&recipient)?;
+        let grouped = repo.unread_counts_by_subject(&recipient)?;
         assert_eq!(grouped.len(), 2);
+        assert!(grouped.iter().any(|count| count.subject_type == "post"));
+        assert!(grouped
+            .iter()
+            .any(|count| count.subject_type == "dm_conversation"));
         Ok(())
     }
 
@@ -209,7 +237,7 @@ mod tests {
         repo.create(&notification(recipient, actor, "post"))?;
         assert_eq!(repo.unread_count(&recipient)?, 2);
 
-        repo.mark_read(&n.id)?;
+        repo.mark_read_for_user(&recipient, &n.id)?;
         assert_eq!(repo.unread_count(&recipient)?, 1);
 
         repo.mark_all_read(&recipient)?;
