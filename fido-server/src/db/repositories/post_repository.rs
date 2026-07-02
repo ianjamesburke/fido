@@ -66,7 +66,12 @@ impl PostRepository {
     /// - Each enum value maps to a hardcoded SQL clause
     /// - The API layer validates sort order before calling this method
     /// - All other parameters (limit) use parameterized queries
-    pub fn get_posts(&self, sort_order: SortOrder, limit: i32) -> Result<Vec<Post>> {
+    pub fn get_posts(
+        &self,
+        community_id: &Uuid,
+        sort_order: SortOrder,
+        limit: i32,
+    ) -> Result<Vec<Post>> {
         let conn = self.pool.get()?;
 
         // Safe: order_clause is built from whitelisted enum values only
@@ -85,7 +90,7 @@ impl PostRepository {
              FROM posts p
              JOIN users u ON p.author_id = u.id
              LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
-             WHERE p.parent_post_id IS NULL
+             WHERE p.community_id = ? AND p.parent_post_id IS NULL AND p.approved = 1
              {}
              LIMIT ?",
             order_clause
@@ -94,7 +99,29 @@ impl PostRepository {
         let mut stmt = conn.prepare(&query)?;
 
         let posts = stmt
-            .query_map([limit], map_post_row)?
+            .query_map(params![community_id.to_string(), limit], map_post_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(posts)
+    }
+
+    /// Get pending top-level posts for admin approval.
+    pub fn get_pending_posts(&self, community_id: &Uuid, limit: i32) -> Result<Vec<Post>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT p.id, p.author_id, u.username, p.content, p.created_at, p.upvotes, p.downvotes, p.parent_post_id,
+                    (SELECT COUNT(*) FROM posts WHERE parent_post_id = p.id) as reply_count,
+                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved
+             FROM posts p
+             JOIN users u ON p.author_id = u.id
+             LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
+             WHERE p.community_id = ? AND p.parent_post_id IS NULL AND p.approved = 0
+             ORDER BY p.created_at ASC
+             LIMIT ?",
+        )?;
+
+        let posts = stmt
+            .query_map(params![community_id.to_string(), limit], map_post_row)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(posts)
@@ -160,6 +187,17 @@ impl PostRepository {
         )
         .context("Failed to update vote counts")?;
 
+        Ok(())
+    }
+
+    /// Mark a top-level thread as approved.
+    pub fn approve(&self, post_id: &Uuid) -> Result<()> {
+        let conn = self.pool.get()?;
+        conn.execute(
+            "UPDATE posts SET approved = 1 WHERE id = ? AND parent_post_id IS NULL",
+            [post_id.to_string()],
+        )
+        .context("Failed to approve post")?;
         Ok(())
     }
 
@@ -235,6 +273,7 @@ impl PostRepository {
     /// - All other parameters (username, limit) use parameterized queries
     pub fn get_posts_by_username(
         &self,
+        community_id: &Uuid,
         username: &str,
         sort_order: SortOrder,
         limit: i32,
@@ -257,7 +296,7 @@ impl PostRepository {
              FROM posts p
              JOIN users u ON p.author_id = u.id
              LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
-             WHERE LOWER(u.username) = LOWER(?) AND p.parent_post_id IS NULL
+             WHERE p.community_id = ? AND LOWER(u.username) = LOWER(?) AND p.parent_post_id IS NULL AND p.approved = 1
              {}
              LIMIT ?",
             order_clause
@@ -266,7 +305,10 @@ impl PostRepository {
         let mut stmt = conn.prepare(&query)?;
 
         let posts = stmt
-            .query_map(params![username, limit], map_post_row)?
+            .query_map(
+                params![community_id.to_string(), username, limit],
+                map_post_row,
+            )?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(posts)
