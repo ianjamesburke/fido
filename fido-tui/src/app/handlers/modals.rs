@@ -23,22 +23,15 @@ pub fn handle_modal_keys(app: &mut App, key: KeyEvent) -> Result<Option<()>> {
 
     // Priority 4: Unified composer modal
     if app.composer_state.is_open() {
-        crate::log_reply!(
-            "ModalHandler: Composer is open, processing key={:?}",
-            key.code
-        );
         if matches!(key.code, KeyCode::Esc) {
-            crate::log_reply!("ModalHandler: ESC key - closing composer");
             app.close_composer();
             return Ok(Some(()));
         }
         // Let Enter key pass through for async processing (submit_composer)
         if matches!(key.code, KeyCode::Enter) {
-            crate::log_reply!("ModalHandler: ENTER key - passing through for async handling");
             return Ok(None); // Let the event loop handle Enter async
         }
         // All other keys are handled by TextArea
-        crate::log_reply!("ModalHandler: Regular key - sending to handle_composer_input");
         app.handle_composer_input(key);
         return Ok(Some(()));
     }

@@ -15,10 +15,8 @@ impl App {
 
         // Call server logout endpoint to invalidate session (best effort)
         // We don't fail if this errors since we'll clear local session anyway
-        let session_store = match self.api_client.session_scope() {
-            Some(server_url) => crate::session::SessionStore::for_server(server_url),
-            None => crate::session::SessionStore::new(),
-        };
+        let session_store =
+            crate::session::SessionStore::for_server(self.api_client.base_url());
 
         if let Ok(session_store) = session_store {
             if let Ok(Some(token)) = session_store.load() {
@@ -115,10 +113,8 @@ impl App {
                     eprintln!("Warning: Failed to save session: {}", e);
                 }
 
-                let session_store = match self.api_client.session_scope() {
-                    Some(server_url) => crate::session::SessionStore::for_server(server_url),
-                    None => crate::session::SessionStore::new(),
-                };
+                let session_store =
+                    crate::session::SessionStore::for_server(self.api_client.base_url());
                 if let Ok(session_store) = session_store {
                     if let Err(e) = session_store.save(&response.session_token) {
                         log::warn!("Failed to save canonical session token: {}", e);

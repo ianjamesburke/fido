@@ -9,7 +9,7 @@ impl App {
         post_id: uuid::Uuid,
         direction: crate::api::VoteDirection,
     ) {
-        let mut api_client = self.api_client.clone();
+        let api_client = self.api_client.clone();
         let handle =
             tokio::spawn(
                 async move { (post_id, api_client.vote_on_post(post_id, direction).await) },
@@ -176,11 +176,6 @@ impl App {
                 }
             }
 
-            // Store original state for rollback
-            let original_upvotes = selected_post.upvotes;
-            let original_downvotes = selected_post.downvotes;
-            let original_user_vote = selected_post.user_vote.clone();
-
             // Optimistic update: modify local state based on vote change
             match (&previous_vote, direction) {
                 (None, "up") => {
@@ -211,27 +206,7 @@ impl App {
             // Send vote to server (don't reload feed)
             let vote_direction = crate::api::VoteDirection::from_str(direction)
                 .ok_or_else(|| anyhow::anyhow!("Invalid vote direction: {}", direction))?;
-            if self.is_demo_mode {
-                match self.api_client.vote_on_post(post_id, vote_direction).await {
-                    Ok(_) => {
-                        // Success - optimistic update is already applied
-                        // Preserve selection - no reload, no re-sort
-                    }
-                    Err(e) => {
-                        // Revert optimistic update on error
-                        let selected_post = &mut self.posts_state.posts[selected_index];
-                        selected_post.upvotes = original_upvotes;
-                        selected_post.downvotes = original_downvotes;
-                        selected_post.user_vote = original_user_vote;
-
-                        // Categorize errors for better user feedback
-                        let error_msg = categorize_error(&e.to_string());
-                        self.posts_state.error = Some(error_msg);
-                    }
-                }
-            } else {
-                self.queue_vote_on_post(post_id, vote_direction);
-            }
+            self.queue_vote_on_post(post_id, vote_direction);
         }
         Ok(())
     }

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use fido_types::User;
 
-use crate::api::{ApiError, Backend};
+use crate::api::{ApiClient, ApiError};
 use crate::session::SessionStore;
 
 /// Manages the OAuth authentication flow for the TUI client.
@@ -13,18 +13,15 @@ use crate::session::SessionStore;
 /// - Polling for session completion
 /// - Storing session tokens
 pub struct AuthFlow {
-    api_client: Backend,
+    api_client: ApiClient,
     session_store: SessionStore,
 }
 
 impl AuthFlow {
     /// Creates a new AuthFlow instance.
-    pub fn new(api_client: Backend) -> Result<Self> {
-        let session_store = match api_client.session_scope() {
-            Some(server_url) => SessionStore::for_server(server_url)
-                .context("Failed to initialize server-scoped session store")?,
-            None => SessionStore::new().context("Failed to initialize session store")?,
-        };
+    pub fn new(api_client: ApiClient) -> Result<Self> {
+        let session_store = SessionStore::for_server(api_client.base_url())
+            .context("Failed to initialize server-scoped session store")?;
 
         Ok(Self {
             api_client,
@@ -144,12 +141,12 @@ impl AuthFlow {
     }
 
     /// Gets a reference to the API client.
-    pub fn api_client(&self) -> &Backend {
+    pub fn api_client(&self) -> &ApiClient {
         &self.api_client
     }
 
     /// Gets a mutable reference to the API client.
-    pub fn api_client_mut(&mut self) -> &mut Backend {
+    pub fn api_client_mut(&mut self) -> &mut ApiClient {
         &mut self.api_client
     }
 }
@@ -160,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_auth_flow_creation() {
-        let api_client = Backend::api("http://localhost:3000");
+        let api_client = ApiClient::new("http://localhost:3000");
         let auth_flow = AuthFlow::new(api_client);
         assert!(auth_flow.is_ok());
     }

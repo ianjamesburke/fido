@@ -6,8 +6,6 @@ mod emoji;
 mod event_loop;
 #[macro_use]
 mod logging;
-#[macro_use]
-mod reply_debug_log;
 mod session;
 mod terminal;
 mod text_wrapper;
@@ -203,15 +201,10 @@ async fn main() -> Result<()> {
     let mut tui = terminal::init()?;
 
     // Check runtime mode flags
-    let is_demo_mode = env_flag("FIDO_DEMO_MODE");
     let is_web_mode = env_flag("FIDO_WEB_MODE");
 
     // Create app based on mode
-    let mut app = if is_demo_mode {
-        // Demo mode - use MockBackend
-        log::info!("Starting in DEMO MODE with MockBackend");
-        App::demo()
-    } else if let Some(server_url) = cli.server {
+    let mut app = if let Some(server_url) = cli.server {
         // Custom server URL
         App::with_server_url(server_url)
     } else {
@@ -221,42 +214,29 @@ async fn main() -> Result<()> {
 
     app.log_config = log_config;
 
-    // Check for updates (quick, non-blocking with 3s timeout, skip in demo/web mode)
-    if !is_demo_mode && !is_web_mode {
+    // Check for updates (quick, non-blocking with 3s timeout, skip in web mode)
+    if !is_web_mode {
         if let Some(latest_version) = check_for_updates().await {
             app.update_available = Some(latest_version);
         }
     }
 
-    // In demo mode, hide GitHub OAuth option (test users only)
-    if is_demo_mode {
-        app.auth_state.show_github_option = false;
-    }
-
-    // Check for existing session on startup (skip in demo mode)
+    // Check for existing session on startup
     let mut auth_flow = auth::AuthFlow::new(app.api_client.clone())?;
-    if !is_demo_mode {
-        if let Ok(Some(user)) = auth_flow.check_existing_session().await {
-            log::info!("Restored session for user: {}", user.username);
-            app.auth_state.current_user = Some(user);
-            app.current_screen = app::Screen::Main;
+    if let Ok(Some(user)) = auth_flow.check_existing_session().await {
+        log::info!("Restored session for user: {}", user.username);
+        app.auth_state.current_user = Some(user);
+        app.current_screen = app::Screen::Main;
 
-            // Update API client with session token
-            app.api_client = auth_flow.api_client().clone();
+        // Update API client with session token
+        app.api_client = auth_flow.api_client().clone();
 
-            // Load initial data
-            let _ = app.load_settings().await;
-            app.load_filter_preference();
-            let _ = app.load_posts().await;
-        } else {
-            log::info!("No valid session found, showing authentication screen");
-        }
+        // Load initial data
+        let _ = app.load_settings().await;
+        app.load_filter_preference();
+        let _ = app.load_posts().await;
     } else {
-        if is_demo_mode {
-            log::info!("Running in demo mode, loading test users only");
-        }
-        // In demo mode, always show test users (no GitHub OAuth, no session restore)
-        let _ = app.load_test_users().await;
+        log::info!("No valid session found, showing authentication screen");
     }
 
     // Main event loop

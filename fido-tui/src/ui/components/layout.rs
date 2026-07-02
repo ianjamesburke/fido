@@ -24,53 +24,22 @@ pub struct BannerLayout {
     pub content: Rect,
 }
 
-pub fn auth_layout(frame: &mut Frame, app: &App) -> AuthLayout {
+pub fn auth_layout(frame: &mut Frame) -> AuthLayout {
     let area = frame.area();
 
-    let chunks = if app.is_demo_mode {
-        Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3), // Demo banner
-                Constraint::Length(3), // Header
-                Constraint::Min(0),    // Content
-                Constraint::Length(3), // Footer
-            ])
-            .split(area)
-    } else {
-        Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3), // Header
-                Constraint::Min(0),    // Content
-                Constraint::Length(3), // Footer
-            ])
-            .split(area)
-    };
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Header
+            Constraint::Min(0),    // Content
+            Constraint::Length(3), // Footer
+        ])
+        .split(area);
 
-    if app.is_demo_mode {
-        let demo_banner =
-            Paragraph::new("🎮 DEMO MODE - Data is temporary and will be lost on refresh")
-                .style(
-                    Style::default()
-                        .fg(Color::Black)
-                        .bg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
-                )
-                .alignment(ratatui::layout::Alignment::Center);
-        frame.render_widget(demo_banner, chunks[0]);
-
-        AuthLayout {
-            header: chunks[1],
-            content: chunks[2],
-            footer: chunks[3],
-        }
-    } else {
-        AuthLayout {
-            header: chunks[0],
-            content: chunks[1],
-            footer: chunks[2],
-        }
+    AuthLayout {
+        header: chunks[0],
+        content: chunks[1],
+        footer: chunks[2],
     }
 }
 

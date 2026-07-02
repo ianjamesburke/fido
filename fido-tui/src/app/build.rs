@@ -1,5 +1,5 @@
 use super::*;
-use crate::api::Backend;
+use crate::api::ApiClient;
 use ratatui::style::Style;
 use ratatui::widgets::ListState;
 use tui_textarea::TextArea;
@@ -7,20 +7,15 @@ use tui_textarea::TextArea;
 impl App {
     /// Create a new App with default backend.
     pub fn new() -> Self {
-        Self::build(Backend::default(), true, false)
+        Self::build(ApiClient::default(), true)
     }
 
     /// Create a new App with a custom server URL.
     pub fn with_server_url(server_url: String) -> Self {
-        Self::build(Backend::api(server_url), true, false)
+        Self::build(ApiClient::new(server_url), true)
     }
 
-    /// Create a new App in demo mode with MockBackend.
-    pub fn demo() -> Self {
-        Self::build(Backend::mock(), false, true)
-    }
-
-    fn build(api_client: Backend, show_github_option: bool, is_demo_mode: bool) -> Self {
+    fn build(api_client: ApiClient, show_github_option: bool) -> Self {
         let config_manager =
             crate::config::ConfigManager::new().expect("Failed to initialize config manager");
         let instance_id = crate::config::ConfigManager::generate_instance_id();
@@ -165,7 +160,6 @@ impl App {
             },
             user_profile_view: None,
             log_config: crate::logging::LogConfig::default(),
-            is_demo_mode,
             pending_vote_tasks: Vec::new(),
             update_available: None,
         }
