@@ -45,20 +45,18 @@ impl CommunityService {
             .collect()
     }
 
-    pub async fn join(
-        &self,
-        user_id: Uuid,
-        github_repo_id: i64,
-        owner: &str,
-        name: &str,
-    ) -> ApiResult<CommunityView> {
-        let community = match self
-            .repos
-            .communities
-            .get_by_github_repo_id(github_repo_id)?
-        {
+    pub async fn join(&self, user_id: Uuid, owner: &str, name: &str) -> ApiResult<CommunityView> {
+        let repo = self
+            .github
+            .get_repo(user_id, owner, name)
+            .await?
+            .ok_or_else(|| {
+                ApiError::NotFound(format!("GitHub repo {}/{} not found", owner, name))
+            })?;
+
+        let community = match self.repos.communities.get_by_github_repo_id(repo.id)? {
             Some(community) => community,
-            None => self.create_community(github_repo_id, owner, name)?,
+            None => self.create_community(repo.id, &repo.owner.login, &repo.name)?,
         };
 
         let role = if self
@@ -329,7 +327,7 @@ mod tests {
         assert!(browse[0].membership.is_none());
 
         let joined = service
-            .join(user_id, 1296269, "octocat", "Hello-World")
+            .join(user_id, "octocat", "Hello-World")
             .await
             .expect("join");
         assert_eq!(joined.community.github_repo_id, 1296269);

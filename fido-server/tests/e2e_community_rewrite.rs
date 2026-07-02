@@ -79,9 +79,28 @@ async fn spawn_server(github_api_base: Option<&str>) -> Result<TestServer> {
     })
 }
 
+/// Deterministic fixture repo id so parallel joins of the same owner/name agree.
+fn fixture_repo_id(owner: &str, name: &str) -> i64 {
+    let mut hash: i64 = 7;
+    for byte in owner.bytes().chain([b'/']).chain(name.bytes()) {
+        hash = hash.wrapping_mul(31).wrapping_add(byte as i64);
+    }
+    hash.abs().max(2)
+}
+
 /// Local stand-in for api.github.com using recorded response shapes.
+///
+/// Serves the recorded octocat/Hello-World fixtures exactly, resolves any
+/// other /repos/:owner/:name with a deterministic id, and 404s owner "ghost"
+/// to exercise the unresolvable-repo path.
 async fn github_fixture_server() -> Result<String> {
-    use axum::{routing::get, Json, Router};
+    use axum::{
+        extract::Path,
+        http::StatusCode,
+        response::{IntoResponse, Response},
+        routing::get,
+        Json, Router,
+    };
 
     async fn starred() -> Json<Value> {
         Json(json!([
@@ -119,10 +138,30 @@ async fn github_fixture_server() -> Result<String> {
         ]))
     }
 
+    async fn dynamic_repo(Path((owner, name)): Path<(String, String)>) -> Response {
+        if owner == "ghost" {
+            return StatusCode::NOT_FOUND.into_response();
+        }
+        Json(json!({
+            "id": fixture_repo_id(&owner, &name),
+            "name": name,
+            "full_name": format!("{}/{}", owner, name),
+            "private": false,
+            "owner": { "login": owner }
+        }))
+        .into_response()
+    }
+
+    async fn dynamic_contributors() -> Json<Value> {
+        Json(json!([]))
+    }
+
     let app = Router::new()
         .route("/user/starred", get(starred))
         .route("/repos/octocat/Hello-World", get(repo))
-        .route("/repos/octocat/Hello-World/contributors", get(contributors));
+        .route("/repos/octocat/Hello-World/contributors", get(contributors))
+        .route("/repos/:owner/:name", get(dynamic_repo))
+        .route("/repos/:owner/:name/contributors", get(dynamic_contributors));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
     tokio::spawn(async move {
@@ -248,7 +287,8 @@ async fn json_body(response: reqwest::Response) -> Result<Value> {
 
 #[tokio::test]
 async fn communities_join_list_detail_leave_e2e() -> Result<()> {
-    let server = spawn_server(None).await?;
+    let fixture_base = github_fixture_server().await?;
+    let server = spawn_server(Some(&fixture_base)).await?;
     let repos = &server.state.repos;
 
     let alice = create_user(repos, "e2e-alice")?;
@@ -263,10 +303,9 @@ async fn communities_join_list_detail_leave_e2e() -> Result<()> {
         .await?;
     assert_eq!(anon.status(), StatusCode::UNAUTHORIZED);
 
-    // Join lazily creates the community with a default general channel.
-    let repo_id = rand_repo_id();
+    // Join resolves the repo via GitHub and lazily creates the community
+    // with a default general channel.
     let join_body = json!({
-        "github_repo_id": repo_id,
         "owner": "octocat",
         "name": "lazy-created-repo",
     });
@@ -274,7 +313,10 @@ async fn communities_join_list_detail_leave_e2e() -> Result<()> {
     assert_eq!(response.status(), StatusCode::OK, "join should succeed");
     let view = json_body(response).await?;
     let community_id = view["community"]["id"].as_str().unwrap().to_string();
-    assert_eq!(view["community"]["github_repo_id"], repo_id);
+    assert_eq!(
+        view["community"]["github_repo_id"],
+        fixture_repo_id("octocat", "lazy-created-repo")
+    );
     assert_eq!(view["membership"]["role"], "member");
     assert_eq!(view["member_count"], 1);
     assert_eq!(view["channels"][0]["name"], "general");
@@ -296,10 +338,19 @@ async fn communities_join_list_detail_leave_e2e() -> Result<()> {
     let response = alice_client
         .post(
             "/communities/join",
-            &json!({ "github_repo_id": rand_repo_id(), "owner": "a/b", "name": "x" }),
+            &json!({ "owner": "a/b", "name": "x" }),
         )
         .await?;
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    // A repo GitHub can't resolve is a 404, not a lazily created community.
+    let response = alice_client
+        .post(
+            "/communities/join",
+            &json!({ "owner": "ghost", "name": "no-such-repo" }),
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     // List shows the joined community.
     let listed = json_body(alice_client.get("/communities").await?).await?;
@@ -350,7 +401,7 @@ async fn communities_browse_and_claim_e2e() -> Result<()> {
     let response = client
         .post(
             "/communities/join",
-            &json!({ "github_repo_id": 1296269, "owner": "octocat", "name": "Hello-World" }),
+            &json!({ "owner": "octocat", "name": "Hello-World" }),
         )
         .await?;
     assert_eq!(response.status(), StatusCode::OK);
