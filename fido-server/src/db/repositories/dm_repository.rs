@@ -87,6 +87,25 @@ impl DirectMessageRepository {
         Ok(messages)
     }
 
+    /// Count all messages exchanged by two users, including messages hidden by either user.
+    pub fn count_between(&self, user1_id: &Uuid, user2_id: &Uuid) -> Result<i64> {
+        let conn = self.pool.get()?;
+        let count = conn.query_row(
+            "SELECT COUNT(*)
+             FROM direct_messages
+             WHERE (from_user_id = ? AND to_user_id = ?)
+                OR (from_user_id = ? AND to_user_id = ?)",
+            (
+                user1_id.to_string(),
+                user2_id.to_string(),
+                user2_id.to_string(),
+                user1_id.to_string(),
+            ),
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
     /// Get conversation summaries without loading full message histories.
     pub fn get_conversation_summaries(
         &self,

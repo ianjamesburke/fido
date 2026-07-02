@@ -310,6 +310,15 @@ async fn main() {
             "/dms/mark-read/:user_id",
             post(api::dms::mark_messages_read),
         )
+        .route("/dms/requests", get(api::dms::get_pending_requests))
+        .route(
+            "/dms/requests/:user_id/accept",
+            post(api::dms::accept_request),
+        )
+        .route(
+            "/dms/requests/:user_id/decline",
+            post(api::dms::decline_request),
+        )
         .route("/dms", post(api::dms::send_message))
         // Config routes
         .route("/config", get(api::config::get_config))

@@ -106,6 +106,20 @@ impl MembershipRepository {
         Ok(memberships)
     }
 
+    /// Check whether two users share any community membership.
+    pub fn users_share_community(&self, user_one: &Uuid, user_two: &Uuid) -> Result<bool> {
+        let conn = self.pool.get()?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*)
+             FROM memberships m1
+             INNER JOIN memberships m2 ON m1.community_id = m2.community_id
+             WHERE m1.user_id = ? AND m2.user_id = ?",
+            (user_one.to_string(), user_two.to_string()),
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
     /// List admin memberships for a community
     pub fn list_admins(&self, community_id: &Uuid) -> Result<Vec<Membership>> {
         let conn = self.pool.get()?;
