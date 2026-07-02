@@ -126,12 +126,12 @@ impl SecureError {
     }
 
     /// Create a not found error
-    pub fn not_found(resource: impl Into<String>) -> Self {
-        let resource = resource.into();
+    pub fn not_found(message: impl Into<String>) -> Self {
+        let message = message.into();
         Self::with_public_details(
             ErrorCode::NotFound,
-            format!("Resource not found: {}", resource),
-            format!("{} not found", resource),
+            format!("Resource not found: {}", message),
+            message.clone(),
         )
     }
 
@@ -332,7 +332,7 @@ mod tests {
 
     #[test]
     fn test_secure_error_not_found_shows_resource() {
-        let err = SecureError::not_found("User");
+        let err = SecureError::not_found("User not found");
 
         assert_eq!(err.code(), ErrorCode::NotFound);
         assert!(err.public_details.is_some());

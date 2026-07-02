@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_secure_error_not_found_to_api_error() {
-        let secure_error = SecureError::not_found("User");
+        let secure_error = SecureError::not_found("User not found");
         let api_error: ApiError = secure_error.into();
 
         match api_error {
