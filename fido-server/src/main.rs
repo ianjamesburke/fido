@@ -1,6 +1,7 @@
 mod api;
 mod config;
 mod db;
+mod events;
 mod http;
 mod mention;
 mod oauth;
@@ -321,12 +322,20 @@ async fn main() {
         .route("/communities", get(api::communities::list_communities))
         .route("/communities/:id", get(api::communities::get_community))
         .route(
+            "/communities/:id/channels",
+            get(api::chat::list_community_channels),
+        )
+        .route(
             "/communities/:id/claim",
             post(api::communities::claim_community),
         )
         .route(
             "/communities/:id/membership",
             delete(api::communities::leave_community),
+        )
+        .route(
+            "/channels/:id/messages",
+            get(api::chat::get_channel_messages).post(api::chat::send_channel_message),
         )
         // User routes
         .route("/users/search", get(api::friends::search_users))

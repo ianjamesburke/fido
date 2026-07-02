@@ -35,11 +35,10 @@ impl MessageRepository {
         Ok(())
     }
 
-    /// List messages in a channel with cursor pagination on (channel_id, id).
+    /// List messages in a channel with cursor pagination on (channel_id, created_at, id).
     ///
-    /// `after` returns messages with id greater than the cursor (older-to-newer window);
-    /// `before` returns the newest messages with id less than the cursor. When neither is
-    /// supplied the newest `limit` messages are returned. Results are always ascending by id.
+    /// Cursors are message ids, but ordering is by creation time with id as a tiebreaker.
+    /// Results are returned oldest-to-newest.
     pub fn list(
         &self,
         channel_id: &Uuid,
@@ -53,11 +52,28 @@ impl MessageRepository {
         let mut messages = if let Some(after) = after {
             let mut stmt = conn.prepare(
                 "SELECT id, channel_id, author_id, content, created_at FROM messages
-                 WHERE channel_id = ? AND id > ? ORDER BY id ASC LIMIT ?",
+                 WHERE channel_id = ?
+                   AND (
+                     created_at > (SELECT created_at FROM messages WHERE id = ? AND channel_id = ?)
+                     OR (
+                       created_at = (SELECT created_at FROM messages WHERE id = ? AND channel_id = ?)
+                       AND id > ?
+                     )
+                   )
+                 ORDER BY created_at ASC, id ASC
+                 LIMIT ?",
             )?;
             let rows = stmt
                 .query_map(
-                    params![channel_id_str, after.to_string(), limit],
+                    params![
+                        channel_id_str,
+                        after.to_string(),
+                        channel_id_str,
+                        after.to_string(),
+                        channel_id_str,
+                        after.to_string(),
+                        limit
+                    ],
                     map_message_row,
                 )?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -65,11 +81,28 @@ impl MessageRepository {
         } else if let Some(before) = before {
             let mut stmt = conn.prepare(
                 "SELECT id, channel_id, author_id, content, created_at FROM messages
-                 WHERE channel_id = ? AND id < ? ORDER BY id DESC LIMIT ?",
+                 WHERE channel_id = ?
+                   AND (
+                     created_at < (SELECT created_at FROM messages WHERE id = ? AND channel_id = ?)
+                     OR (
+                       created_at = (SELECT created_at FROM messages WHERE id = ? AND channel_id = ?)
+                       AND id < ?
+                     )
+                   )
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT ?",
             )?;
             let mut rows = stmt
                 .query_map(
-                    params![channel_id_str, before.to_string(), limit],
+                    params![
+                        channel_id_str,
+                        before.to_string(),
+                        channel_id_str,
+                        before.to_string(),
+                        channel_id_str,
+                        before.to_string(),
+                        limit
+                    ],
                     map_message_row,
                 )?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -78,7 +111,7 @@ impl MessageRepository {
         } else {
             let mut stmt = conn.prepare(
                 "SELECT id, channel_id, author_id, content, created_at FROM messages
-                 WHERE channel_id = ? ORDER BY id DESC LIMIT ?",
+                 WHERE channel_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
             )?;
             let mut rows = stmt
                 .query_map(params![channel_id_str, limit], map_message_row)?
@@ -111,7 +144,7 @@ fn map_message_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Message> {
 mod tests {
     use super::*;
     use crate::db::Database;
-    use chrono::Utc;
+    use chrono::{TimeZone, Utc};
 
     fn setup() -> Result<(Database, Uuid, Uuid)> {
         let db = Database::in_memory()?;
@@ -145,13 +178,19 @@ mod tests {
         Ok((db, channel_id, user_id))
     }
 
-    fn make_message(channel_id: Uuid, author_id: Uuid, id: Uuid, content: &str) -> Message {
+    fn make_message(
+        channel_id: Uuid,
+        author_id: Uuid,
+        id: Uuid,
+        content: &str,
+        second: u32,
+    ) -> Message {
         Message {
             id,
             channel_id,
             author_id,
             content: content.to_string(),
-            created_at: Utc::now(),
+            created_at: Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, second).unwrap(),
         }
     }
 
@@ -160,13 +199,13 @@ mod tests {
         let (db, channel_id, user_id) = setup()?;
         let repo = MessageRepository::new(db.pool.clone());
 
-        // ids chosen so ordering is deterministic
-        let a = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let b = Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
-        let c = Uuid::parse_str("00000000-0000-0000-0000-000000000003").unwrap();
-        repo.create(&make_message(channel_id, user_id, a, "first"))?;
-        repo.create(&make_message(channel_id, user_id, b, "second"))?;
-        repo.create(&make_message(channel_id, user_id, c, "third"))?;
+        // ids intentionally do not match chronological order
+        let a = Uuid::parse_str("00000000-0000-0000-0000-000000000003").unwrap();
+        let b = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+        let c = Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
+        repo.create(&make_message(channel_id, user_id, a, "first", 1))?;
+        repo.create(&make_message(channel_id, user_id, b, "second", 2))?;
+        repo.create(&make_message(channel_id, user_id, c, "third", 3))?;
 
         let all = repo.list(&channel_id, None, None, 10)?;
         assert_eq!(all.len(), 3);
@@ -180,12 +219,12 @@ mod tests {
         let (db, channel_id, user_id) = setup()?;
         let repo = MessageRepository::new(db.pool.clone());
 
-        let a = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let b = Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
-        let c = Uuid::parse_str("00000000-0000-0000-0000-000000000003").unwrap();
-        repo.create(&make_message(channel_id, user_id, a, "first"))?;
-        repo.create(&make_message(channel_id, user_id, b, "second"))?;
-        repo.create(&make_message(channel_id, user_id, c, "third"))?;
+        let a = Uuid::parse_str("00000000-0000-0000-0000-000000000003").unwrap();
+        let b = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+        let c = Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
+        repo.create(&make_message(channel_id, user_id, a, "first", 1))?;
+        repo.create(&make_message(channel_id, user_id, b, "second", 2))?;
+        repo.create(&make_message(channel_id, user_id, c, "third", 3))?;
 
         let after = repo.list(&channel_id, None, Some(&a), 10)?;
         assert_eq!(after.len(), 2);

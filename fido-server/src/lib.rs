@@ -4,6 +4,7 @@
 pub mod api;
 pub mod config;
 pub mod db;
+pub mod events;
 pub mod http;
 pub mod mention;
 pub mod oauth;
@@ -114,12 +115,20 @@ pub fn create_router(state: AppState) -> Router {
         .route("/communities", get(api::communities::list_communities))
         .route("/communities/:id", get(api::communities::get_community))
         .route(
+            "/communities/:id/channels",
+            get(api::chat::list_community_channels),
+        )
+        .route(
             "/communities/:id/claim",
             post(api::communities::claim_community),
         )
         .route(
             "/communities/:id/membership",
             delete(api::communities::leave_community),
+        )
+        .route(
+            "/channels/:id/messages",
+            get(api::chat::get_channel_messages).post(api::chat::send_channel_message),
         )
         // User routes
         .route("/users/search", get(api::friends::search_users))
