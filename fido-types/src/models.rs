@@ -244,6 +244,11 @@ pub struct SendMessageRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct SendChannelMessageRequest {
+    pub content: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateBioRequest {
     pub bio: String,
 }

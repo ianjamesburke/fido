@@ -1,5 +1,6 @@
 //! Service layer for business logic.
 
+pub mod chat;
 pub mod communities;
 pub mod dms;
 pub mod friends;

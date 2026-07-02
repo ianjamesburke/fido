@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Index for cursor pagination on (channel_id, id)
-CREATE INDEX IF NOT EXISTS idx_messages_channel_id ON messages(channel_id, id);
+-- Index for cursor pagination on channel history
+CREATE INDEX IF NOT EXISTS idx_messages_channel_history ON messages(channel_id, created_at, id);
 
 -- Posts table
 CREATE TABLE IF NOT EXISTS posts (
