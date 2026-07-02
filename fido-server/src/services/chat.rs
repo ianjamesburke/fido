@@ -190,6 +190,7 @@ mod tests {
             ServerEvent::MessageCreated(created) => assert_eq!(created.id, message.id),
             ServerEvent::DmRequestCreated(_)
             | ServerEvent::DmMessageCreated(_)
+            | ServerEvent::NotificationCreated(_)
             | ServerEvent::ThreadCreated(_)
             | ServerEvent::ThreadPendingApproval(_) => {
                 panic!("expected message event")

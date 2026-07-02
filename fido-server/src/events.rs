@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use fido_types::{DirectMessage, DmConversation, Message, Post};
+use fido_types::{DirectMessage, DmConversation, Message, Notification, Post};
 
 #[derive(Debug, Clone)]
 pub enum ServerEvent {
     DmRequestCreated(DmConversation),
     DmMessageCreated(DirectMessage),
     MessageCreated(Message),
+    NotificationCreated(Notification),
     ThreadCreated(Post),
     ThreadPendingApproval(Post),
 }
@@ -30,6 +31,9 @@ impl EventBus for NoopEventBus {
             }
             ServerEvent::MessageCreated(message) => {
                 let _ = message.id;
+            }
+            ServerEvent::NotificationCreated(notification) => {
+                let _ = notification.id;
             }
             ServerEvent::ThreadCreated(post) | ServerEvent::ThreadPendingApproval(post) => {
                 let _ = post.id;

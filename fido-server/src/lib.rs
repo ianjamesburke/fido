@@ -75,6 +75,19 @@ pub fn create_router(state: AppState) -> Router {
             post(api::auth::github_device_poll),
         )
         .route("/auth/validate", get(api::auth::validate_session))
+        // Notification routes
+        .route(
+            "/notifications",
+            get(api::notifications::list_notifications),
+        )
+        .route(
+            "/notifications/unread-count",
+            get(api::notifications::unread_count),
+        )
+        .route(
+            "/notifications/mark-read",
+            post(api::notifications::mark_read),
+        )
         // Post routes
         .route("/posts", get(api::posts::get_posts))
         .route("/posts", post(api::posts::create_post))

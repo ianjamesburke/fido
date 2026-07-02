@@ -6,12 +6,189 @@ use crate::{
     api::{ApiError, ApiResult},
     db::repositories::Repositories,
     events::{ServerEvent, SharedEventBus},
+    mention::extract_mentions,
+    services::notifications::NotificationService,
 };
-use fido_types::{MembershipRole, Post, SortOrder, User, VoteDirection};
+use fido_types::{MembershipRole, NotificationType, Post, SortOrder, User, VoteDirection};
 
 pub struct PostService {
     repos: Repositories,
     event_bus: SharedEventBus,
+}
+
+#[cfg(all(test, feature = "sqlite-tests"))]
+mod tests {
+    use super::*;
+    use crate::{
+        db::Database,
+        events::{EventBus, ServerEvent},
+    };
+    use anyhow::Result;
+    use chrono::Utc;
+    use fido_types::{Community, Membership};
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Default)]
+    struct RecordingEventBus {
+        events: Mutex<Vec<ServerEvent>>,
+    }
+
+    impl EventBus for RecordingEventBus {
+        fn emit(&self, event: ServerEvent) -> Result<()> {
+            self.events.lock().unwrap().push(event);
+            Ok(())
+        }
+    }
+
+    fn test_user(username: &str) -> User {
+        User {
+            id: Uuid::new_v4(),
+            username: username.to_string(),
+            bio: None,
+            join_date: Utc::now(),
+            is_test_user: true,
+            is_admin: false,
+        }
+    }
+
+    fn setup() -> Result<(
+        Repositories,
+        Arc<RecordingEventBus>,
+        Community,
+        User,
+        User,
+        User,
+    )> {
+        let db = Database::in_memory()?;
+        db.initialize()?;
+        let repos = Repositories::new(db.pool.clone());
+        let admin = test_user("admin");
+        let author = test_user("author");
+        let mentioned = test_user("mentioned");
+        repos.users.create(&admin)?;
+        repos.users.create(&author)?;
+        repos.users.create(&mentioned)?;
+
+        let community = Community {
+            id: Uuid::new_v4(),
+            github_repo_id: 9009,
+            owner: "octocat".to_string(),
+            name: "notifications".to_string(),
+            claimed_by: Some(admin.id),
+            require_thread_approval: false,
+            created_at: Utc::now(),
+        };
+        repos.communities.create(&community)?;
+        for (user, role) in [
+            (&admin, MembershipRole::Admin),
+            (&author, MembershipRole::Member),
+            (&mentioned, MembershipRole::Member),
+        ] {
+            repos.memberships.insert(&Membership {
+                community_id: community.id,
+                user_id: user.id,
+                role,
+                created_at: Utc::now(),
+            })?;
+        }
+        Ok((
+            repos,
+            Arc::new(RecordingEventBus::default()),
+            community,
+            admin,
+            author,
+            mentioned,
+        ))
+    }
+
+    fn post(author: &User, community_id: Uuid, content: &str) -> Post {
+        Post {
+            id: Uuid::new_v4(),
+            author_id: author.id,
+            author_username: author.username.clone(),
+            community_id,
+            content: content.to_string(),
+            created_at: Utc::now(),
+            upvotes: 0,
+            downvotes: 0,
+            approved: true,
+            hashtags: Vec::new(),
+            user_vote: None,
+            parent_post_id: None,
+            reply_count: 0,
+            reply_to_user_id: None,
+            reply_to_username: None,
+        }
+    }
+
+    #[test]
+    fn create_reply_notifies_parent_author_and_mentions() -> Result<()> {
+        let (repos, event_bus, community, _admin, author, mentioned) = setup()?;
+        let service = PostService::new(repos.clone(), event_bus.clone());
+        let root = post(&author, community.id, "root");
+        service.create_post(&root).expect("root creates");
+
+        let reply_author = mentioned.clone();
+        let reply = Post {
+            id: Uuid::new_v4(),
+            author_id: reply_author.id,
+            author_username: reply_author.username,
+            community_id: community.id,
+            content: "@author @mentioned hi".to_string(),
+            created_at: Utc::now(),
+            upvotes: 0,
+            downvotes: 0,
+            approved: true,
+            hashtags: Vec::new(),
+            user_vote: None,
+            parent_post_id: Some(root.id),
+            reply_count: 0,
+            reply_to_user_id: Some(root.author_id),
+            reply_to_username: Some(root.author_username),
+        };
+        service.create_post(&reply).expect("reply creates");
+
+        let author_notifications = repos.notifications.list_for_user(&author.id, 10, 0)?;
+        assert_eq!(author_notifications.len(), 2);
+        assert!(author_notifications
+            .iter()
+            .any(|n| n.notification_type == NotificationType::Reply));
+        assert!(author_notifications
+            .iter()
+            .any(|n| n.notification_type == NotificationType::Mention));
+
+        let self_notifications = repos.notifications.list_for_user(&mentioned.id, 10, 0)?;
+        assert!(self_notifications.is_empty());
+        assert!(event_bus
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|event| matches!(event, ServerEvent::NotificationCreated(_))));
+        Ok(())
+    }
+
+    #[test]
+    fn approving_thread_notifies_author() -> Result<()> {
+        let (repos, _event_bus, community, admin, author, _mentioned) = setup()?;
+        let service = PostService::new(repos.clone(), Arc::new(RecordingEventBus::default()));
+        let pending = Post {
+            approved: false,
+            ..post(&author, community.id, "pending")
+        };
+        service.create_post(&pending).expect("pending creates");
+        service
+            .approve_post(admin.id, &pending.id)
+            .expect("admin approves");
+
+        let notifications = repos.notifications.list_for_user(&author.id, 10, 0)?;
+        assert_eq!(notifications.len(), 1);
+        assert_eq!(
+            notifications[0].notification_type,
+            NotificationType::ThreadApproved
+        );
+        Ok(())
+    }
 }
 
 impl PostService {
@@ -116,7 +293,10 @@ impl PostService {
                 ServerEvent::ThreadPendingApproval(post.clone())
             };
             self.event_bus.emit(event)?;
+        } else {
+            self.notify_reply_targets(post)?;
         }
+        self.notify_mentions(post)?;
         Ok(())
     }
 
@@ -163,6 +343,13 @@ impl PostService {
         self.require_admin(user_id, post.community_id)?;
         self.repos.posts.approve(post_id)?;
         post.approved = true;
+        NotificationService::new(self.repos.clone(), self.event_bus.clone()).create(
+            post.author_id,
+            NotificationType::ThreadApproved,
+            user_id,
+            "community",
+            post.community_id.to_string(),
+        )?;
         self.populate_post(&mut post, Some(user_id))?;
         Ok(post)
     }
@@ -226,6 +413,37 @@ impl PostService {
             return Err(ApiError::Forbidden(
                 "Community admin role required".to_string(),
             ));
+        }
+        Ok(())
+    }
+
+    fn notify_reply_targets(&self, post: &Post) -> ApiResult<()> {
+        let Some(reply_to_user_id) = post.reply_to_user_id else {
+            return Ok(());
+        };
+
+        NotificationService::new(self.repos.clone(), self.event_bus.clone()).create(
+            reply_to_user_id,
+            NotificationType::Reply,
+            post.author_id,
+            "community",
+            post.community_id.to_string(),
+        )?;
+        Ok(())
+    }
+
+    fn notify_mentions(&self, post: &Post) -> ApiResult<()> {
+        let notifications = NotificationService::new(self.repos.clone(), self.event_bus.clone());
+        for username in extract_mentions(&post.content) {
+            if let Some(user) = self.repos.users.get_by_username(&username)? {
+                notifications.create(
+                    user.id,
+                    NotificationType::Mention,
+                    post.author_id,
+                    "community",
+                    post.community_id.to_string(),
+                )?;
+            }
         }
         Ok(())
     }

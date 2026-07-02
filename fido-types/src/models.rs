@@ -206,6 +206,21 @@ pub struct Notification {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotificationUnreadCount {
+    pub subject_type: String,
+    pub subject_id: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarkNotificationsReadRequest {
+    #[serde(default)]
+    pub notification_id: Option<Uuid>,
+    #[serde(default)]
+    pub all: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DmConversation {
     pub user_a: Uuid,
     pub user_b: Uuid,

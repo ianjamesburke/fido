@@ -7,7 +7,8 @@ use chrono::Utc;
 use crate::api::{ApiError, ApiResult};
 use crate::db::repositories::Repositories;
 use crate::events::{ServerEvent, SharedEventBus};
-use fido_types::{DirectMessage, DmConversationState};
+use crate::services::notifications::NotificationService;
+use fido_types::{DirectMessage, DmConversationState, NotificationType};
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -178,6 +179,13 @@ impl DMService {
             if let Some(conversation) =
                 self.repos.dm_conversations.get(from_user_id, &to_user.id)?
             {
+                NotificationService::new(self.repos.clone(), self.event_bus.clone()).create(
+                    to_user.id,
+                    NotificationType::DmRequest,
+                    *from_user_id,
+                    "dm_conversation",
+                    dm_subject_id(from_user_id, &to_user.id),
+                )?;
                 self.event_bus
                     .emit(ServerEvent::DmRequestCreated(conversation))?;
             }
@@ -271,6 +279,12 @@ impl DMService {
     }
 }
 
+fn dm_subject_id(user_a: &Uuid, user_b: &Uuid) -> String {
+    let mut ids = [user_a.to_string(), user_b.to_string()];
+    ids.sort();
+    ids.join(":")
+}
+
 #[cfg(all(test, feature = "sqlite-tests"))]
 mod tests {
     use super::*;
@@ -339,9 +353,17 @@ mod tests {
         assert_eq!(requests.len(), 1);
 
         let events = event_bus.events.lock().unwrap();
-        assert_eq!(events.len(), 2);
-        assert!(matches!(events[0], ServerEvent::DmRequestCreated(_)));
-        assert!(matches!(events[1], ServerEvent::DmMessageCreated(_)));
+        assert_eq!(events.len(), 3);
+        assert!(matches!(events[0], ServerEvent::NotificationCreated(_)));
+        assert!(matches!(events[1], ServerEvent::DmRequestCreated(_)));
+        assert!(matches!(events[2], ServerEvent::DmMessageCreated(_)));
+
+        let notifications = repos.notifications.list_for_user(&recipient.id, 10, 0)?;
+        assert_eq!(notifications.len(), 1);
+        assert_eq!(
+            notifications[0].notification_type,
+            NotificationType::DmRequest
+        );
         Ok(())
     }
 
