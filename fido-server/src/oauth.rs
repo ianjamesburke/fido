@@ -146,7 +146,7 @@ impl GitHubOAuthConfig {
     }
 
     /// Fetch GitHub user profile using access token
-    pub async fn get_user(&self, access_token: String) -> Result<GitHubUser> {
+    pub async fn get_user(&self, access_token: &str) -> Result<GitHubUser> {
         let client = reqwest::Client::new();
 
         let response = client

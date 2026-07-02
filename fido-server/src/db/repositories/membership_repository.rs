@@ -35,6 +35,22 @@ impl MembershipRepository {
         Ok(())
     }
 
+    /// Insert a membership if it does not already exist
+    pub fn insert_if_missing(&self, membership: &Membership) -> Result<()> {
+        let conn = self.pool.get()?;
+        conn.execute(
+            "INSERT OR IGNORE INTO memberships (community_id, user_id, role, created_at) VALUES (?, ?, ?, ?)",
+            (
+                membership.community_id.to_string(),
+                membership.user_id.to_string(),
+                membership.role.as_str(),
+                membership.created_at.to_rfc3339(),
+            ),
+        )
+        .context("Failed to insert membership if missing")?;
+        Ok(())
+    }
+
     /// Get a single membership
     pub fn get(&self, community_id: &Uuid, user_id: &Uuid) -> Result<Option<Membership>> {
         let conn = self.pool.get()?;

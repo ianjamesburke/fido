@@ -189,7 +189,14 @@ async fn main() {
     let repos = Repositories::new(db.pool.clone());
 
     // Create application state
-    let state = AppState::new_with_repos(db, repos);
+    let state = match AppState::new_with_repos(db, repos) {
+        Ok(state) => state,
+        Err(e) => {
+            tracing::error!("Failed to build application state: {}", e);
+            eprintln!("FATAL: Failed to build application state: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     // Run initial session cleanup on startup
     tracing::info!("Running initial session cleanup...");
@@ -305,6 +312,22 @@ async fn main() {
         // Config routes
         .route("/config", get(api::config::get_config))
         .route("/config", put(api::config::update_config))
+        // Community routes
+        .route(
+            "/communities/browse",
+            get(api::communities::browse_communities),
+        )
+        .route("/communities/join", post(api::communities::join_community))
+        .route("/communities", get(api::communities::list_communities))
+        .route("/communities/:id", get(api::communities::get_community))
+        .route(
+            "/communities/:id/claim",
+            post(api::communities::claim_community),
+        )
+        .route(
+            "/communities/:id/membership",
+            delete(api::communities::leave_community),
+        )
         // User routes
         .route("/users/search", get(api::friends::search_users))
         .route(

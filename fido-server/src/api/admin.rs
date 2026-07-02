@@ -185,13 +185,15 @@ mod tests {
     use super::*;
     use crate::db::Database;
     use crate::state::AppState;
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
     use chrono::Utc;
     use uuid::Uuid;
 
     fn setup_test_state() -> AppState {
+        std::env::set_var("FIDO_TOKEN_KEY", STANDARD.encode([9u8; 32]));
         let db = Database::in_memory().expect("Failed to create test database");
         db.initialize().expect("Failed to initialize database");
-        AppState::new(db)
+        AppState::new(db).expect("Failed to create app state")
     }
 
     fn create_test_user(state: &AppState, username: &str, is_admin: bool) -> Uuid {

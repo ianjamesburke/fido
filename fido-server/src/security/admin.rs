@@ -207,9 +207,10 @@ pub async fn require_admin(
 
 #[cfg(all(test, feature = "sqlite-tests"))]
 mod tests {
-    use super::*;
     use crate::db::repositories::UserRepository;
     use crate::db::Database;
+    use crate::state::AppState;
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
     use chrono::Utc;
     use uuid::Uuid;
 
@@ -217,6 +218,12 @@ mod tests {
         let db = Database::in_memory().expect("Failed to create test database");
         db.initialize().expect("Failed to initialize database");
         db
+    }
+
+    fn setup_test_state(db: Database) -> AppState {
+        let _guard = crate::test_utils::env_lock().lock().unwrap();
+        std::env::set_var("FIDO_TOKEN_KEY", STANDARD.encode([11u8; 32]));
+        AppState::new(db).expect("Failed to create app state")
     }
 
     fn create_test_user(db: &Database, username: &str, is_admin: bool) -> Uuid {
@@ -274,7 +281,7 @@ mod tests {
     #[test]
     fn test_session_manager_creates_valid_session() {
         let db = setup_test_db();
-        let state = AppState::new(db.clone());
+        let state = setup_test_state(db.clone());
 
         // Create a user
         let user_id = create_test_user(&db, "test_user", false);
@@ -300,7 +307,7 @@ mod tests {
     #[test]
     fn test_invalid_session_fails_validation() {
         let db = setup_test_db();
-        let state = AppState::new(db);
+        let state = setup_test_state(db);
 
         // Try to validate an invalid token
         let result = state.session_manager.validate_session("invalid-token");
@@ -311,7 +318,7 @@ mod tests {
     #[test]
     fn test_admin_check_logic() {
         let db = setup_test_db();
-        let state = AppState::new(db.clone());
+        let state = setup_test_state(db.clone());
 
         // Create an admin user
         let admin_id = create_test_user(&db, "admin_user", true);
@@ -340,7 +347,7 @@ mod tests {
     #[test]
     fn test_non_admin_check_logic() {
         let db = setup_test_db();
-        let state = AppState::new(db.clone());
+        let state = setup_test_state(db.clone());
 
         // Create a regular user
         let user_id = create_test_user(&db, "regular_user", false);
