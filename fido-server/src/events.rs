@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use fido_types::Message;
+use fido_types::{Message, Post};
 
 #[derive(Debug, Clone)]
 pub enum ServerEvent {
     MessageCreated(Message),
+    ThreadCreated(Post),
+    ThreadPendingApproval(Post),
 }
 
 pub trait EventBus: Send + Sync {
@@ -20,6 +22,9 @@ impl EventBus for NoopEventBus {
         match event {
             ServerEvent::MessageCreated(message) => {
                 let _ = message.id;
+            }
+            ServerEvent::ThreadCreated(post) | ServerEvent::ThreadPendingApproval(post) => {
+                let _ = post.id;
             }
         }
         Ok(())

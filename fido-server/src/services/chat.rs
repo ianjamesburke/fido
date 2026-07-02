@@ -188,6 +188,9 @@ mod tests {
         assert_eq!(events.len(), 1);
         match &events[0] {
             ServerEvent::MessageCreated(created) => assert_eq!(created.id, message.id),
+            ServerEvent::ThreadCreated(_) | ServerEvent::ThreadPendingApproval(_) => {
+                panic!("expected message event")
+            }
         }
         Ok(())
     }

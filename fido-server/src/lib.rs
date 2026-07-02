@@ -78,6 +78,7 @@ pub fn create_router(state: AppState) -> Router {
         // Post routes
         .route("/posts", get(api::posts::get_posts))
         .route("/posts", post(api::posts::create_post))
+        .route("/posts/:id/approve", post(api::posts::approve_post))
         .route("/posts/:id/vote", post(api::posts::vote_on_post))
         .route("/posts/:id/replies", get(api::posts::get_replies))
         .route("/posts/:id/reply", post(api::posts::create_reply))
@@ -117,6 +118,10 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/communities/:id/channels",
             get(api::chat::list_community_channels),
+        )
+        .route(
+            "/communities/:id/posts/pending",
+            get(api::posts::get_pending_posts),
         )
         .route(
             "/communities/:id/claim",
