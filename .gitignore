@@ -41,3 +41,4 @@ logs/
 # Firebase
 .firebase/
 .plexi-beta/
+.stint/
