@@ -12,7 +12,6 @@ COPY Cargo.toml Cargo.lock ./
 COPY fido-types ./fido-types
 COPY fido-server ./fido-server
 COPY fido-tui ./fido-tui
-COPY fido-migrate ./fido-migrate
 
 # Build release binaries
 RUN cargo build --release --bin fido-server --bin fido

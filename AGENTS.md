@@ -4,12 +4,11 @@ This file provides guidance to AI coding assistants when working with code in th
 
 ## Project Overview
 
-Fido is a blazing-fast, keyboard-driven terminal social platform for developers, built as a Rust workspace with four crates:
+Fido is a blazing-fast, keyboard-driven terminal social platform for developers, built as a Rust workspace with three crates:
 
 - **fido-types**: Shared data structures and models (User, Post, Vote, DirectMessage, etc.)
 - **fido-server**: Backend API server (Axum + SQLite with connection pooling)
 - **fido-tui**: Terminal UI client (Ratatui) - main binary
-- **fido-migrate**: Database migration utilities
 
 ### Core Principles
 - **Speed First**: Lightning-fast, terminal-native UI optimized for developer workflows
@@ -86,7 +85,7 @@ cargo check
 
 ### Workspace Structure
 
-The project follows a modular architecture with enum-based backend abstraction:
+The project follows a modular architecture:
 
 ```
 fido/
@@ -95,18 +94,12 @@ fido/
 │   ├── api/         # Endpoint handlers (auth, posts, dms, friends, hashtags, profile, config)
 │   └── db/          # Repository pattern data access layer
 ├── fido-tui/        # Terminal UI client
-│   ├── api/         # Backend enum abstraction (ApiClient + MockBackend)
+│   ├── api/         # HTTP client (ApiClient)
 │   ├── app/         # Application state and event handlers
 │   └── ui/          # Rendering with Ratatui (modals, tabs, theme)
-└── fido-migrate/    # Database migrations
 ```
 
 ### Key Design Patterns
-
-**Backend Enum Pattern**: The `Backend` enum in `fido-tui/src/api/backend.rs` provides a unified interface that can be either a real `ApiClient` or a `MockBackend` for demo mode. This enables:
-- Seamless switching between live API and mock data
-- Demo mode without server dependency
-- Consistent API surface for all operations
 
 **Repository Pattern**: Each entity (User, Post, DM, etc.) has a dedicated repository in `fido-server/src/db/repositories/` for data access:
 ```rust
@@ -132,28 +125,11 @@ Benefits:
 - Pure rendering functions in `ui/` module (modals, tabs, theme)
 - Isolated API communication in `api/` module
 
-**Trait-Based Abstractions**: Core functionality exposed through traits for easy mocking and testing:
-```rust
-#[async_trait]
-pub trait ApiClientTrait: Send + Sync {
-    async fn get_posts(&self, limit: Option<i32>, sort: Option<String>) -> ApiResult<Vec<Post>>;
-    async fn create_post(&self, content: String) -> ApiResult<Post>;
-}
-```
-
-This enables:
-- Easy mock implementations for testing
-- Future WebSocket client implementation
-- Offline mode or caching layer additions
-
 ### API Module Structure (fido-tui)
 
 ```
 fido-tui/src/api/
-├── backend.rs       # Backend enum (Api | Mock) - main abstraction
-├── client.rs        # ApiClient - real HTTP client implementation
-├── mock_backend.rs  # MockBackend - demo mode with sample data
-├── sample_data.rs   # Sample data generators for mock mode
+├── client.rs        # ApiClient - HTTP client implementation
 ├── error.rs         # ApiError and ApiResult types
 └── mod.rs           # Module exports
 ```
@@ -326,54 +302,19 @@ Important runtime pitfall:
   - `/usr/local/bin/fido: ... GLIBC_X.Y not found`
 - Fix by matching builder/runtime OS families in Dockerfile (for this repo: `FROM rust:1.91-bookworm` builder with `debian:bookworm-slim` runtime).
 
-## Web Terminal Demo vs Local TUI
+## Web Terminal vs Local TUI
 
-Fido has two distinct modes of operation:
-
-### Local TUI (Production Mode)
+### Local TUI
 - **Client**: Native `fido-tui` binary running locally on user's machine
 - **Server**: Connects to production API server (https://fido-web-production.up.railway.app or local server)
 - **Database**: Uses persistent SQLite database (`fido.db`) on the server
 - **Authentication**: GitHub OAuth with session stored in `~/.fido/session`
 - **Data**: All posts, DMs, and user data persists across sessions
 
-### Web Terminal Demo (Demo Mode)
-- **Client**: `fido-tui` binary running in Docker container, exposed via ttyd (web terminal server)
-- **Server**: Uses `MockBackend` instead of `ApiClient` (enabled via `FIDO_DEMO_MODE=true` env var)
-- **Database**: Ephemeral in-memory data structures - no database connection
-- **Authentication**: Test users only (no GitHub OAuth)
-- **Data**: Sample data generated on startup, lost when browser tab closes
-- **Architecture**:
-  ```
-  Browser → WebSocket → ttyd → fido-tui (FIDO_DEMO_MODE=true) → MockBackend (in-memory)
-                                                                  ↓
-                                                          nginx reverse proxy
-  ```
-
-### Key Implementation Details
-
-**Backend Enum Pattern**: The `Backend` enum in `fido-tui/src/api/backend.rs` enables seamless switching:
-```rust
-pub enum Backend {
-    Api(ApiClient),      // Production: HTTP requests to real server
-    Mock(MockBackend),   // Demo: In-memory operations, no network
-}
-```
-
-**Demo Mode Detection**: On startup, `fido-tui` checks `FIDO_DEMO_MODE` environment variable:
-- If `true`: Creates `Backend::Mock(MockBackend::new())` with sample data
-- If `false` or unset: Creates `Backend::Api(ApiClient::new())` for real API calls
-
-**Web Terminal Stack** (see `start.sh`):
+### Web Terminal Stack (see `start.sh`)
 - **nginx** (port 8080): Reverse proxy for static files and routing
-- **ttyd** (port 7681): Terminal-over-WebSocket server
-- **fido-server** (port 3000): Production API server (not used in demo mode)
-- **fido-tui**: TUI binary with `FIDO_DEMO_MODE=true`
-
-**Sample Data**: `fido-tui/src/api/sample_data.rs` generates realistic test data:
-- Pre-populated users, posts, DMs, hashtags
-- Simulated voting and following relationships
-- Reset on each new terminal session
+- **ttyd** (port 7681): Terminal-over-WebSocket server, runs `fido-tui` against the real API server
+- **fido-server** (port 3000): API server
 
 ## Testing Strategy
 
@@ -396,30 +337,8 @@ mod tests {
 }
 ```
 
-**API Client** (TUI):
-```rust
-// Create mock implementation
-struct MockApiClient {
-    posts: Vec<Post>,
-}
-
-#[async_trait]
-impl ApiClientTrait for MockApiClient {
-    async fn get_posts(&self, _: Option<i32>, _: Option<String>) -> ApiResult<Vec<Post>> {
-        Ok(self.posts.clone())
-    }
-}
-
-#[tokio::test]
-async fn test_app_with_mock_api() {
-    let mock_client = MockApiClient { posts: vec![/* test data */] };
-    // Test app logic with mock
-}
-```
-
 ### Integration Testing
 - **Server**: Test API endpoints with in-memory SQLite database
-- **Client**: Test UI flows with mock API client
 - **End-to-End**: Test full stack with Docker containers
 
 ## Performance Characteristics

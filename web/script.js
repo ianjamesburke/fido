@@ -14,8 +14,6 @@ console.log(
 );
 console.log(
     '%cWelcome to Fido! 🐕\n' +
-    'Built with Rust + Ratatui\n' +
-    'Press Ctrl+K to focus the terminal\n\n' +
-    '🔄 Resurrecting BBS culture for the modern age',
+    'Built with Rust + Ratatui',
     'font-family: monospace; color: #a3a3a3;'
 );
