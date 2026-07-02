@@ -186,8 +186,10 @@ impl DMService {
                     "dm_conversation",
                     dm_subject_id(from_user_id, &to_user.id),
                 )?;
-                self.event_bus
-                    .emit(ServerEvent::DmRequestCreated(conversation))?;
+                self.event_bus.emit(ServerEvent::DmRequestCreated {
+                    conversation,
+                    message: message.clone(),
+                })?;
             }
         }
         self.event_bus
@@ -355,7 +357,7 @@ mod tests {
         let events = event_bus.events.lock().unwrap();
         assert_eq!(events.len(), 3);
         assert!(matches!(events[0], ServerEvent::NotificationCreated(_)));
-        assert!(matches!(events[1], ServerEvent::DmRequestCreated(_)));
+        assert!(matches!(events[1], ServerEvent::DmRequestCreated { .. }));
         assert!(matches!(events[2], ServerEvent::DmMessageCreated(_)));
 
         let notifications = repos.notifications.list_for_user(&recipient.id, 10, 0)?;

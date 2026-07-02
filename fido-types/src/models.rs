@@ -7,7 +7,7 @@ use crate::enums::{
 };
 
 // Custom serde module for DateTime to ensure RFC3339 string format
-mod datetime_format {
+pub(crate) mod datetime_format {
     use chrono::{DateTime, Utc};
     use serde::{self, Deserialize, Deserializer, Serializer};
 

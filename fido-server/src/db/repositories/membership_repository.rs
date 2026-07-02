@@ -120,6 +120,19 @@ impl MembershipRepository {
         Ok(count > 0)
     }
 
+    /// List all memberships for a community
+    pub fn list_members(&self, community_id: &Uuid) -> Result<Vec<Membership>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT community_id, user_id, role, created_at FROM memberships
+             WHERE community_id = ? ORDER BY created_at ASC",
+        )?;
+        let memberships = stmt
+            .query_map([community_id.to_string()], map_membership_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(memberships)
+    }
+
     /// List admin memberships for a community
     pub fn list_admins(&self, community_id: &Uuid) -> Result<Vec<Membership>> {
         let conn = self.pool.get()?;
@@ -213,6 +226,7 @@ mod tests {
         assert_eq!(got.role, MembershipRole::Admin);
 
         assert_eq!(repo.list_for_user(&user_id)?.len(), 1);
+        assert_eq!(repo.list_members(&community_id)?.len(), 1);
         assert_eq!(repo.list_admins(&community_id)?.len(), 1);
 
         repo.delete(&community_id, &user_id)?;

@@ -6,6 +6,7 @@ mod http;
 mod mention;
 mod oauth;
 mod rate_limit;
+mod realtime;
 mod security;
 mod services;
 mod session;
@@ -253,6 +254,8 @@ async fn main() {
     let app = Router::new()
         // Health check
         .route("/health", get(health_check))
+        // Realtime WebSocket gateway
+        .route("/ws", get(api::ws::ws_handler))
         // Authentication routes
         .route("/users/test", get(api::auth::list_test_users))
         .route("/auth/login", post(api::auth::login))
@@ -380,7 +383,7 @@ async fn main() {
         .route("/social/mutual", get(api::friends::get_mutual_friends_list))
         .with_state(state.clone())
         .layer(middleware::from_fn_with_state(
-            state,
+            state.clone(),
             rate_limit::rate_limit_middleware,
         ))
         .layer(axum::Extension(rate_limiter))
@@ -424,7 +427,21 @@ async fn main() {
 
     tracing::info!("Server starting successfully on {}", addr);
 
-    if let Err(e) = axum::serve(listener, app).await {
+    // On ctrl-c, signal the realtime gateway first so WebSocket connections
+    // close with a going-away frame, then let axum drain gracefully.
+    let gateway = state.realtime.clone();
+    let shutdown = async move {
+        if let Err(e) = tokio::signal::ctrl_c().await {
+            tracing::error!("Failed to listen for shutdown signal: {}", e);
+        }
+        tracing::info!("Shutdown signal received, closing WebSocket connections");
+        gateway.shutdown();
+    };
+
+    if let Err(e) = axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown)
+        .await
+    {
         tracing::error!("Server error: {}", e);
         eprintln!("FATAL: Server error: {}", e);
         std::process::exit(1);
