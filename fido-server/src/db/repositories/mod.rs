@@ -1,5 +1,6 @@
 #![allow(dead_code)] // v2 repository bundle is exported by the library before every API surface uses it.
 
+mod activity_repository;
 mod audit_repository;
 mod channel_repository;
 mod community_repository;
@@ -17,6 +18,8 @@ mod session_repository;
 mod user_repository;
 mod vote_repository;
 
+#[allow(unused_imports)] // wired up to a route handler in the next task
+pub use activity_repository::{ActivityCacheRecord, ActivityRepository};
 pub use audit_repository::AuditRepository;
 pub use channel_repository::ChannelRepository;
 pub use community_repository::CommunityRepository;
@@ -42,6 +45,7 @@ use crate::db::DbPool;
 /// is cloned freely into services and handlers.
 #[derive(Clone)]
 pub struct Repositories {
+    pub activity: ActivityRepository,
     pub posts: PostRepository,
     pub votes: VoteRepository,
     pub users: UserRepository,
@@ -63,6 +67,7 @@ pub struct Repositories {
 impl Repositories {
     pub fn new(pool: DbPool) -> Self {
         Self {
+            activity: ActivityRepository::new(pool.clone()),
             posts: PostRepository::new(pool.clone()),
             votes: VoteRepository::new(pool.clone()),
             users: UserRepository::new(pool.clone()),

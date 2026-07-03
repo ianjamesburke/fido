@@ -183,6 +183,14 @@ CREATE TABLE IF NOT EXISTS github_tokens (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Community activity cache (GitHub issues/PRs, 10-minute TTL)
+CREATE TABLE IF NOT EXISTS community_activity (
+    community_id TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE
+);
+
 -- Post rate limiting table
 CREATE TABLE IF NOT EXISTS post_rate_limits (
     user_id TEXT PRIMARY KEY,
