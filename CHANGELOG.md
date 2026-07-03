@@ -17,6 +17,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [0.4.0] - 2026-07-03
+
+### Added
+
+- View any user's profile with `p` from the posts list, DM conversation list, friends modal, and user search (Enter). Profile shows bio, stats, join date, and your relationship to them.
+- Follow/unfollow with `f` and start a message with `m` directly from a profile.
+- Incoming DM requests appear in the DMs sidebar; accept with `a`, decline with `x`. Outgoing requests show a `(pending)` marker and a waiting hint.
+- `GET /communities/:id/members` endpoint; community modal now lists owner and admins.
+- End-to-end test covering the search → profile → message flow.
+
+### Changed
+
+- Community modal reworked: left-aligned layout with owner, role, member count, and admins list.
+- DM conversations are typed API responses with pending/accepted state instead of untyped JSON.
+- Friends modal and search footers only advertise keys that work.
+
+### Fixed
+
+- `p` (view profile) was a dead key everywhere; it now works.
+- Enter in the user search modal was shadowed by the post-open handler and did nothing.
+- Seeded demo users had DM messages without conversations, breaking the DMs tab.
+- Letters `j`, `k`, and `d` could not be typed in user search queries.
+- Voting and post-open keys no longer fire underneath an open profile modal.
+
+
+
 ## [0.1.17] - 2026-02-12
 
 ### Changed
