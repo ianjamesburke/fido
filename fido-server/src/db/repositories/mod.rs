@@ -18,8 +18,7 @@ mod session_repository;
 mod user_repository;
 mod vote_repository;
 
-#[allow(unused_imports)] // wired up to a route handler in the next task
-pub use activity_repository::{ActivityCacheRecord, ActivityRepository};
+pub use activity_repository::ActivityRepository;
 pub use audit_repository::AuditRepository;
 pub use channel_repository::ChannelRepository;
 pub use community_repository::CommunityRepository;

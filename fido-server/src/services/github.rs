@@ -288,7 +288,6 @@ impl GithubService {
     /// Fetch issues + PRs updated in the last 14 days (one request; GitHub's
     /// issues endpoint includes PRs). Uses the caller's stored token when
     /// present, unauthenticated otherwise.
-    #[allow(dead_code)] // wired up to a route handler in the next task
     pub async fn repo_activity(
         &self,
         user_id: Uuid,

@@ -3,13 +3,14 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use fido_types::{Channel, Community, Membership, MembershipRole};
+use fido_types::{ActivityItem, Channel, Community, Membership, MembershipRole};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
     api::{ApiError, ApiResult},
     http::AuthenticatedUser,
+    services::activity::ActivityService,
     services::communities::{BrowseCommunity, CommunityService, CommunityView},
     state::AppState,
 };
@@ -152,6 +153,26 @@ pub async fn list_members(
             .map(|(username, role)| CommunityMemberResponse { username, role })
             .collect(),
     ))
+}
+
+#[derive(Debug, Serialize)]
+pub struct CommunityActivityResponse {
+    pub items: Vec<ActivityItem>,
+    pub fetched_at: String,
+}
+
+/// GET /communities/:id/activity - Recent GitHub issues/PRs for the community's repo
+pub async fn get_activity(
+    State(state): State<AppState>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
+    Path(community_id): Path<Uuid>,
+) -> ApiResult<Json<CommunityActivityResponse>> {
+    let service = ActivityService::new(state.repos.clone(), state.github_service.clone());
+    let activity = service.get_activity(user_id, community_id).await?;
+    Ok(Json(CommunityActivityResponse {
+        items: activity.items,
+        fetched_at: activity.fetched_at.to_rfc3339(),
+    }))
 }
 
 /// DELETE /communities/:id/membership - Leave a community

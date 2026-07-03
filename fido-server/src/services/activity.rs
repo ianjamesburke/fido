@@ -8,7 +8,6 @@ use crate::services::github::GithubService;
 
 pub const ACTIVITY_CACHE_TTL_MINUTES: i64 = 10;
 
-#[allow(dead_code)] // wired up to a route handler in the next task
 #[derive(Debug, Clone)]
 pub struct CommunityActivity {
     pub items: Vec<ActivityItem>,
@@ -19,13 +18,11 @@ pub(crate) fn cache_is_fresh(fetched_at: DateTime<Utc>, now: DateTime<Utc>) -> b
     now - fetched_at < Duration::minutes(ACTIVITY_CACHE_TTL_MINUTES)
 }
 
-#[allow(dead_code)] // wired up to a route handler in the next task
 pub struct ActivityService {
     repos: Repositories,
     github: GithubService,
 }
 
-#[allow(dead_code)] // wired up to a route handler in the next task
 impl ActivityService {
     pub fn new(repos: Repositories, github: GithubService) -> Self {
         Self { repos, github }
