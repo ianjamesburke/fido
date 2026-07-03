@@ -883,3 +883,37 @@ fn dm_navigation_visits_requests() {
         crate::app::DMSelection::NewConversation
     ));
 }
+
+#[test]
+fn dm_request_selection_restored_after_acting_on_one() {
+    let mut app = App::new();
+    let make_req = |name: &str| crate::app::DmRequest {
+        from_user_id: uuid::Uuid::new_v4(),
+        from_username: name.to_string(),
+    };
+
+    // Acted on the last of three requests; two remain -> clamp to last remaining
+    app.dms_state.pending_requests = vec![make_req("alice"), make_req("bob")];
+    app.dms_state.selection = crate::app::DMSelection::Conversation(0); // reload reset
+    app.dms_state.restore_request_selection(2);
+    assert!(matches!(
+        app.dms_state.selection,
+        crate::app::DMSelection::Request(1)
+    ));
+
+    // Acted on the first; index preserved
+    app.dms_state.restore_request_selection(0);
+    assert!(matches!(
+        app.dms_state.selection,
+        crate::app::DMSelection::Request(0)
+    ));
+
+    // No requests left -> selection untouched (reload's default stands)
+    app.dms_state.pending_requests.clear();
+    app.dms_state.selection = crate::app::DMSelection::Conversation(0);
+    app.dms_state.restore_request_selection(0);
+    assert!(matches!(
+        app.dms_state.selection,
+        crate::app::DMSelection::Conversation(0)
+    ));
+}

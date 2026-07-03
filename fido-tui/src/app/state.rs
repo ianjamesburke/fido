@@ -381,6 +381,16 @@ impl DMsState {
             }
         }
     }
+
+    /// Re-select the request list after accepting/declining the request at
+    /// `acted_idx` (the conversation reload resets selection). Keeps the user
+    /// in the requests section while requests remain; otherwise leaves the
+    /// reload's default selection.
+    pub fn restore_request_selection(&mut self, acted_idx: usize) {
+        if !self.pending_requests.is_empty() {
+            self.selection = DMSelection::Request(acted_idx.min(self.pending_requests.len() - 1));
+        }
+    }
 }
 
 /// Conversation summary

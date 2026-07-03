@@ -505,7 +505,10 @@ impl EventLoop {
                     if let Some(req) = app.dms_state.pending_requests.get(idx) {
                         let from = req.from_user_id;
                         match app.api_client.accept_dm_request(from).await {
-                            Ok(()) => app.load_conversations().await?,
+                            Ok(()) => {
+                                app.load_conversations().await?;
+                                app.dms_state.restore_request_selection(idx);
+                            }
                             Err(e) => app.dms_state.error = Some(format!("Accept failed: {}", e)),
                         }
                     }
@@ -521,7 +524,10 @@ impl EventLoop {
                     if let Some(req) = app.dms_state.pending_requests.get(idx) {
                         let from = req.from_user_id;
                         match app.api_client.decline_dm_request(from).await {
-                            Ok(()) => app.load_conversations().await?,
+                            Ok(()) => {
+                                app.load_conversations().await?;
+                                app.dms_state.restore_request_selection(idx);
+                            }
                             Err(e) => app.dms_state.error = Some(format!("Decline failed: {}", e)),
                         }
                     }

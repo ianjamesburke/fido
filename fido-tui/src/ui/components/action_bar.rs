@@ -31,26 +31,22 @@ pub fn action_bar_text(app: &App) -> &'static str {
             let has_active_conversation = app.dms_state.selection.conversation_index().is_some();
             let has_pending_draft = app.dms_state.pending_conversation_username.is_some();
             let can_compose = has_active_conversation || has_pending_draft;
-            let has_requests = !app.dms_state.pending_requests.is_empty();
             let is_request_selected =
                 matches!(app.dms_state.selection, crate::app::DMSelection::Request(_));
 
+            // Only advertise keys that work for the current selection:
+            // a/x act only on a selected request; p opens the profile of a
+            // selected conversation (both in Navigation mode).
             if is_request_selected {
                 "↑/↓/j/k: Navigate | a: Accept | x: Decline"
             } else if app.dms_state.selection.is_new_conversation() {
-                if has_requests {
-                    "Enter/N: Start New Conversation | ↑/↓/j/k: Navigate | p: Profile | a: Accept | x: Decline | Esc: Back"
-                } else {
-                    "Enter/N: Start New Conversation | ↑/↓/j/k: Navigate | Esc: Back"
-                }
+                "Enter/N: Start New Conversation | ↑/↓/j/k: Navigate | Esc: Back"
             } else if can_compose {
-                if has_requests {
-                    "↑/↓/j/k: Navigate | Type to compose | Enter: Send | Esc: Clear | p: Profile | a: Accept | x: Decline"
+                if has_active_conversation {
+                    "↑/↓/j/k: Navigate | p: Profile | Type to compose | Enter: Send | Esc: Clear"
                 } else {
                     "↑/↓/j/k: Navigate | Type to compose | Enter: Send | Esc: Clear"
                 }
-            } else if has_requests {
-                "↑/↓/j/k: Navigate | Enter: Select conversation | N: New Conversation | p: Profile | a: Accept | x: Decline"
             } else {
                 "↑/↓/j/k: Navigate | Enter: Select conversation | N: New Conversation"
             }
