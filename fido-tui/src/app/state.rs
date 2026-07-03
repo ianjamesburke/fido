@@ -372,11 +372,15 @@ pub struct ProfileState {
 
 /// User profile view state (for viewing other users' profiles)
 pub struct UserProfileViewState {
+    pub user_id: uuid::Uuid,
     pub username: String,
     pub bio: Option<String>,
+    pub join_date: String,
     pub follower_count: usize,
     pub following_count: usize,
     pub post_count: usize,
+    pub relationship: fido_types::RelationshipStatus,
+    pub error: Option<String>,
 }
 
 /// Filter type for posts

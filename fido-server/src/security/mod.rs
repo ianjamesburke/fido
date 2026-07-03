@@ -142,8 +142,7 @@ impl Default for SecurityConfig {
 impl SecurityConfig {
     /// Create a new SecurityConfig by loading from environment variables
     pub fn from_env() -> Result<Self, SecurityConfigError> {
-        let environment = match std::env::var("ENVIRONMENT")
-            .or_else(|_| std::env::var("RUST_ENV"))
+        let environment = match std::env::var("ENVIRONMENT").or_else(|_| std::env::var("RUST_ENV"))
         {
             Ok(value) => Environment::parse(&value)?,
             Err(_) => {

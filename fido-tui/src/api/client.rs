@@ -463,6 +463,17 @@ impl ApiClient {
         self.handle_response(response).await
     }
 
+    /// Get another user's profile with relationship status
+    pub async fn get_user_profile_view(
+        &self,
+        user_id: Uuid,
+    ) -> ApiResult<fido_types::UserProfileView> {
+        let url = format!("{}/users/{}/profile-view", self.base_url, user_id);
+        let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
     // OAuth endpoints
 
     /// Initiate GitHub Device Flow

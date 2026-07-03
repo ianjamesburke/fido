@@ -101,8 +101,7 @@ impl RateLimiter {
                 // inserting so unbounded unique keys can't exhaust memory.
                 if state.len() >= MAX_TRACKED_KEYS {
                     // Try to reclaim space by dropping fully-expired windows.
-                    state
-                        .retain(|_, (_, start)| now.duration_since(*start) < self.window_duration);
+                    state.retain(|_, (_, start)| now.duration_since(*start) < self.window_duration);
 
                     if state.len() >= MAX_TRACKED_KEYS {
                         // Still at capacity: refuse the new key rather than grow.

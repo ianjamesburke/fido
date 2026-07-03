@@ -820,3 +820,15 @@ fn user_info_carries_id() {
     };
     assert_eq!(info.id, id);
 }
+
+#[tokio::test]
+async fn open_user_profile_surfaces_fetch_error() {
+    let mut app = App::new();
+    let id = uuid::Uuid::new_v4();
+    app.open_user_profile(id, "ghost".to_string())
+        .await
+        .unwrap();
+    let view = app.user_profile_view.as_ref().expect("view opens on error");
+    assert_eq!(view.username, "ghost");
+    assert!(view.error.is_some());
+}
