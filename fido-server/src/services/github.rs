@@ -6,7 +6,8 @@ use aes_gcm_siv::{
 };
 use anyhow::{anyhow, bail, Context, Result};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use chrono::Utc;
+use chrono::{Duration, Utc};
+use fido_types::{ActivityItem, ActivityKind, ActivityState};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -64,6 +65,60 @@ struct GithubContributor {
 #[derive(Debug, Serialize)]
 struct RevokeGrantRequest<'a> {
     access_token: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GithubIssue {
+    id: i64,
+    number: i64,
+    title: String,
+    state: String,
+    html_url: String,
+    created_at: chrono::DateTime<Utc>,
+    user: GithubIssueUser,
+    pull_request: Option<GithubIssuePullRequest>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GithubIssueUser {
+    login: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GithubIssuePullRequest {
+    merged_at: Option<chrono::DateTime<Utc>>,
+}
+
+pub(crate) fn map_issue_to_activity(issue: GithubIssue) -> ActivityItem {
+    let (kind, state) = match &issue.pull_request {
+        Some(pr) if pr.merged_at.is_some() => (ActivityKind::PullRequest, ActivityState::Merged),
+        Some(_) => (
+            ActivityKind::PullRequest,
+            if issue.state == "open" {
+                ActivityState::Open
+            } else {
+                ActivityState::Closed
+            },
+        ),
+        None => (
+            ActivityKind::Issue,
+            if issue.state == "open" {
+                ActivityState::Open
+            } else {
+                ActivityState::Closed
+            },
+        ),
+    };
+    ActivityItem {
+        github_id: issue.id,
+        kind,
+        number: issue.number,
+        title: issue.title,
+        author_login: issue.user.login,
+        state,
+        created_at: issue.created_at,
+        html_url: issue.html_url,
+    }
 }
 
 #[derive(Clone)]
@@ -228,6 +283,36 @@ impl GithubService {
                 format!("Failed to delete stored GitHub token for user {}", user_id)
             })?;
         Ok(())
+    }
+
+    /// Fetch issues + PRs updated in the last 14 days (one request; GitHub's
+    /// issues endpoint includes PRs). Uses the caller's stored token when
+    /// present, unauthenticated otherwise.
+    #[allow(dead_code)] // wired up to a route handler in the next task
+    pub async fn repo_activity(
+        &self,
+        user_id: Uuid,
+        owner: &str,
+        name: &str,
+    ) -> Result<Vec<ActivityItem>> {
+        let since = (Utc::now() - Duration::days(14)).to_rfc3339();
+        let url = format!(
+            "{}/repos/{}/{}/issues?state=all&since={}&per_page=100&sort=created&direction=desc",
+            self.api_base, owner, name, since
+        );
+
+        let result = match self.load_token(user_id)? {
+            Some(_) => {
+                self.get_with_token::<Vec<GithubIssue>>(user_id, url, "repo_activity")
+                    .await
+            }
+            None => self.get_public::<Vec<GithubIssue>>(url, "repo_activity").await,
+        }
+        .map(|issues| issues.into_iter().map(map_issue_to_activity).collect());
+
+        let op = format!("GET /repos/{}/{}/issues", owner, name);
+        self.log_result("repo_activity", user_id, Some(&op), &result);
+        result
     }
 
     async fn get_with_token<T>(&self, user_id: Uuid, url: String, operation: &str) -> Result<T>
@@ -398,6 +483,38 @@ impl TokenCipher {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn maps_issue_pr_and_merged_pr() {
+        let raw = include_str!("../../tests/fixtures/github_issues_sample.json");
+        let issues: Vec<GithubIssue> = serde_json::from_str(raw).expect("fixture parses");
+        let items: Vec<ActivityItem> = issues.into_iter().map(map_issue_to_activity).collect();
+
+        let issue = items
+            .iter()
+            .find(|i| i.kind == ActivityKind::Issue)
+            .expect("has an issue");
+        assert_eq!(issue.number, 10);
+        assert_eq!(issue.title, "Give the website a makeover");
+        assert_eq!(issue.state, ActivityState::Open);
+        assert_eq!(issue.author_login, "ianjamesburke");
+
+        let merged = items
+            .iter()
+            .find(|i| i.state == ActivityState::Merged)
+            .expect("has a merged PR");
+        assert_eq!(merged.kind, ActivityKind::PullRequest);
+        assert_eq!(merged.number, 19);
+        assert!(merged.html_url.starts_with("https://"));
+        assert!(!merged.author_login.is_empty());
+
+        let open_pr = items
+            .iter()
+            .find(|i| i.kind == ActivityKind::PullRequest && i.state == ActivityState::Open)
+            .expect("has an open PR");
+        assert_eq!(open_pr.number, 158719);
+        assert_eq!(open_pr.author_login, "jieyouxu");
+    }
 
     #[test]
     fn token_cipher_round_trip() {
