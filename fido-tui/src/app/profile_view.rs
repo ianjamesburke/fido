@@ -98,6 +98,9 @@ impl App {
         self.close_user_profile_view();
         self.friends_state.return_to_modal_after_profile = false;
         self.friends_state.show_friends_modal = false;
+        // Clear any stale DMs error: handle_tab_changes reloads conversations when
+        // error is Some, which would clobber the selection/draft set below.
+        self.dms_state.error = None;
         self.current_tab = crate::app::Tab::DMs;
         if !self.dms_state.conversations_loaded {
             self.load_conversations().await?;
