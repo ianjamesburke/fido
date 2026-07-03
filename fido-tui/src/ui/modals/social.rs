@@ -133,7 +133,7 @@ pub fn render_friends_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     let footer_text = if app.friends_state.search_mode {
         "Type to search | Esc: Exit search"
     } else {
-        "↑/↓/j/k: Navigate | p: View Profile | f: Follow/Unfollow | /: Search | Tab: Switch | Esc: Close"
+        "↑/↓/j/k: Navigate | p: View Profile | /: Search | Tab: Switch | Esc: Close"
     };
 
     render_footer(frame, chunks[3], footer_text, &theme);
@@ -151,11 +151,46 @@ pub fn render_user_profile_view(frame: &mut Frame, app: &App, area: Rect) {
     let config = ModalConfig::new(" User Profile ").with_size(60, 70);
     let inner = render_modal_container(frame, area, &config, &theme);
 
+    if let Some(error) = &profile.error {
+        let error_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Header with username
+                Constraint::Min(0),    // Error message
+                Constraint::Length(3), // Footer
+            ])
+            .split(inner);
+
+        let header = Paragraph::new(Line::from(Span::styled(
+            format!("@{}", profile.username),
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )))
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border)),
+        );
+        frame.render_widget(header, error_chunks[0]);
+
+        let error_msg = Paragraph::new(error.as_str())
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .style(Style::default().fg(theme.error));
+        frame.render_widget(error_msg, error_chunks[1]);
+
+        render_footer(frame, error_chunks[2], "Esc: Close", &theme);
+        return;
+    }
+
     // Split inner modal into sections
     let modal_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(5), // Header with username and stats
+            Constraint::Length(2), // Join date
             Constraint::Length(4), // Bio
             Constraint::Length(3), // Relationship status
             Constraint::Min(0),    // Spacer
@@ -200,6 +235,16 @@ pub fn render_user_profile_view(frame: &mut Frame, app: &App, area: Rect) {
         );
     frame.render_widget(header, modal_chunks[0]);
 
+    // Render join date
+    let join_date_text = format!(
+        "Joined {}",
+        &profile.join_date[..10.min(profile.join_date.len())]
+    );
+    let join_date = Paragraph::new(join_date_text)
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(theme.text_dim));
+    frame.render_widget(join_date, modal_chunks[1]);
+
     // Render bio
     let bio_text = profile.bio.as_deref().unwrap_or("No bio");
     let bio = Paragraph::new(bio_text)
@@ -211,10 +256,16 @@ pub fn render_user_profile_view(frame: &mut Frame, app: &App, area: Rect) {
                 .border_style(Style::default().fg(theme.border))
                 .title(" Bio "),
         );
-    frame.render_widget(bio, modal_chunks[1]);
+    frame.render_widget(bio, modal_chunks[2]);
 
-    // Render relationship status (only "None" is currently supported)
-    let (status_text, status_color) = ("Not Following", theme.text_dim);
+    // Render relationship status
+    let (status_text, status_color) = match profile.relationship {
+        fido_types::RelationshipStatus::Self_ => ("This is you", theme.text_dim),
+        fido_types::RelationshipStatus::MutualFriends => ("Mutual friends", theme.success),
+        fido_types::RelationshipStatus::Following => ("Following", theme.accent),
+        fido_types::RelationshipStatus::FollowsYou => ("Follows you", theme.accent),
+        fido_types::RelationshipStatus::None => ("Not following", theme.text_dim),
+    };
 
     let status = Paragraph::new(Line::from(Span::styled(
         status_text,
@@ -228,10 +279,15 @@ pub fn render_user_profile_view(frame: &mut Frame, app: &App, area: Rect) {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(theme.border)),
     );
-    frame.render_widget(status, modal_chunks[2]);
+    frame.render_widget(status, modal_chunks[3]);
 
     // Render actions footer
-    render_footer(frame, modal_chunks[4], "Esc: Cancel", &theme);
+    let footer_text = if matches!(profile.relationship, fido_types::RelationshipStatus::Self_) {
+        "Esc: Close"
+    } else {
+        "f: Follow/Unfollow | m: Message | Esc: Close"
+    };
+    render_footer(frame, modal_chunks[5], footer_text, &theme);
 }
 
 /// Render new conversation modal (matches friends modal design)
@@ -373,7 +429,7 @@ pub fn render_user_search_modal(frame: &mut Frame, app: &mut App, area: Rect) {
     render_footer(
         frame,
         chunks[2],
-        "↑/↓/j/k: Navigate | Enter: View Profile | d: Send DM | Esc: Close",
+        "↑/↓: Navigate | Enter: View Profile | Esc: Close",
         &theme,
     );
 }

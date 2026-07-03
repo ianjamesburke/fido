@@ -412,6 +412,9 @@ impl App {
                         }
                     }
                 },
+                KeyCode::Char('p') | KeyCode::Char('P') => {
+                    // Profile of selected conversation — handled async in event_loop
+                }
                 _ => {
                     // Any other key starts typing mode (for message input)
                     self.input_mode = InputMode::Typing;

@@ -419,6 +419,76 @@ impl EventLoop {
             KeyCode::Char('L') if app.current_screen == Screen::Main => {
                 app.logout().await?;
             }
+            // p: profile from friends modal
+            KeyCode::Char('p') | KeyCode::Char('P')
+                if app.user_profile_view.is_none()
+                    && app.friends_state.show_friends_modal
+                    && !app.friends_state.search_mode =>
+            {
+                let target = app
+                    .get_filtered_social_list()
+                    .get(app.friends_state.selected_index)
+                    .map(|u| (u.id, u.username.clone()));
+                if let Some((id, username)) = target {
+                    app.friends_state.show_friends_modal = false;
+                    app.friends_state.return_to_modal_after_profile = true;
+                    app.open_user_profile(id, username).await?;
+                }
+            }
+            // Enter: profile from user search modal
+            KeyCode::Enter
+                if app.user_profile_view.is_none() && app.user_search_state.show_modal =>
+            {
+                let target = app
+                    .user_search_state
+                    .search_results
+                    .get(app.user_search_state.selected_index)
+                    .map(|u| (u.id, u.username.clone()));
+                if let Some((id, username)) = target {
+                    app.close_user_search_modal();
+                    app.open_user_profile(id, username).await?;
+                }
+            }
+            // p: profile of selected post's author (posts list, board active)
+            KeyCode::Char('p') | KeyCode::Char('P')
+                if app.user_profile_view.is_none()
+                    && app.current_screen == Screen::Main
+                    && app.current_tab == Tab::Posts
+                    && !app.viewing_post_detail
+                    && !app.composer_state.is_open()
+                    && !app.posts_state.show_filter_modal
+                    && !app.is_home_list_active()
+                    && app.input_mode == InputMode::Navigation =>
+            {
+                let target = app
+                    .posts_state
+                    .list_state
+                    .selected()
+                    .and_then(|i| app.posts_state.posts.get(i))
+                    .map(|post| (post.author_id, post.author_username.clone()));
+                if let Some((id, username)) = target {
+                    app.open_user_profile(id, username).await?;
+                }
+            }
+            // p: profile from DM conversation list (navigation mode only)
+            KeyCode::Char('p') | KeyCode::Char('P')
+                if app.user_profile_view.is_none()
+                    && app.current_tab == Tab::DMs
+                    && app.input_mode == InputMode::Navigation
+                    && !app.dms_state.show_new_conversation_modal =>
+            {
+                let target = match &app.dms_state.selection {
+                    DMSelection::Conversation(idx) => app
+                        .dms_state
+                        .conversations
+                        .get(*idx)
+                        .map(|c| (c.other_user_id, c.other_username.clone())),
+                    _ => None,
+                };
+                if let Some((id, username)) = target {
+                    app.open_user_profile(id, username).await?;
+                }
+            }
             _ => {
                 // Delegate to synchronous key handling
                 app.handle_key_event(key)?;

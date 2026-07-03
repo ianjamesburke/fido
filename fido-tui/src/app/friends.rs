@@ -159,12 +159,6 @@ impl App {
                 self.friends_state.search_mode = true;
                 self.friends_state.search_query.clear();
             }
-            KeyCode::Char('p') | KeyCode::Char('P') => {
-                // View selected user's profile (handled in main.rs)
-            }
-            KeyCode::Char('f') | KeyCode::Char('F') => {
-                // Follow/unfollow selected user (handled in main.rs)
-            }
             _ => {}
         }
         Ok(())

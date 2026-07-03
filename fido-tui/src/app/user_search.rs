@@ -17,23 +17,9 @@ impl App {
                 self.user_search_state.search_query.pop();
                 // Search will be triggered in main loop
             }
-            KeyCode::Enter => {
-                // View profile of selected user (will be handled in main loop)
-            }
             KeyCode::Char(c) => {
-                // Handle navigation keys
-                match c {
-                    'j' | 'J' => self.user_search_navigate(1),
-                    'k' | 'K' => self.user_search_navigate(-1),
-                    'd' | 'D' => {
-                        // Start DM with selected user (will be handled in main loop)
-                    }
-                    _ => {
-                        // Regular character input for search
-                        self.user_search_state.search_query.push(c);
-                        // Search will be triggered in main loop
-                    }
-                }
+                self.user_search_state.search_query.push(c);
+                // Search will be triggered in main loop
             }
             _ => {}
         }
