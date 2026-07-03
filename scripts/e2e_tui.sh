@@ -173,7 +173,7 @@ wait_for "Message Input (Enter to send)" "DMs tab conversation with bob"
 tmux send-keys -t "$SESSION" -l "hello from e2e"
 sleep 0.3
 keys Enter
-sleep 0.5
+wait_for "hello from e2e" "sent DM to appear in transcript"
 
 MSG_COUNT=$(sqlite3 "$WORK/fido.db" \
     "SELECT count(*) FROM direct_messages dm
