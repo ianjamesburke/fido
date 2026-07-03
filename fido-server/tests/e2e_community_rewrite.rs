@@ -988,12 +988,13 @@ async fn community_activity_requires_auth_and_rejects_unknown_community() -> Res
         .await?;
     assert_eq!(anon.status(), StatusCode::UNAUTHORIZED);
 
-    // An authenticated request for a community that doesn't exist fails
-    // before any GitHub call is made (no fixture server is running here).
+    // An authenticated request for a community that doesn't exist 404s,
+    // same as GET /communities/:id, before any GitHub call is made (no
+    // fixture server is running here).
     let response = alice_client
         .get(&format!("/communities/{}/activity", Uuid::new_v4()))
         .await?;
-    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     Ok(())
 }

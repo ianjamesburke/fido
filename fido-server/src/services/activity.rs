@@ -1,8 +1,9 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
 use fido_types::ActivityItem;
 use uuid::Uuid;
 
+use crate::api::{ApiError, ApiResult};
 use crate::db::repositories::Repositories;
 use crate::services::github::GithubService;
 
@@ -32,13 +33,17 @@ impl ActivityService {
     /// Stale/missing: refetch from GitHub and upsert. GitHub failure with a
     /// stale cache present: serve stale with a warning. Failure with no
     /// cache: propagate.
-    pub async fn get_activity(&self, user_id: Uuid, community_id: Uuid) -> Result<CommunityActivity> {
+    pub async fn get_activity(
+        &self,
+        user_id: Uuid,
+        community_id: Uuid,
+    ) -> ApiResult<CommunityActivity> {
         let now = Utc::now();
         let cached = self.repos.activity.get(community_id)?;
 
         if let Some(record) = &cached {
             if cache_is_fresh(record.fetched_at, now) {
-                return decode(record.payload.as_str(), record.fetched_at);
+                return Ok(decode(record.payload.as_str(), record.fetched_at)?);
             }
         }
 
@@ -46,7 +51,7 @@ impl ActivityService {
             .repos
             .communities
             .get_by_id(&community_id)?
-            .ok_or_else(|| anyhow!("Community {} not found", community_id))?;
+            .ok_or_else(|| ApiError::NotFound("Community not found".to_string()))?;
 
         match self
             .github
@@ -65,11 +70,13 @@ impl ActivityService {
             Err(error) => {
                 if let Some(record) = cached {
                     tracing::warn!(%community_id, %error, "Serving stale activity cache after GitHub fetch failure");
-                    return decode(record.payload.as_str(), record.fetched_at);
+                    return Ok(decode(record.payload.as_str(), record.fetched_at)?);
                 }
-                Err(error).with_context(|| {
-                    format!("Failed to fetch repo activity for community {}", community_id)
-                })
+                Err(error)
+                    .with_context(|| {
+                        format!("Failed to fetch repo activity for community {}", community_id)
+                    })
+                    .map_err(ApiError::from)
             }
         }
     }
