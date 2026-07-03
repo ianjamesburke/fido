@@ -9,14 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Repo activity: GitHub issues and PRs from the last 14 days appear in the community feed. Select one and press `o` to open it on GitHub.
-- Community badge: `GET /badge/:owner/:repo.svg` renders a live member-count badge for embedding in a README.
-
 ### Changed
 
 ### Fixed
 
 ### Removed
+
+
+
+## [0.5.0] - 2026-07-03
+
+### Added
+
+- Repo activity: GitHub issues and PRs from the last 14 days appear in the community feed. Select one and press `o` to open it on GitHub.
+- Community badge: `GET /badge/:owner/:repo.svg` renders a live member-count badge for embedding in a README.
+
+### Changed
+
+- Communities can no longer be created for private repositories; join now rejects a private repo instead of exposing its activity and member count.
+
+### Fixed
+
+- `nginx` served `/badge/:owner/:repo.svg` from the static file root instead of the API; badge requests now reach the server.
+- The GitHub HTTP client now has a 10-second timeout so a stalled connection cannot hang the TUI on an activity fetch.
 
 
 
