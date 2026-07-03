@@ -54,6 +54,12 @@ impl CommunityService {
                 ApiError::NotFound(format!("GitHub repo {}/{} not found", owner, name))
             })?;
 
+        if repo.private {
+            return Err(ApiError::Forbidden(
+                "Cannot create a community for a private repository".to_string(),
+            ));
+        }
+
         let community = match self.repos.communities.get_by_github_repo_id(repo.id)? {
             Some(community) => community,
             None => self.create_community(repo.id, &repo.owner.login, &repo.name)?,
@@ -307,6 +313,35 @@ mod tests {
         format!("http://{}", addr)
     }
 
+    async fn fixture_server_private_repo() -> String {
+        async fn repo() -> Json<serde_json::Value> {
+            Json(json!({
+                "id": 42,
+                "name": "secret-repo",
+                "full_name": "octocat/secret-repo",
+                "private": true,
+                "owner": { "login": "octocat" },
+                "permissions": {
+                    "admin": true,
+                    "maintain": true,
+                    "push": true,
+                    "triage": true,
+                    "pull": true
+                }
+            }))
+        }
+
+        let app = Router::new().route("/repos/octocat/secret-repo", get(repo));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("fixture listener");
+        let addr = listener.local_addr().expect("fixture addr");
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.expect("fixture server");
+        });
+        format!("http://{}", addr)
+    }
+
     fn setup_user(repos: &Repositories) -> Uuid {
         let user_id = Uuid::new_v4();
         repos
@@ -445,5 +480,42 @@ mod tests {
         assert_eq!(members[0], ("alice".to_string(), MembershipRole::Admin));
         assert_eq!(members[1], ("zed".to_string(), MembershipRole::Member));
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn join_rejects_private_repo() {
+        let api_base = fixture_server_private_repo().await;
+        let db = Database::in_memory().expect("db");
+        db.initialize().expect("schema");
+        let repos = Repositories::new(db.pool.clone());
+        let user_id = setup_user(&repos);
+        let service = {
+            let _guard = crate::test_utils::env_lock().lock().unwrap();
+            std::env::set_var("FIDO_TOKEN_KEY", STANDARD.encode([9u8; 32]));
+            std::env::set_var("GITHUB_API_BASE", api_base);
+            let github = GithubService::from_env(repos.clone()).expect("github service");
+            std::env::remove_var("GITHUB_API_BASE");
+            std::env::remove_var("FIDO_TOKEN_KEY");
+
+            github
+                .store_token(user_id, "gho_recorded_fixture")
+                .expect("store token");
+            CommunityService::new(repos.clone(), github)
+        };
+
+        let result = service.join(user_id, "octocat", "secret-repo").await;
+        assert!(
+            matches!(result, Err(ApiError::Forbidden(_))),
+            "join must reject a private repo, got {:?}",
+            result.map(|v| v.community.id)
+        );
+        assert!(
+            repos
+                .communities
+                .get_by_github_repo_id(42)
+                .expect("query")
+                .is_none(),
+            "no community should be created for a private repo"
+        );
     }
 }

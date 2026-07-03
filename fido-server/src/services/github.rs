@@ -130,6 +130,7 @@ impl GithubService {
     pub fn from_env(repos: Repositories) -> Result<Self> {
         let cipher = TokenCipher::from_env()?;
         let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
             .build()
             .context("Failed to build GitHub HTTP client")?;
 
