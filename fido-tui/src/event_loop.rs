@@ -495,6 +495,38 @@ impl EventLoop {
             KeyCode::Char('m') | KeyCode::Char('M') if app.user_profile_view.is_some() => {
                 app.message_user_from_profile().await?;
             }
+            // a: accept a pending DM request
+            KeyCode::Char('a') | KeyCode::Char('A')
+                if app.current_tab == Tab::DMs
+                    && app.input_mode == InputMode::Navigation
+                    && matches!(app.dms_state.selection, DMSelection::Request(_)) =>
+            {
+                if let DMSelection::Request(idx) = app.dms_state.selection {
+                    if let Some(req) = app.dms_state.pending_requests.get(idx) {
+                        let from = req.from_user_id;
+                        match app.api_client.accept_dm_request(from).await {
+                            Ok(()) => app.load_conversations().await?,
+                            Err(e) => app.dms_state.error = Some(format!("Accept failed: {}", e)),
+                        }
+                    }
+                }
+            }
+            // x: decline a pending DM request
+            KeyCode::Char('x') | KeyCode::Char('X')
+                if app.current_tab == Tab::DMs
+                    && app.input_mode == InputMode::Navigation
+                    && matches!(app.dms_state.selection, DMSelection::Request(_)) =>
+            {
+                if let DMSelection::Request(idx) = app.dms_state.selection {
+                    if let Some(req) = app.dms_state.pending_requests.get(idx) {
+                        let from = req.from_user_id;
+                        match app.api_client.decline_dm_request(from).await {
+                            Ok(()) => app.load_conversations().await?,
+                            Err(e) => app.dms_state.error = Some(format!("Decline failed: {}", e)),
+                        }
+                    }
+                }
+            }
             _ => {
                 // Delegate to synchronous key handling
                 app.handle_key_event(key)?;

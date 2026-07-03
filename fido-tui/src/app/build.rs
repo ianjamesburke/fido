@@ -106,6 +106,7 @@ impl App {
                 new_conversation_selected_index: 0,
                 new_conversation_search_mode: false,
                 new_conversation_search_query: String::new(),
+                pending_requests: Vec::new(),
             },
             settings_state: SettingsState {
                 config: None,

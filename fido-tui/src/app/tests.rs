@@ -862,3 +862,24 @@ fn follow_toggle_transitions() {
     );
     assert_eq!(App::next_relationship_after_toggle(&R::Self_), None);
 }
+
+#[test]
+fn dm_navigation_visits_requests() {
+    let mut app = App::new();
+    app.dms_state.pending_requests = vec![crate::app::DmRequest {
+        from_user_id: uuid::Uuid::new_v4(),
+        from_username: "alice".to_string(),
+    }];
+    app.dms_state.conversations = vec![]; // requests but no conversations
+    app.dms_state.selection = crate::app::DMSelection::NewConversation;
+    app.dms_state.navigate_down();
+    assert!(matches!(
+        app.dms_state.selection,
+        crate::app::DMSelection::Request(0)
+    ));
+    app.dms_state.navigate_up();
+    assert!(matches!(
+        app.dms_state.selection,
+        crate::app::DMSelection::NewConversation
+    ));
+}

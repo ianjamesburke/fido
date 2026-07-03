@@ -240,6 +240,8 @@ pub enum DMSelection {
     NewConversation,
     /// A pending draft conversation (not yet sent)
     PendingDraft,
+    /// A pending incoming DM request at the given index
+    Request(usize),
     /// An existing conversation at the given index
     Conversation(usize),
 }
@@ -262,6 +264,13 @@ impl DMSelection {
             _ => None,
         }
     }
+}
+
+/// A pending incoming DM request (someone who messaged us before we shared a community)
+#[derive(Debug, Clone)]
+pub struct DmRequest {
+    pub from_user_id: uuid::Uuid,
+    pub from_username: String,
 }
 
 /// DMs tab state
@@ -293,24 +302,36 @@ pub struct DMsState {
     pub new_conversation_search_mode: bool,
     /// Search query for new conversation modal
     pub new_conversation_search_query: String,
+    /// Pending incoming DM requests awaiting accept/decline
+    pub pending_requests: Vec<DmRequest>,
 }
 
 impl DMsState {
-    /// Navigate down in the conversation list
+    /// Navigate down in the conversation list.
+    /// Order: NewConversation -> PendingDraft (if any) -> Request(0..n) -> Conversation(0..m)
     pub fn navigate_down(&mut self) {
         match &self.selection {
             DMSelection::NewConversation => {
-                // From "New Conversation", go to pending draft or first conversation
                 if self.pending_conversation_username.is_some() {
                     self.selection = DMSelection::PendingDraft;
+                } else if !self.pending_requests.is_empty() {
+                    self.selection = DMSelection::Request(0);
                 } else if !self.conversations.is_empty() {
                     self.selection = DMSelection::Conversation(0);
                 }
-                // If no conversations, stay on NewConversation
+                // If nothing else, stay on NewConversation
             }
             DMSelection::PendingDraft => {
-                // From pending draft, go to first conversation
-                if !self.conversations.is_empty() {
+                if !self.pending_requests.is_empty() {
+                    self.selection = DMSelection::Request(0);
+                } else if !self.conversations.is_empty() {
+                    self.selection = DMSelection::Conversation(0);
+                }
+            }
+            DMSelection::Request(idx) => {
+                if *idx < self.pending_requests.len().saturating_sub(1) {
+                    self.selection = DMSelection::Request(idx + 1);
+                } else if !self.conversations.is_empty() {
                     self.selection = DMSelection::Conversation(0);
                 }
             }
@@ -323,7 +344,7 @@ impl DMsState {
         }
     }
 
-    /// Navigate up in the conversation list
+    /// Navigate up in the conversation list.
     pub fn navigate_up(&mut self) {
         match &self.selection {
             DMSelection::NewConversation => {
@@ -333,10 +354,23 @@ impl DMsState {
                 // Go back to "New Conversation"
                 self.selection = DMSelection::NewConversation;
             }
+            DMSelection::Request(idx) => {
+                if *idx == 0 {
+                    if self.pending_conversation_username.is_some() {
+                        self.selection = DMSelection::PendingDraft;
+                    } else {
+                        self.selection = DMSelection::NewConversation;
+                    }
+                } else {
+                    self.selection = DMSelection::Request(idx - 1);
+                }
+            }
             DMSelection::Conversation(idx) => {
                 if *idx == 0 {
-                    // At first conversation, go to pending draft or "New Conversation"
-                    if self.pending_conversation_username.is_some() {
+                    // At first conversation, go to last request, pending draft, or "New Conversation"
+                    if !self.pending_requests.is_empty() {
+                        self.selection = DMSelection::Request(self.pending_requests.len() - 1);
+                    } else if self.pending_conversation_username.is_some() {
                         self.selection = DMSelection::PendingDraft;
                     } else {
                         self.selection = DMSelection::NewConversation;

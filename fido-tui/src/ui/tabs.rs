@@ -16,7 +16,7 @@ use super::components::panel::render_panel_lines;
 use super::formatting::*;
 use super::modals::*;
 use super::theme::{get_theme_colors, ThemeColors};
-use crate::app::App;
+use crate::app::{App, Conversation, DMSelection};
 use crate::{log_modal_state, log_rendering};
 
 pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
@@ -1062,6 +1062,35 @@ pub fn render_conversations_list(frame: &mut Frame, app: &App, area: Rect) {
         lines.push(Line::from(""));
     }
 
+    // Incoming pending DM requests — must accept/decline before messaging
+    for (i, req) in app.dms_state.pending_requests.iter().enumerate() {
+        let is_selected = matches!(app.dms_state.selection, DMSelection::Request(idx) if idx == i);
+
+        let style = if is_selected {
+            Style::default()
+                .fg(theme.warning)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.warning)
+        };
+
+        let prefix = if is_selected { "▶ " } else { "  " };
+
+        lines.push(Line::from(vec![
+            Span::styled(prefix, style),
+            Span::styled(format!("✉ @{} wants to chat", req.from_username), style),
+        ]));
+        lines.push(Line::from(""));
+    }
+
+    if !app.dms_state.pending_requests.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "─".repeat(area.width.saturating_sub(4) as usize),
+            Style::default().fg(theme.text_dim),
+        )));
+        lines.push(Line::from(""));
+    }
+
     for (i, convo) in app.dms_state.conversations.iter().enumerate() {
         let is_selected = app.dms_state.selection.conversation_index() == Some(i);
 
@@ -1086,6 +1115,14 @@ pub fn render_conversations_list(frame: &mut Frame, app: &App, area: Rect) {
                 Style::default()
                     .fg(theme.error)
                     .add_modifier(Modifier::BOLD),
+            ));
+        }
+
+        if convo.state == fido_types::DmConversationState::Pending && convo.initiated_by_me {
+            username_spans.push(Span::raw(" "));
+            username_spans.push(Span::styled(
+                "(pending)",
+                Style::default().fg(theme.text_dim),
             ));
         }
 
@@ -1115,21 +1152,61 @@ pub fn render_conversations_list(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(conversations, area);
 }
 
+/// The currently-open conversation, if the selection points at one that is loaded.
+fn open_outgoing_pending_conversation(app: &App) -> Option<&Conversation> {
+    let selected_index = app.dms_state.selection.conversation_index()?;
+    let convo = app.dms_state.conversations.get(selected_index)?;
+    if app.dms_state.current_conversation_user != Some(convo.other_user_id) {
+        return None;
+    }
+    if convo.state == fido_types::DmConversationState::Pending && convo.initiated_by_me {
+        Some(convo)
+    } else {
+        None
+    }
+}
+
 /// Render messages view
 pub fn render_messages_view(frame: &mut Frame, app: &mut App, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
+    let pending_hint = open_outgoing_pending_conversation(app).map(|c| {
+        format!(
+            "Request sent — waiting for @{} to accept. You can't send more messages until they do.",
+            c.other_username
+        )
+    });
+
+    let constraints = if pending_hint.is_some() {
+        vec![
+            Constraint::Min(0),    // Messages
+            Constraint::Length(1), // Pending hint
+            Constraint::Length(6), // Input
+        ]
+    } else {
+        vec![
             Constraint::Min(0),    // Messages
             Constraint::Length(6), // Input (increased from 4 to 6)
-        ])
+        ]
+    };
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(constraints)
         .split(area);
 
     // Render messages
     render_messages(frame, app, chunks[0]);
 
-    // Render input
-    render_message_input(frame, app, chunks[1]);
+    if let Some(hint) = pending_hint {
+        let theme = get_theme_colors(app);
+        let hint_widget = Paragraph::new(Line::from(Span::styled(
+            hint,
+            Style::default().fg(theme.text_dim),
+        )));
+        frame.render_widget(hint_widget, chunks[1]);
+        render_message_input(frame, app, chunks[2]);
+    } else {
+        render_message_input(frame, app, chunks[1]);
+    }
 }
 
 /// Render messages
@@ -1149,6 +1226,35 @@ pub fn render_messages(frame: &mut Frame, app: &mut App, area: Rect) {
             Line::from(""),
             Line::from(Span::styled(
                 "Type your first message below",
+                Style::default().fg(theme.text),
+            )),
+            Line::from(""),
+        ];
+        let empty = Paragraph::new(empty_text)
+            .alignment(Alignment::Center)
+            .block(Block::default().borders(Borders::ALL).title("Messages"));
+        frame.render_widget(empty, area);
+        return;
+    }
+
+    if let DMSelection::Request(idx) = app.dms_state.selection {
+        let username = app
+            .dms_state
+            .pending_requests
+            .get(idx)
+            .map(|r| r.from_username.as_str())
+            .unwrap_or("this user");
+        let empty_text = vec![
+            Line::from(""),
+            Line::from(Span::styled(
+                format!("@{} wants to chat", username),
+                Style::default()
+                    .fg(theme.warning)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Accept to start a conversation, or decline to dismiss the request.",
                 Style::default().fg(theme.text),
             )),
             Line::from(""),
@@ -1288,6 +1394,27 @@ pub fn render_messages(frame: &mut Frame, app: &mut App, area: Rect) {
 /// Render message input
 pub fn render_message_input(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
+
+    if let DMSelection::Request(idx) = app.dms_state.selection {
+        let username = app
+            .dms_state
+            .pending_requests
+            .get(idx)
+            .map(|r| r.from_username.as_str())
+            .unwrap_or("this user");
+        let input = Paragraph::new(format!(
+            "@{} wants to chat — a: Accept | x: Decline",
+            username
+        ))
+        .style(Style::default().fg(theme.warning))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Message Input"),
+        );
+        frame.render_widget(input, area);
+        return;
+    }
 
     // Check if conversation is selected and user can type
     let can_type = app.dms_state.pending_conversation_username.is_some()

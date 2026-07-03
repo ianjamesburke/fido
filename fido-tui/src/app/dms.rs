@@ -4,7 +4,7 @@ use ratatui::style::Style;
 use tui_textarea::TextArea;
 use uuid::Uuid;
 
-use super::{categorize_error, App, Conversation, DMSelection, InputMode, UserInfo};
+use super::{categorize_error, App, Conversation, DMSelection, DmRequest, InputMode, UserInfo};
 
 impl App {
     /// Close DM error modal
@@ -33,6 +33,22 @@ impl App {
         self.dms_state.loading = true;
         self.dms_state.error = None;
 
+        self.dms_state.pending_requests = self
+            .api_client
+            .get_pending_dm_requests()
+            .await
+            .map(|reqs| {
+                reqs.into_iter()
+                    .filter_map(|r| {
+                        Some(DmRequest {
+                            from_user_id: r.from_user_id.parse().ok()?,
+                            from_username: r.from_username,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
         match self.api_client.get_conversations().await {
             Ok(convos) => {
                 self.dms_state.conversations = convos
@@ -48,6 +64,12 @@ impl App {
                         })
                     })
                     .collect();
+
+                // Incoming pending conversations are represented by the requests list;
+                // filter them out of the conversation list to avoid double entries.
+                self.dms_state.conversations.retain(|c| {
+                    c.state != fido_types::DmConversationState::Pending || c.initiated_by_me
+                });
 
                 // Update unread_counts HashMap from conversations
                 self.dms_state.unread_counts.clear();
@@ -92,6 +114,7 @@ impl App {
         let selected_index = match &self.dms_state.selection {
             DMSelection::NewConversation => return Ok(()), // Nothing to load
             DMSelection::PendingDraft => return Ok(()),    // Nothing to load yet
+            DMSelection::Request(_) => return Ok(()),      // Accept the request first
             DMSelection::Conversation(index) => *index,
         };
         if selected_index >= self.dms_state.conversations.len() {
@@ -212,6 +235,11 @@ impl App {
                     DMSelection::PendingDraft => {
                         // This shouldn't happen since we check pending_conversation_username above
                         self.dms_state.error = Some("No recipient selected.".to_string());
+                        return Ok(());
+                    }
+                    DMSelection::Request(_) => {
+                        self.dms_state.error =
+                            Some("Accept the request first before sending a message.".to_string());
                         return Ok(());
                     }
                     DMSelection::Conversation(index) => *index,
@@ -405,6 +433,9 @@ impl App {
                         // Focus on message input for the pending draft
                         self.input_mode = InputMode::Typing;
                     }
+                    DMSelection::Request(_) => {
+                        // Nothing to do on Enter — use 'a'/'x' to accept/decline
+                    }
                     DMSelection::Conversation(idx) => {
                         // Select this conversation and load messages
                         if *idx < self.dms_state.conversations.len() {
@@ -415,6 +446,14 @@ impl App {
                 },
                 KeyCode::Char('p') | KeyCode::Char('P') => {
                     // Profile of selected conversation — handled async in event_loop
+                }
+                KeyCode::Char('a')
+                | KeyCode::Char('A')
+                | KeyCode::Char('x')
+                | KeyCode::Char('X')
+                    if matches!(self.dms_state.selection, DMSelection::Request(_)) =>
+                {
+                    // accept/decline — handled async in event_loop
                 }
                 _ => {
                     // Any other key starts typing mode (for message input)

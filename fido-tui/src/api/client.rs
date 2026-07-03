@@ -46,6 +46,14 @@ pub struct ConversationInfo {
     pub initiated_by_me: bool,
 }
 
+/// A pending incoming DM request as returned by `GET /dms/requests`
+#[derive(Debug, serde::Deserialize)]
+pub struct DmRequestInfo {
+    pub from_user_id: String,
+    pub from_username: String,
+    pub created_at: String,
+}
+
 /// API client for communicating with the Fido server
 #[derive(Clone)]
 pub struct ApiClient {
@@ -370,6 +378,32 @@ impl ApiClient {
         let req = self.add_auth_header(self.client.get(&url));
         let response = req.send().await?;
         self.handle_response(response).await
+    }
+
+    /// List pending DM requests addressed to me
+    pub async fn get_pending_dm_requests(&self) -> ApiResult<Vec<DmRequestInfo>> {
+        let url = format!("{}/dms/requests", self.base_url);
+        let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
+    /// Accept a pending DM request from a user
+    pub async fn accept_dm_request(&self, from_user_id: Uuid) -> ApiResult<()> {
+        let url = format!("{}/dms/requests/{}/accept", self.base_url, from_user_id);
+        let req = self.add_auth_header(self.client.post(&url));
+        let response = req.send().await?;
+        let _: serde_json::Value = self.handle_response(response).await?;
+        Ok(())
+    }
+
+    /// Decline a pending DM request from a user
+    pub async fn decline_dm_request(&self, from_user_id: Uuid) -> ApiResult<()> {
+        let url = format!("{}/dms/requests/{}/decline", self.base_url, from_user_id);
+        let req = self.add_auth_header(self.client.post(&url));
+        let response = req.send().await?;
+        let _: serde_json::Value = self.handle_response(response).await?;
+        Ok(())
     }
 
     /// Get conversation with specific user
