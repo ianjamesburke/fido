@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::enums::{
-    ColorScheme, DmConversationState, MembershipRole, NotificationType, SortOrder, VoteDirection,
+    ActivityKind, ActivityState, ColorScheme, DmConversationState, MembershipRole,
+    NotificationType, SortOrder, VoteDirection,
 };
 
 // Custom serde module for DateTime to ensure RFC3339 string format
@@ -230,6 +231,21 @@ pub struct DmConversation {
     pub created_at: DateTime<Utc>,
 }
 
+/// A GitHub issue or PR surfaced in a community feed. Read-only ambient
+/// content — never a post: no votes, no replies, no post id.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActivityItem {
+    pub github_id: i64,
+    pub kind: ActivityKind,
+    pub number: i64,
+    pub title: String,
+    pub author_login: String,
+    pub state: ActivityState,
+    #[serde(with = "datetime_format")]
+    pub created_at: DateTime<Utc>,
+    pub html_url: String,
+}
+
 // Request/Response types for API
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreatePostRequest {
@@ -291,4 +307,31 @@ pub struct LoginResponse {
 pub struct ErrorResponse {
     pub error: String,
     pub details: Option<String>,
+}
+
+#[cfg(test)]
+mod activity_tests {
+    use super::*;
+    use crate::enums::{ActivityKind, ActivityState};
+
+    #[test]
+    fn activity_item_serde_round_trip() {
+        let item = ActivityItem {
+            github_id: 123456,
+            kind: ActivityKind::PullRequest,
+            number: 42,
+            title: "Add dark mode".to_string(),
+            author_login: "alice".to_string(),
+            state: ActivityState::Merged,
+            created_at: "2026-07-01T12:00:00Z".parse().unwrap(),
+            html_url: "https://github.com/o/r/pull/42".to_string(),
+        };
+        let json = serde_json::to_string(&item).unwrap();
+        assert!(json.contains("\"pull_request\""));
+        assert!(json.contains("\"merged\""));
+        let back: ActivityItem = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.github_id, 123456);
+        assert_eq!(back.kind, ActivityKind::PullRequest);
+        assert_eq!(back.state, ActivityState::Merged);
+    }
 }
