@@ -6,7 +6,8 @@
 #
 # Covers: test-user login, directory-scoped community join (repo mode),
 # board title with role, posting, community modal, Home mode outside a repo,
-# opening a community from the Home list.
+# opening a community from the Home list, search -> profile -> DM, and the
+# repo activity feed (GitHub issues fetch + cache).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -182,6 +183,20 @@ MSG_COUNT=$(sqlite3 "$WORK/fido.db" \
      WHERE s.username = 'alice' AND r.username = 'bob'
        AND dm.content = 'hello from e2e';")
 [[ "$MSG_COUNT" == "1" ]] || fail "DM from alice to bob not found (count=$MSG_COUNT)"
+
+tmux kill-session -t "$SESSION"
+
+# --- Scenario 5: repo activity feed --------------------------------------
+# Opening the board triggers a background fetch of GitHub issues for the
+# repo; the stub returns one open issue that should interleave into the
+# posts feed and get cached in community_activity.
+echo "==> scenario 5: repo activity feed loads and caches"
+launch_tui "$REPO"
+wait_for "testowner/testrepo" "repo community board (session restored, scenario 5)"
+wait_for "Stub issue for e2e" "stub issue interleaved into posts feed"
+
+count=$(sqlite3 "$WORK/fido.db" "SELECT COUNT(*) FROM community_activity;")
+[ "$count" -ge 1 ] || fail "expected community_activity cache row"
 
 tmux kill-session -t "$SESSION"
 

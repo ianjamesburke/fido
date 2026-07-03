@@ -2,8 +2,9 @@
 """Local stand-in for api.github.com used by the TUI e2e harness.
 
 Resolves any /repos/:owner/:name with a deterministic id, returns an empty
-contributors list, and 404s owner "ghost" to exercise the unresolvable-repo
-path. Mirrors the fixture server in fido-server/tests/e2e_community_rewrite.rs.
+contributors list, one stub open issue from /repos/:owner/:name/issues, and
+404s owner "ghost" to exercise the unresolvable-repo path. Mirrors the
+fixture server in fido-server/tests/e2e_community_rewrite.rs.
 """
 
 import json
@@ -13,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 REPO_RE = re.compile(r"^/repos/([^/]+)/([^/]+)$")
 CONTRIBUTORS_RE = re.compile(r"^/repos/([^/]+)/([^/]+)/contributors$")
+ISSUES_RE = re.compile(r"^/repos/([^/]+)/([^/]+)/issues$")
 
 
 def repo_id(owner: str, name: str) -> int:
@@ -27,6 +29,22 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if CONTRIBUTORS_RE.fullmatch(path):
             return self._reply(200, [])
+
+        if ISSUES_RE.fullmatch(path):
+            return self._reply(
+                200,
+                [
+                    {
+                        "id": 1,
+                        "number": 7,
+                        "title": "Stub issue for e2e",
+                        "state": "open",
+                        "html_url": "https://github.com/stub/repo/issues/7",
+                        "created_at": "2026-07-03T00:00:00Z",
+                        "user": {"login": "stubuser"},
+                    }
+                ],
+            )
 
         repo = REPO_RE.fullmatch(path)
         if repo:

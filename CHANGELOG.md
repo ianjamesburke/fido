@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Repo activity: GitHub issues and PRs from the last 14 days appear in the community feed. Select one and press `o` to open it on GitHub.
+- Community badge: `GET /badge/:owner/:repo.svg` renders a live member-count badge for embedding in a README.
+
 ### Changed
 
 ### Fixed

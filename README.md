@@ -10,6 +10,16 @@ Built for Kiroween 2025.
 
 ![Fido](assets/Screenshot%202025-12-07%20at%209.53.56 PM.png)
 
+## Badge
+
+Show your repo's fido community in the README:
+
+````markdown
+[![fido community](https://fido-web-production.up.railway.app/badge/OWNER/REPO.svg)](https://github.com/OWNER/REPO)
+````
+
+The badge is live — it always shows the current member count.
+
 ## Live Demo
 
 Production demo: https://fido-web-production.up.railway.app/
