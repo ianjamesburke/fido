@@ -1,19 +1,17 @@
 use axum::{extract::State, Json};
-use uuid::Uuid;
 
 use crate::{
     api::{ApiError, ApiResult},
+    http::AuthenticatedUser,
     state::AppState,
 };
 use fido_types::{ColorScheme, SortOrder, UpdateConfigRequest, UserConfig};
 
 /// GET /config - Get user configuration
-pub async fn get_config(State(state): State<AppState>) -> ApiResult<Json<UserConfig>> {
-    // For MVP, we'll use a hardcoded user ID (alice)
-    // In production, this would come from the authenticated session
-    let user_id =
-        Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").expect("Invalid hardcoded UUID");
-
+pub async fn get_config(
+    State(state): State<AppState>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
+) -> ApiResult<Json<UserConfig>> {
     // Get configuration (returns default if not found)
     let config = state
         .repos
@@ -27,13 +25,9 @@ pub async fn get_config(State(state): State<AppState>) -> ApiResult<Json<UserCon
 /// PUT /config - Update user configuration
 pub async fn update_config(
     State(state): State<AppState>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     Json(payload): Json<UpdateConfigRequest>,
 ) -> ApiResult<Json<UserConfig>> {
-    // For MVP, we'll use a hardcoded user ID (alice)
-    // In production, this would come from the authenticated session
-    let user_id =
-        Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").expect("Invalid hardcoded UUID");
-
     // Get current config
     let mut config = state
         .repos

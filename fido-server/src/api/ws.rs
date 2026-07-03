@@ -1,17 +1,17 @@
 //! `GET /ws`: the authenticated WebSocket event gateway.
 //!
 //! Auth happens before the upgrade: the session token comes from
-//! `Authorization: Bearer <token>`, `X-Session-Token`, or a `?token=` query
-//! fallback; an invalid or missing token yields HTTP 401 with no upgrade.
+//! `Authorization: Bearer <token>` or `X-Session-Token`; an invalid or missing
+//! token yields HTTP 401 with no upgrade. The token is never accepted from the
+//! query string, which would leak it into logs, proxies, and browser history.
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::response::Response;
-use serde::Deserialize;
 use tokio::sync::broadcast::error::RecvError;
 use uuid::Uuid;
 
@@ -26,19 +26,12 @@ const MAX_MISSED_PONGS: u8 = 2;
 /// WebSocket close code for "going away" (RFC 6455 section 7.4.1).
 const CLOSE_GOING_AWAY: u16 = 1001;
 
-#[derive(Debug, Deserialize)]
-pub struct WsQuery {
-    #[serde(default)]
-    token: Option<String>,
-}
-
 pub async fn ws_handler(
     State(state): State<AppState>,
-    Query(query): Query<WsQuery>,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<Response, ApiError> {
-    let token = extract_token(&headers, &query)
+    let token = extract_token(&headers)
         .ok_or_else(|| ApiError::Unauthorized("Missing session token".to_string()))?;
 
     let user_id = state
@@ -49,8 +42,8 @@ pub async fn ws_handler(
     Ok(ws.on_upgrade(move |socket| handle_connection(socket, user_id, gateway)))
 }
 
-/// Extract the session token: Authorization Bearer, X-Session-Token, or ?token=.
-fn extract_token(headers: &HeaderMap, query: &WsQuery) -> Option<String> {
+/// Extract the session token from headers: Authorization Bearer or X-Session-Token.
+fn extract_token(headers: &HeaderMap) -> Option<String> {
     if let Some(bearer) = headers
         .get("Authorization")
         .and_then(|v| v.to_str().ok())
@@ -61,7 +54,7 @@ fn extract_token(headers: &HeaderMap, query: &WsQuery) -> Option<String> {
     if let Some(token) = headers.get("X-Session-Token").and_then(|v| v.to_str().ok()) {
         return Some(token.to_string());
     }
-    query.token.clone()
+    None
 }
 
 async fn handle_connection(mut socket: WebSocket, user_id: Uuid, gateway: Arc<RealtimeGateway>) {

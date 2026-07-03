@@ -1,10 +1,21 @@
 use crate::db::repositories::SessionRepository;
 use anyhow::{Context, Result};
 use chrono::{Duration, Utc};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 const DEFAULT_SESSION_MAX_AGE_DAYS: i64 = 30;
-const DEFAULT_SESSION_IDLE_TIMEOUT_HOURS: i64 = 24 * 30;
+const DEFAULT_SESSION_IDLE_TIMEOUT_HOURS: i64 = 72;
+
+/// Hash a raw session token for storage/lookup.
+///
+/// The raw bearer token is what the client holds and sends; the database only
+/// ever stores this SHA-256 hex digest. A read-only leak of the sessions table
+/// therefore cannot be replayed as bearer tokens.
+pub(crate) fn hash_token(token: &str) -> String {
+    let digest = Sha256::digest(token.as_bytes());
+    digest.iter().map(|byte| format!("{:02x}", byte)).collect()
+}
 
 /// Database-backed session manager for persistent authentication
 ///
@@ -54,12 +65,14 @@ impl SessionManager {
     /// * `Result<String>` - The session token on success
     pub fn create_session(&self, user_id: Uuid) -> Result<String> {
         let token = Uuid::new_v4().to_string();
+        let token_hash = hash_token(&token);
         let created_at = Utc::now();
         let expires_at = created_at + Duration::days(self.session_max_age_days);
         let last_activity = created_at; // Initialize last_activity to creation time
 
+        // Store only the hash; the raw token is returned to the client.
         self.store
-            .create_session(&token, user_id, created_at, expires_at, last_activity)
+            .create_session(&token_hash, user_id, created_at, expires_at, last_activity)
             .context("Failed to create session")?;
 
         tracing::info!("Created session for user {}", user_id);
@@ -80,9 +93,10 @@ impl SessionManager {
     /// * `Result<Uuid>` - The user ID if the session is valid
     /// * `Err` - If the session is invalid, expired, or idle too long
     pub fn validate_session(&self, token: &str) -> Result<Uuid> {
+        let token_hash = hash_token(token);
         let session = self
             .store
-            .get_session(token)
+            .get_session(&token_hash)
             .context("Session lookup failed")?;
         let session = session.context("Session not found")?;
 
@@ -130,7 +144,7 @@ impl SessionManager {
     /// * `Result<()>` - Success or error
     pub fn update_activity(&self, token: &str) -> Result<()> {
         self.store
-            .update_activity(token, Utc::now())
+            .update_activity(&hash_token(token), Utc::now())
             .context("Failed to update session activity")?;
 
         Ok(())
@@ -148,7 +162,7 @@ impl SessionManager {
     pub fn delete_session(&self, token: &str) -> Result<()> {
         let rows_affected = self
             .store
-            .delete_session(token)
+            .delete_session(&hash_token(token))
             .context("Failed to delete session")?;
 
         if rows_affected > 0 {
@@ -308,12 +322,12 @@ mod tests {
             .create_session(user_id)
             .expect("Failed to create session");
 
-        // Manually expire the session
+        // Manually expire the session (DB stores the token hash, not the raw token)
         let conn = db.connection().expect("Failed to get connection");
         let expired_time = (Utc::now() - Duration::days(1)).to_rfc3339();
         conn.execute(
             "UPDATE sessions SET expires_at = ?1 WHERE token = ?2",
-            rusqlite::params![expired_time, token],
+            rusqlite::params![expired_time, hash_token(&token)],
         )
         .expect("Failed to expire session");
 
@@ -362,12 +376,12 @@ mod tests {
             .create_session(user_id)
             .expect("Failed to create session");
 
-        // Manually set last_activity to 31 days ago (beyond 30-day idle timeout)
+        // Manually set last_activity to 31 days ago (beyond the 72-hour idle timeout)
         let conn = db.connection().expect("Failed to get connection");
         let old_activity = (Utc::now() - Duration::days(31)).to_rfc3339();
         conn.execute(
             "UPDATE sessions SET last_activity = ?1 WHERE token = ?2",
-            rusqlite::params![old_activity, token],
+            rusqlite::params![old_activity, hash_token(&token)],
         )
         .expect("Failed to update last_activity");
 
@@ -397,12 +411,12 @@ mod tests {
             .create_session(user_id)
             .expect("Failed to create session");
 
-        // Set last_activity to 29 days ago (within 30-day idle timeout)
+        // Set last_activity to 1 hour ago (within the 72-hour idle timeout)
         let conn = db.connection().expect("Failed to get connection");
-        let recent_activity = (Utc::now() - Duration::days(29)).to_rfc3339();
+        let recent_activity = (Utc::now() - Duration::hours(1)).to_rfc3339();
         conn.execute(
             "UPDATE sessions SET last_activity = ?1 WHERE token = ?2",
-            rusqlite::params![recent_activity, token],
+            rusqlite::params![recent_activity, hash_token(&token)],
         )
         .expect("Failed to update last_activity");
 
@@ -431,7 +445,7 @@ mod tests {
         let initial_activity: String = conn
             .query_row(
                 "SELECT last_activity FROM sessions WHERE token = ?1",
-                rusqlite::params![token],
+                rusqlite::params![hash_token(&token)],
                 |row| row.get(0),
             )
             .expect("Failed to get last_activity");
@@ -446,7 +460,7 @@ mod tests {
         let updated_activity: String = conn
             .query_row(
                 "SELECT last_activity FROM sessions WHERE token = ?1",
-                rusqlite::params![token],
+                rusqlite::params![hash_token(&token)],
                 |row| row.get(0),
             )
             .expect("Failed to get updated last_activity");
@@ -474,7 +488,7 @@ mod tests {
         let old_activity = (Utc::now() - Duration::hours(1)).to_rfc3339();
         conn.execute(
             "UPDATE sessions SET last_activity = ?1 WHERE token = ?2",
-            rusqlite::params![old_activity, token],
+            rusqlite::params![old_activity, hash_token(&token)],
         )
         .expect("Failed to update last_activity");
 
@@ -487,7 +501,7 @@ mod tests {
         let updated_activity: String = conn
             .query_row(
                 "SELECT last_activity FROM sessions WHERE token = ?1",
-                rusqlite::params![token],
+                rusqlite::params![hash_token(&token)],
                 |row| row.get(0),
             )
             .expect("Failed to get updated last_activity");

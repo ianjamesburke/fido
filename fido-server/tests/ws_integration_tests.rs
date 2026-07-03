@@ -275,9 +275,11 @@ async fn ws_accepts_query_token_and_delivers_notifications_to_recipient_only() -
     let token_sender = server.state.session_manager.create_session(sender.id)?;
     let token_recipient = server.state.session_manager.create_session(recipient.id)?;
 
-    // Connect the recipient via the ?token= query fallback.
-    let request =
-        format!("ws://{}/ws?token={}", server.addr, token_recipient).into_client_request()?;
+    // Connect the recipient via the X-Session-Token header.
+    let mut request = format!("ws://{}/ws", server.addr).into_client_request()?;
+    request
+        .headers_mut()
+        .insert("X-Session-Token", token_recipient.parse()?);
     let (mut ws_recipient, _) = tokio::time::timeout(RECV_TIMEOUT, connect_async(request))
         .await
         .context("WebSocket connect timed out")??;

@@ -190,6 +190,7 @@ mod tests {
     use uuid::Uuid;
 
     fn setup_test_state() -> AppState {
+        std::env::set_var("ENVIRONMENT", "development");
         std::env::set_var("FIDO_TOKEN_KEY", STANDARD.encode([9u8; 32]));
         let db = Database::in_memory().expect("Failed to create test database");
         db.initialize().expect("Failed to initialize database");
@@ -427,7 +428,7 @@ mod tests {
         let conn = state.db.connection().expect("Failed to get connection");
         conn.execute(
             "UPDATE sessions SET expires_at = datetime('now', '-1 day') WHERE token = ?1",
-            rusqlite::params![token],
+            rusqlite::params![crate::session::hash_token(&token)],
         )
         .expect("Failed to expire session");
 

@@ -13,7 +13,9 @@ use super::{ApiError, ApiResult};
 use crate::http::{extract_client_ip, extract_user_agent};
 use crate::oauth::GitHubOAuthConfig;
 use crate::security::validation::validate_username;
-use crate::security::{create_session_cookie, is_https, AuditEvent, AuditEventType};
+use crate::security::{
+    create_session_cookie, is_https, is_production_runtime, AuditEvent, AuditEventType,
+};
 use crate::state::AppState;
 
 // In-memory store for active device codes: device_code -> unix timestamp of creation
@@ -89,10 +91,8 @@ pub async fn login(
                     .with_optional_user_agent(user_agent)
                     .with_details(format!("User not found: {}", payload.username)),
             );
-            return Err(ApiError::NotFound(format!(
-                "User '{}' not found",
-                payload.username
-            )));
+            // Uniform error: do not reveal whether the account exists.
+            return Err(ApiError::Unauthorized("Invalid login".to_string()));
         }
         Err(e) => {
             // Log login failure - database error
@@ -119,9 +119,9 @@ pub async fn login(
                 .with_optional_user_agent(user_agent)
                 .with_details("Attempted login via test endpoint with non-test user"),
         );
-        return Err(ApiError::BadRequest(
-            "Only test users can login via this endpoint".to_string(),
-        ));
+        // Uniform error: same status/body as "user not found" to prevent
+        // account enumeration.
+        return Err(ApiError::Unauthorized("Invalid login".to_string()));
     }
 
     // Create session
@@ -147,8 +147,8 @@ pub async fn login(
 
     let mut response = Json(response_body).into_response();
 
-    // Set session cookie with Secure flag if HTTPS
-    let cookie = create_session_cookie(&session_token, https);
+    // Set session cookie; Secure is forced in production, else set on HTTPS.
+    let cookie = create_session_cookie(&session_token, https, is_production_runtime());
     response.headers_mut().insert("Set-Cookie", cookie);
 
     Ok(response)
@@ -421,8 +421,8 @@ pub async fn github_device_poll(
 
     let mut response = Json(response_body).into_response();
 
-    // Set session cookie with Secure flag if HTTPS
-    let cookie = create_session_cookie(&session_token, https);
+    // Set session cookie; Secure is forced in production, else set on HTTPS.
+    let cookie = create_session_cookie(&session_token, https, is_production_runtime());
     response.headers_mut().insert("Set-Cookie", cookie);
 
     Ok(response)

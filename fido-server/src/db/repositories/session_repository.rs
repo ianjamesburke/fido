@@ -23,9 +23,11 @@ impl SessionRepository {
         Self { pool }
     }
 
+    /// `token_hash` is the SHA-256 hex digest of the raw session token. The
+    /// `token` column stores this hash; the raw token is never persisted.
     pub fn create_session(
         &self,
-        token: &str,
+        token_hash: &str,
         user_id: Uuid,
         created_at: DateTime<Utc>,
         expires_at: DateTime<Utc>,
@@ -35,7 +37,7 @@ impl SessionRepository {
         conn.execute(
             "INSERT INTO sessions (token, user_id, created_at, expires_at, last_activity) VALUES (?1, ?2, ?3, ?4, ?5)",
             rusqlite::params![
-                token,
+                token_hash,
                 user_id.to_string(),
                 created_at.to_rfc3339(),
                 expires_at.to_rfc3339(),
@@ -45,12 +47,12 @@ impl SessionRepository {
         Ok(())
     }
 
-    pub fn get_session(&self, token: &str) -> Result<Option<SessionRecord>> {
+    pub fn get_session(&self, token_hash: &str) -> Result<Option<SessionRecord>> {
         let conn = self.pool.get()?;
         let row: Option<(String, String, Option<String>)> = conn
             .query_row(
                 "SELECT user_id, expires_at, last_activity FROM sessions WHERE token = ?1",
-                rusqlite::params![token],
+                rusqlite::params![token_hash],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
             .optional()?;
@@ -73,20 +75,20 @@ impl SessionRepository {
         }
     }
 
-    pub fn update_activity(&self, token: &str, at: DateTime<Utc>) -> Result<()> {
+    pub fn update_activity(&self, token_hash: &str, at: DateTime<Utc>) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(
             "UPDATE sessions SET last_activity = ?1 WHERE token = ?2",
-            rusqlite::params![at.to_rfc3339(), token],
+            rusqlite::params![at.to_rfc3339(), token_hash],
         )?;
         Ok(())
     }
 
-    pub fn delete_session(&self, token: &str) -> Result<usize> {
+    pub fn delete_session(&self, token_hash: &str) -> Result<usize> {
         let conn = self.pool.get()?;
         Ok(conn.execute(
             "DELETE FROM sessions WHERE token = ?1",
-            rusqlite::params![token],
+            rusqlite::params![token_hash],
         )?)
     }
 

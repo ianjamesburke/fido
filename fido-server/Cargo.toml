@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Backend API server for the Fido social platform"
+description = "Backend API server for Fido's GitHub repo communities"
 repository.workspace = true
 homepage.workspace = true
 publish = false  # Server is not published to crates.io, only deployed as infrastructure runtime
@@ -42,6 +42,7 @@ once_cell = "1.19"
 lazy_static = "1.4"
 base64.workspace = true
 aes-gcm-siv.workspace = true
+sha2 = "0.10"
 
 [dev-dependencies]
 tokio-tungstenite = "0.24"

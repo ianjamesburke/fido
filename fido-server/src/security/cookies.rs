@@ -49,12 +49,22 @@ pub fn is_https(headers: &HeaderMap) -> bool {
 ///
 /// # Arguments
 /// * `token` - The session token value
-/// * `is_https` - Whether the request is over HTTPS
+/// * `is_https` - Whether the request is over HTTPS (from spoofable proxy headers)
+/// * `is_production` - Whether the server runs in production
+///
+/// In production the `Secure` flag is always set: the cookie must never be
+/// transmitted over plaintext, and we do not trust the spoofable
+/// `X-Forwarded-Proto` header to decide that. Outside production it is set
+/// only when HTTPS is detected, so local HTTP development still works.
 ///
 /// # Returns
 /// * `HeaderValue` - The Set-Cookie header value
-pub fn create_session_cookie(token: &str, is_https: bool) -> HeaderValue {
-    let secure_flag = if is_https { "; Secure" } else { "" };
+pub fn create_session_cookie(token: &str, is_https: bool, is_production: bool) -> HeaderValue {
+    let secure_flag = if is_production || is_https {
+        "; Secure"
+    } else {
+        ""
+    };
     let cookie = format!(
         "session_token={}; HttpOnly; SameSite=Strict; Path=/; Max-Age={}{}",
         token, SESSION_COOKIE_MAX_AGE_SECONDS, secure_flag
@@ -139,7 +149,7 @@ mod tests {
     #[test]
     fn test_create_session_cookie_with_https() {
         let token = "test-token-123";
-        let cookie = create_session_cookie(token, true);
+        let cookie = create_session_cookie(token, true, false);
         let cookie_str = cookie.to_str().unwrap();
 
         assert!(
@@ -165,7 +175,7 @@ mod tests {
     #[test]
     fn test_create_session_cookie_without_https() {
         let token = "test-token-456";
-        let cookie = create_session_cookie(token, false);
+        let cookie = create_session_cookie(token, false, false);
         let cookie_str = cookie.to_str().unwrap();
 
         assert!(
@@ -189,9 +199,20 @@ mod tests {
     }
 
     #[test]
+    fn test_create_session_cookie_production_forces_secure() {
+        // Even without HTTPS detected, production must set Secure.
+        let cookie = create_session_cookie("prod-token", false, true);
+        let cookie_str = cookie.to_str().unwrap();
+        assert!(
+            cookie_str.contains("Secure"),
+            "Production cookie must always be Secure"
+        );
+    }
+
+    #[test]
     fn test_create_session_cookie_format() {
         let token = "abc123";
-        let cookie = create_session_cookie(token, true);
+        let cookie = create_session_cookie(token, true, false);
         let cookie_str = cookie.to_str().unwrap();
 
         // Verify the cookie follows the expected format

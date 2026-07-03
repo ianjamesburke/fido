@@ -44,14 +44,22 @@ pub fn create_router(state: AppState) -> Router {
     let rate_limiter = RateLimiter::new(100, 60);
 
     // Build router
-    Router::new()
+    let mut router = Router::new()
         // Health check
         .route("/health", get(health_check))
         // Realtime WebSocket gateway
-        .route("/ws", get(api::ws::ws_handler))
+        .route("/ws", get(api::ws::ws_handler));
+
+    // Passwordless test-only auth routes. These allow logging in as any test
+    // user with no credentials, so they MUST NEVER be mounted in production.
+    if !security_config.environment.is_production() {
+        router = router
+            .route("/users/test", get(api::auth::list_test_users))
+            .route("/auth/login", post(api::auth::login));
+    }
+
+    router
         // Authentication routes
-        .route("/users/test", get(api::auth::list_test_users))
-        .route("/auth/login", post(api::auth::login))
         .route("/auth/logout", post(api::auth::logout))
         // Admin-only authentication routes (protected by require_admin middleware)
         .merge(

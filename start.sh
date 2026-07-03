@@ -235,7 +235,8 @@ fi
 
 # Start fido-server
 echo -e "${YELLOW}Starting fido-server on port $FIDO_SERVER_PORT...${NC}"
-export HOST=0.0.0.0
+# Internal upstream only: bind loopback so it is unreachable except via nginx.
+export HOST=127.0.0.1
 # fido-server reads `PORT`; keep it internal behind nginx.
 export PORT=$FIDO_SERVER_PORT
 export DATABASE_PATH=$DATABASE_PATH
@@ -271,10 +272,11 @@ echo -e "${YELLOW}Starting ttyd on port $TTYD_PORT...${NC}"
 
 # Note: -O (check-origin) removed - nginx handles origin security
 # -W enables writable mode for interactive terminal
+# -i 127.0.0.1: internal upstream only; reachable exclusively via the nginx proxy.
 if [ "$ENV_MODE" = "local" ]; then
-    ttyd -p $TTYD_PORT -W -b /ttyd -m 10 "$FIDO_WEB_TUI_WRAPPER" > "$LOG_DIR/ttyd.log" 2>&1 &
+    ttyd -i 127.0.0.1 -p $TTYD_PORT -W -b /ttyd -m 10 "$FIDO_WEB_TUI_WRAPPER" > "$LOG_DIR/ttyd.log" 2>&1 &
 else
-    /usr/local/bin/ttyd -p $TTYD_PORT -W -b /ttyd -m 10 "$FIDO_WEB_TUI_WRAPPER" > "$LOG_DIR/ttyd.log" 2>&1 &
+    /usr/local/bin/ttyd -i 127.0.0.1 -p $TTYD_PORT -W -b /ttyd -m 10 "$FIDO_WEB_TUI_WRAPPER" > "$LOG_DIR/ttyd.log" 2>&1 &
 fi
 TTYD_PID=$!
 echo -e "${GREEN}  ✓ ttyd started (PID: $TTYD_PID)${NC}"

@@ -14,7 +14,7 @@ fn test_https_detection_integration() {
 
     // Test cookie creation with HTTPS
     let token = "test-session-token";
-    let cookie = create_session_cookie(token, true);
+    let cookie = create_session_cookie(token, true, false);
     let cookie_str = cookie.to_str().unwrap();
 
     assert!(
@@ -43,7 +43,7 @@ fn test_http_cookie_without_secure_flag() {
 
     // Test cookie creation without HTTPS
     let token = "test-session-token";
-    let cookie = create_session_cookie(token, false);
+    let cookie = create_session_cookie(token, false, false);
     let cookie_str = cookie.to_str().unwrap();
 
     assert!(
@@ -75,7 +75,7 @@ fn test_proxy_https_headers() {
 #[test]
 fn test_cookie_attributes() {
     let token = "abc123xyz";
-    let cookie = create_session_cookie(token, true);
+    let cookie = create_session_cookie(token, true, false);
     let cookie_str = cookie.to_str().unwrap();
 
     // Verify all required attributes are present

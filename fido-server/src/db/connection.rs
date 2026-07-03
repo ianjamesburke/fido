@@ -118,10 +118,19 @@ impl Database {
         let path_str = path.as_ref().to_string_lossy();
         let trimmed_path = path_str.trim();
 
+        // Enable foreign keys (so ON DELETE CASCADE actually fires), WAL for
+        // concurrent readers, and a busy timeout so writes retry instead of
+        // immediately returning SQLITE_BUSY. Runs on every pooled connection.
+        let init = |c: &mut rusqlite::Connection| {
+            c.execute_batch(
+                "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;",
+            )
+        };
+
         if trimmed_path.eq_ignore_ascii_case(MEMORY_DB_PATH) {
-            Ok(SqliteConnectionManager::memory())
+            Ok(SqliteConnectionManager::memory().with_init(init))
         } else {
-            Ok(SqliteConnectionManager::file(path))
+            Ok(SqliteConnectionManager::file(path).with_init(init))
         }
     }
 

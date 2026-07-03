@@ -29,7 +29,10 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # Install ttyd from GitHub releases (not available in Debian repos)
-RUN curl -L https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -o /usr/local/bin/ttyd && \
+# Pin to a known-good SHA-256 so a compromised/altered release asset fails the build.
+# Hash is for the ttyd 1.7.7 `ttyd.x86_64` release asset. Confirm if the pin ever fails.
+RUN curl -fL https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -o /usr/local/bin/ttyd && \
+    echo "ec4dab7b311599b6217d1f929e1a99655e2a2f5db2c58d94dced19cff87d8c22  /usr/local/bin/ttyd" | sha256sum -c - && \
     chmod +x /usr/local/bin/ttyd
 
 # Copy compiled binaries
@@ -46,8 +49,18 @@ COPY web /var/www/html
 # Make start script executable
 RUN chmod +x /usr/local/bin/start.sh
 
-# Create necessary directories
-RUN mkdir -p /data /var/log/fido && chmod 755 /data /var/log/fido
+# Create a non-root user to run the services.
+RUN useradd --system --create-home --home-dir /home/fido --shell /usr/sbin/nologin fido
+
+# Create writable directories and hand ownership to the fido user.
+# - /data                : persistent volume mount (SQLite when not ephemeral)
+# - /var/log/fido        : app logs + rendered TUI wrapper + nginx pid (LOG_DIR)
+# - /var/lib/nginx       : nginx client_body/proxy/fastcgi temp paths
+# - /var/log/nginx       : nginx default access/error logs
+# - /etc/nginx           : start.sh renders nginx.conf here at runtime via envsubst
+RUN mkdir -p /data /var/log/fido /var/lib/nginx /var/log/nginx && \
+    chmod 755 /data /var/log/fido && \
+    chown -R fido:fido /data /var/log/fido /var/lib/nginx /var/log/nginx /etc/nginx
 
 # Environment variables
 ENV HOST=0.0.0.0
@@ -64,6 +77,9 @@ ENV RUST_BACKTRACE=1
 # Health check uses the PORT env var (Railway overrides it at runtime)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
+
+# Drop root: run all services (nginx, ttyd, fido-server) as the non-root user.
+USER fido
 
 # Use start script as entrypoint
 ENTRYPOINT ["/usr/local/bin/start.sh"]

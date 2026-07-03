@@ -7,6 +7,7 @@ use chrono::Utc;
 use crate::api::{ApiError, ApiResult};
 use crate::db::repositories::Repositories;
 use crate::events::{ServerEvent, SharedEventBus};
+use crate::security::validation::validate_post_content;
 use crate::services::notifications::NotificationService;
 use fido_types::{DirectMessage, DmConversationState, NotificationType};
 use serde::Serialize;
@@ -137,11 +138,7 @@ impl DMService {
         to_username: &str,
         content: &str,
     ) -> ApiResult<DirectMessage> {
-        if content.is_empty() {
-            return Err(ApiError::BadRequest(
-                "Message content cannot be empty".to_string(),
-            ));
-        }
+        validate_post_content(content).map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
         let to_user = self
             .repos

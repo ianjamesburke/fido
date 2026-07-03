@@ -96,10 +96,14 @@ pub async fn get_posts(
         SortOrder::Newest
     };
 
+    // Clamp limit to a safe range so unbounded/negative values can't reach the
+    // SQL LIMIT (LIMIT -1 means "no limit" in SQLite).
+    let limit = query.limit.clamp(1, 100);
+
     let posts = service.get_posts(
         query.community_id,
         sort_order,
-        query.limit,
+        limit,
         query.username.as_deref(),
         user_id,
     )?;

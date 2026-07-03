@@ -7,6 +7,7 @@ use crate::{
     api::{ApiError, ApiResult},
     db::repositories::Repositories,
     events::{ServerEvent, SharedEventBus},
+    security::validation::validate_post_content,
 };
 use fido_types::{Channel, Message};
 
@@ -57,6 +58,7 @@ impl ChatService {
     ) -> ApiResult<Message> {
         let channel = self.require_channel(channel_id)?;
         self.require_membership(user_id, channel.community_id)?;
+        validate_post_content(&content).map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
         let message = Message {
             id: Uuid::new_v4(),

@@ -39,11 +39,22 @@ pub enum Environment {
 }
 
 impl Environment {
-    /// Parse environment from string
-    pub fn parse(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
-            "production" | "prod" => Environment::Production,
-            _ => Environment::Development,
+    /// Parse environment from string.
+    ///
+    /// Fails fast on unrecognized values rather than defaulting to Development
+    /// (fail-open). The environment is security-load-bearing, so a typo must
+    /// abort startup instead of silently selecting relaxed development security.
+    pub fn parse(s: &str) -> Result<Self, SecurityConfigError> {
+        match s.trim().to_lowercase().as_str() {
+            "production" | "prod" => Ok(Environment::Production),
+            "development" | "dev" => Ok(Environment::Development),
+            other => Err(SecurityConfigError::InvalidValue {
+                field: "ENVIRONMENT".to_string(),
+                message: format!(
+                    "Unrecognized environment '{}'; expected 'production' or 'development'",
+                    other
+                ),
+            }),
         }
     }
 
@@ -55,6 +66,23 @@ impl Environment {
     /// Check if this is a development environment
     pub fn is_development(&self) -> bool {
         matches!(self, Environment::Development)
+    }
+}
+
+/// Resolve whether the server is running in production, at request time.
+///
+/// `AppState` does not carry the parsed `SecurityConfig`, so request handlers
+/// that need the environment (e.g. to force the `Secure` cookie flag) resolve
+/// it here. The server refuses to start unless `ENVIRONMENT`/`RUST_ENV` is set
+/// to a valid value, so at request time this reflects the configured
+/// environment. It fails closed: any unset/unrecognized value is treated as
+/// production so cookie security is never silently downgraded.
+pub fn is_production_runtime() -> bool {
+    match std::env::var("ENVIRONMENT").or_else(|_| std::env::var("RUST_ENV")) {
+        Ok(value) => Environment::parse(&value)
+            .map(|env| env.is_production())
+            .unwrap_or(true),
+        Err(_) => true,
     }
 }
 
@@ -114,10 +142,17 @@ impl Default for SecurityConfig {
 impl SecurityConfig {
     /// Create a new SecurityConfig by loading from environment variables
     pub fn from_env() -> Result<Self, SecurityConfigError> {
-        let environment = std::env::var("ENVIRONMENT")
+        let environment = match std::env::var("ENVIRONMENT")
             .or_else(|_| std::env::var("RUST_ENV"))
-            .map(|s| Environment::parse(&s))
-            .unwrap_or(Environment::Development);
+        {
+            Ok(value) => Environment::parse(&value)?,
+            Err(_) => {
+                return Err(SecurityConfigError::MissingConfig(
+                    "ENVIRONMENT (or RUST_ENV) must be set to 'production' or 'development'"
+                        .to_string(),
+                ))
+            }
+        };
 
         let github_client_id = std::env::var("GITHUB_CLIENT_ID").unwrap_or_default();
 
@@ -255,12 +290,23 @@ mod tests {
 
     #[test]
     fn test_environment_from_str() {
-        assert_eq!(Environment::parse("production"), Environment::Production);
-        assert_eq!(Environment::parse("prod"), Environment::Production);
-        assert_eq!(Environment::parse("PRODUCTION"), Environment::Production);
-        assert_eq!(Environment::parse("development"), Environment::Development);
-        assert_eq!(Environment::parse("dev"), Environment::Development);
-        assert_eq!(Environment::parse("anything"), Environment::Development);
+        assert_eq!(
+            Environment::parse("production").unwrap(),
+            Environment::Production
+        );
+        assert_eq!(Environment::parse("prod").unwrap(), Environment::Production);
+        assert_eq!(
+            Environment::parse("PRODUCTION").unwrap(),
+            Environment::Production
+        );
+        assert_eq!(
+            Environment::parse("development").unwrap(),
+            Environment::Development
+        );
+        assert_eq!(Environment::parse("dev").unwrap(), Environment::Development);
+        // Unrecognized values fail fast rather than defaulting to Development.
+        assert!(Environment::parse("anything").is_err());
+        assert!(Environment::parse("").is_err());
     }
 
     #[test]

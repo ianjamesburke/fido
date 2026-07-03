@@ -87,6 +87,17 @@ async fn main() {
     // Log security configuration (without secrets)
     security_config.log_config();
 
+    // Fail fast if the token encryption key is missing/invalid in production.
+    // OAuth token storage is unusable without it, so abort startup rather than
+    // failing lazily on first use.
+    if security_config.environment.is_production() {
+        if let Err(e) = services::github::validate_token_key() {
+            tracing::error!("FIDO_TOKEN_KEY validation failed: {}", e);
+            eprintln!("FATAL: FIDO_TOKEN_KEY validation failed: {}", e);
+            std::process::exit(1);
+        }
+    }
+
     // Load settings with detailed error handling
     let settings = match config::Settings::new() {
         Ok(settings) => {
@@ -176,12 +187,16 @@ async fn main() {
         }
         tracing::info!("Database schema initialized successfully");
 
-        tracing::info!("Seeding test data...");
-        if let Err(e) = db.seed_test_data() {
-            tracing::warn!("Failed to seed test data (non-fatal): {}", e);
-            tracing::info!("Continuing without test data - database may already be populated");
+        if security_config.environment.is_production() {
+            tracing::info!("Production environment: skipping test data seeding");
         } else {
-            tracing::info!("Test data seeded successfully");
+            tracing::info!("Seeding test data...");
+            if let Err(e) = db.seed_test_data() {
+                tracing::warn!("Failed to seed test data (non-fatal): {}", e);
+                tracing::info!("Continuing without test data - database may already be populated");
+            } else {
+                tracing::info!("Test data seeded successfully");
+            }
         }
 
         tracing::info!("Database initialized successfully");
@@ -251,14 +266,22 @@ async fn main() {
     let rate_limiter = RateLimiter::new(100, 60);
 
     // Build router - API routes take precedence over static files
-    let app = Router::new()
+    let mut app = Router::new()
         // Health check
         .route("/health", get(health_check))
         // Realtime WebSocket gateway
-        .route("/ws", get(api::ws::ws_handler))
+        .route("/ws", get(api::ws::ws_handler));
+
+    // Passwordless test-only auth routes. These allow logging in as any test
+    // user with no credentials, so they MUST NEVER be mounted in production.
+    if !security_config.environment.is_production() {
+        app = app
+            .route("/users/test", get(api::auth::list_test_users))
+            .route("/auth/login", post(api::auth::login));
+    }
+
+    let app = app
         // Authentication routes
-        .route("/users/test", get(api::auth::list_test_users))
-        .route("/auth/login", post(api::auth::login))
         .route("/auth/logout", post(api::auth::logout))
         // Admin-only authentication routes (protected by require_admin middleware)
         .merge(

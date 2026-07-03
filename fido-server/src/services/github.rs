@@ -338,6 +338,13 @@ impl GithubService {
     }
 }
 
+/// Validate that `FIDO_TOKEN_KEY` is present and correctly formed (base64 of
+/// exactly 32 bytes) without logging the key. Called at startup to fail fast
+/// instead of only failing lazily on the first OAuth token operation.
+pub fn validate_token_key() -> Result<()> {
+    TokenCipher::from_env().map(|_| ())
+}
+
 impl TokenCipher {
     fn from_env() -> Result<Self> {
         let key_material =

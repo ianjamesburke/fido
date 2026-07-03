@@ -7,7 +7,7 @@
 //! - X-Content-Type-Options: nosniff - Prevents MIME type sniffing
 //! - X-Frame-Options: DENY - Prevents clickjacking attacks
 //! - X-XSS-Protection: 1; mode=block - Enables XSS filtering in older browsers
-//! - Content-Security-Policy: default-src 'self' - Restricts resource loading
+//! - Content-Security-Policy - Restricts resource loading, disallows framing/base-uri/objects
 //! - Referrer-Policy: strict-origin-when-cross-origin - Controls referrer information
 //! - Strict-Transport-Security (production only) - Enforces HTTPS
 
@@ -25,7 +25,7 @@ use super::Environment;
 /// - `X-Content-Type-Options: nosniff` - Prevents MIME type sniffing
 /// - `X-Frame-Options: DENY` - Prevents clickjacking by denying framing
 /// - `X-XSS-Protection: 1; mode=block` - Enables XSS filtering in older browsers
-/// - `Content-Security-Policy: default-src 'self'` - Restricts resource loading
+/// - `Content-Security-Policy` - Restricts resource loading; blocks framing, base-uri and objects
 /// - `Referrer-Policy: strict-origin-when-cross-origin` - Controls referrer information
 /// - `Strict-Transport-Security` (production only) - Enforces HTTPS for 1 year
 ///
@@ -65,7 +65,9 @@ pub async fn security_headers_middleware(
     // Requirement 9.4
     headers.insert(
         header::CONTENT_SECURITY_POLICY,
-        "default-src 'self'".parse().unwrap(),
+        "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'"
+            .parse()
+            .unwrap(),
     );
 
     // Referrer-Policy: Controls how much referrer information is sent
