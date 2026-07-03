@@ -23,6 +23,11 @@ pub fn action_bar_text(app: &App) -> &'static str {
                 "r: Retry"
             } else if app.is_home_list_active() {
                 "↑/↓/j/k: Navigate | Enter: Open community"
+            } else if matches!(
+                app.posts_state.selected_feed_entry(),
+                Some(crate::app::FeedEntry::Activity(_))
+            ) {
+                "↑/↓/j/k: Navigate | o: Open on GitHub"
             } else {
                 "u/d: Vote | n: Post | i: Community | f: Filter | s: Search | Space: View"
             }

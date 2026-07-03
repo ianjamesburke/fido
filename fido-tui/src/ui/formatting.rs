@@ -1,7 +1,9 @@
 use ratatui::{
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
 };
+
+use fido_types::{ActivityItem, ActivityKind, ActivityState};
 
 use super::theme::ThemeColors;
 
@@ -111,6 +113,44 @@ pub fn format_post_content_for_input(content: &str) -> Vec<Line<'static>> {
         .collect()
 }
 
+/// Text for one row of the repo-activity feed, e.g.
+/// `⊙ #7 Fix login · issue opened by alice` or
+/// `⇄ #9 Dark mode · merged · bob`.
+pub fn activity_line_text(item: &ActivityItem) -> String {
+    match item.kind {
+        ActivityKind::Issue => {
+            let mut line = format!(
+                "⊙ #{} {} · issue opened by {}",
+                item.number, item.title, item.author_login
+            );
+            if item.state == ActivityState::Closed {
+                line.push_str(" · closed");
+            }
+            line
+        }
+        ActivityKind::PullRequest => {
+            let status = match item.state {
+                ActivityState::Merged => "merged",
+                ActivityState::Open => "open",
+                ActivityState::Closed => "closed",
+            };
+            format!(
+                "⇄ #{} {} · {} · {}",
+                item.number, item.title, status, item.author_login
+            )
+        }
+    }
+}
+
+/// Color for the activity row's leading glyph, based on its state.
+pub fn activity_glyph_color(item: &ActivityItem, theme: &ThemeColors) -> Color {
+    match item.state {
+        ActivityState::Open => theme.success,
+        ActivityState::Closed => theme.error,
+        ActivityState::Merged => Color::Magenta,
+    }
+}
+
 /// Format bio content with wrapping
 #[allow(dead_code)]
 pub fn format_bio_content_with_width(
@@ -135,4 +175,47 @@ pub fn format_bio_content_with_width(
     }
 
     lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn activity_item(
+        kind: ActivityKind,
+        state: ActivityState,
+        number: i64,
+        title: &str,
+        author_login: &str,
+    ) -> ActivityItem {
+        ActivityItem {
+            github_id: 1,
+            kind,
+            number,
+            title: title.to_string(),
+            author_login: author_login.to_string(),
+            state,
+            created_at: chrono::Utc::now(),
+            html_url: "https://github.com/owner/repo/issues/1".to_string(),
+        }
+    }
+
+    #[test]
+    fn activity_line_formats_issue_and_merged_pr() {
+        let issue = activity_item(ActivityKind::Issue, ActivityState::Open, 7, "Fix login", "alice");
+        let line = activity_line_text(&issue);
+        assert_eq!(line, "⊙ #7 Fix login · issue opened by alice");
+
+        let pr = activity_item(ActivityKind::PullRequest, ActivityState::Merged, 9, "Dark mode", "bob");
+        assert_eq!(activity_line_text(&pr), "⇄ #9 Dark mode · merged · bob");
+    }
+
+    #[test]
+    fn activity_line_appends_closed_for_issues() {
+        let issue = activity_item(ActivityKind::Issue, ActivityState::Closed, 3, "Old bug", "carol");
+        assert_eq!(
+            activity_line_text(&issue),
+            "⊙ #3 Old bug · issue opened by carol · closed"
+        );
+    }
 }

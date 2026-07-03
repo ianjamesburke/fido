@@ -1029,3 +1029,40 @@ fn selected_feed_entry_accounts_for_loading_offset() {
     state.list_state.select(Some(1)); // 0 is the loading spinner row
     assert_eq!(state.selected_feed_entry(), Some(FeedEntry::Post(0)));
 }
+
+#[test]
+fn selected_feed_entry_accounts_for_activity_error_offset() {
+    let posts = vec![test_post_created_at("2026-07-02T12:00:00Z")];
+    let mut state = test_posts_state_with(posts, Vec::new(), false);
+    state.activity_error = Some("repo activity unavailable: timed out".to_string());
+    state.rebuild_feed();
+    state.list_state.select(Some(1)); // 0 is the activity-error row
+    assert_eq!(state.selected_feed_entry(), Some(FeedEntry::Post(0)));
+}
+
+#[test]
+fn open_selected_activity_noops_when_selection_is_a_post() {
+    let posts = vec![test_post_created_at("2026-07-02T12:00:00Z")];
+    let activity = vec![test_activity_created_at("2026-07-01T12:00:00Z")];
+    let mut app = App::new();
+    app.posts_state = test_posts_state_with(posts, activity, false);
+    app.posts_state.rebuild_feed();
+    app.posts_state.list_state.select(Some(0)); // the post row
+
+    assert_eq!(app.selected_activity_url(), None);
+}
+
+#[test]
+fn open_selected_activity_returns_url_when_selection_is_activity() {
+    let posts = vec![test_post_created_at("2026-06-30T12:00:00Z")];
+    let activity = vec![test_activity_created_at("2026-07-01T12:00:00Z")];
+    let mut app = App::new();
+    app.posts_state = test_posts_state_with(posts, activity, false);
+    app.posts_state.rebuild_feed();
+    app.posts_state.list_state.select(Some(0)); // the activity row (newer)
+
+    assert_eq!(
+        app.selected_activity_url(),
+        Some("https://github.com/owner/repo/issues/42".to_string())
+    );
+}

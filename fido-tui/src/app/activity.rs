@@ -1,6 +1,14 @@
-use crate::app::App;
+use crate::app::{App, FeedEntry};
 
 impl App {
+    /// URL of the selected activity item, if the selection is an activity row.
+    pub fn selected_activity_url(&self) -> Option<String> {
+        match self.posts_state.selected_feed_entry()? {
+            FeedEntry::Activity(i) => self.posts_state.activity_items.get(i).map(|a| a.html_url.clone()),
+            FeedEntry::Post(_) => None,
+        }
+    }
+
     /// Fetch repo activity for the current community. Called by the event
     /// loop after the board has rendered (activity_pending_load pattern) —
     /// never on the render path.

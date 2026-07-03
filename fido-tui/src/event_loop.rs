@@ -475,10 +475,24 @@ impl EventLoop {
                     .posts_state
                     .list_state
                     .selected()
-                    .and_then(|i| app.posts_state.posts.get(i))
+                    .and_then(|i| app.posts_state.list_index_to_post_index(i))
+                    .and_then(|post_index| app.posts_state.posts.get(post_index))
                     .map(|post| (post.author_id, post.author_username.clone()));
                 if let Some((id, username)) = target {
                     app.open_user_profile(id, username).await?;
+                }
+            }
+            // o: open the selected repo-activity item on GitHub
+            KeyCode::Char('o')
+                if app.current_tab == Tab::Posts
+                    && app.input_mode == InputMode::Navigation
+                    && app.user_profile_view.is_none()
+                    && app.selected_activity_url().is_some() =>
+            {
+                if let Some(url) = app.selected_activity_url() {
+                    if let Err(e) = webbrowser::open(&url) {
+                        app.posts_state.error = Some(format!("Could not open browser: {}", e));
+                    }
                 }
             }
             // p: profile from DM conversation list (navigation mode only)

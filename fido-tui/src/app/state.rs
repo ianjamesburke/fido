@@ -576,6 +576,12 @@ impl PostsState {
             count += 1;
         }
 
+        // Repo activity error row (rendered starting Task 6, ambient - not
+        // itself a feed entry)
+        if self.activity_error.is_some() {
+            count += 1;
+        }
+
         count
     }
 
@@ -586,7 +592,6 @@ impl PostsState {
     }
 
     /// The feed entry at the current list selection, if any.
-    #[allow(dead_code)] // rendered in the next task
     pub fn selected_feed_entry(&self) -> Option<FeedEntry> {
         let list_idx = self.list_state.selected()?;
         let offset = self.items_before_posts();
