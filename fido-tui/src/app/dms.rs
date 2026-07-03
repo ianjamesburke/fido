@@ -35,15 +35,16 @@ impl App {
 
         match self.api_client.get_conversations().await {
             Ok(convos) => {
-                // Parse conversations from JSON
                 self.dms_state.conversations = convos
-                    .iter()
+                    .into_iter()
                     .filter_map(|c| {
                         Some(Conversation {
-                            other_user_id: c.get("other_user_id")?.as_str()?.parse().ok()?,
-                            other_username: c.get("other_username")?.as_str()?.to_string(),
-                            last_message: c.get("last_message")?.as_str()?.to_string(),
-                            unread_count: c.get("unread_count")?.as_i64()? as i32,
+                            other_user_id: c.other_user_id.parse().ok()?,
+                            other_username: c.other_username,
+                            last_message: c.last_message,
+                            unread_count: c.unread_count as i32,
+                            state: c.state,
+                            initiated_by_me: c.initiated_by_me,
                         })
                     })
                     .collect();

@@ -19,6 +19,8 @@ pub struct ConversationSummary {
     pub last_message: String,
     pub last_message_time: String,
     pub unread_count: usize,
+    pub state: DmConversationState,
+    pub initiated_by_me: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -49,12 +51,20 @@ impl DMService {
                 .get_by_id(&summary.other_user_id)?
                 .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
+            let conversation = self
+                .repos
+                .dm_conversations
+                .get(user_id, &summary.other_user_id)?
+                .ok_or_else(|| ApiError::NotFound("DM conversation not found".to_string()))?;
+
             conversations.push(ConversationSummary {
                 other_user_id: summary.other_user_id.to_string(),
                 other_username: user.username,
                 last_message: summary.last_message,
                 last_message_time: summary.last_message_time.to_rfc3339(),
                 unread_count: summary.unread_count,
+                state: conversation.state,
+                initiated_by_me: conversation.initiator_id == *user_id,
             });
         }
 
@@ -328,6 +338,29 @@ mod tests {
         repos.users.create(&recipient)?;
         let event_bus = Arc::new(RecordingEventBus::default());
         Ok((db, repos, event_bus, sender, recipient))
+    }
+
+    #[test]
+    fn conversation_summary_exposes_pending_state() -> Result<()> {
+        let (_db, repos, event_bus, sender, recipient) = setup()?;
+        let service = DMService::new(repos, event_bus);
+        service
+            .send_message(&sender.id, &recipient.username, "hello")
+            .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+        let sender_convos = service
+            .get_conversations(&sender.id)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+        assert_eq!(sender_convos.len(), 1);
+        assert_eq!(
+            sender_convos[0].state,
+            fido_types::DmConversationState::Pending
+        );
+        assert!(sender_convos[0].initiated_by_me);
+        let recipient_convos = service
+            .get_conversations(&recipient.id)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+        assert!(!recipient_convos[0].initiated_by_me);
+        Ok(())
     }
 
     #[test]

@@ -734,6 +734,8 @@ fn test_dm_navigation_down_from_new_conversation() {
         other_username: "user1".to_string(),
         last_message: "Hello".to_string(),
         unread_count: 0,
+        state: fido_types::DmConversationState::Accepted,
+        initiated_by_me: false,
     }];
 
     // Start on NewConversation
@@ -758,6 +760,8 @@ fn test_dm_navigation_up_from_conversation() {
         other_username: "user1".to_string(),
         last_message: "Hello".to_string(),
         unread_count: 0,
+        state: fido_types::DmConversationState::Accepted,
+        initiated_by_me: false,
     }];
 
     // Start on first conversation

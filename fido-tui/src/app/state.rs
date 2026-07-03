@@ -356,6 +356,8 @@ pub struct Conversation {
     pub other_username: String,
     pub last_message: String,
     pub unread_count: i32,
+    pub state: fido_types::DmConversationState,
+    pub initiated_by_me: bool,
 }
 
 /// Profile tab state (for viewing own profile)

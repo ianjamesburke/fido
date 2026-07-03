@@ -34,6 +34,18 @@ impl VoteDirection {
     }
 }
 
+/// Summary of a DM conversation as returned by `GET /dms/conversations`
+#[derive(Debug, serde::Deserialize)]
+pub struct ConversationInfo {
+    pub other_user_id: String,
+    pub other_username: String,
+    pub last_message: String,
+    pub last_message_time: String,
+    pub unread_count: usize,
+    pub state: fido_types::DmConversationState,
+    pub initiated_by_me: bool,
+}
+
 /// API client for communicating with the Fido server
 #[derive(Clone)]
 pub struct ApiClient {
@@ -353,7 +365,7 @@ impl ApiClient {
     // Direct message endpoints
 
     /// Get conversations list
-    pub async fn get_conversations(&self) -> ApiResult<Vec<serde_json::Value>> {
+    pub async fn get_conversations(&self) -> ApiResult<Vec<ConversationInfo>> {
         let url = format!("{}/dms/conversations", self.base_url);
         let req = self.add_auth_header(self.client.get(&url));
         let response = req.send().await?;
