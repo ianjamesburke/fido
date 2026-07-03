@@ -54,6 +54,13 @@ pub struct DmRequestInfo {
     pub created_at: String,
 }
 
+/// A community member as returned by `GET /communities/:id/members`
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct CommunityMemberInfo {
+    pub username: String,
+    pub role: fido_types::MembershipRole,
+}
+
 /// API client for communicating with the Fido server
 #[derive(Clone)]
 pub struct ApiClient {
@@ -278,6 +285,17 @@ impl ApiClient {
     /// Get a community view by id (includes the caller's membership)
     pub async fn get_community(&self, community_id: Uuid) -> ApiResult<CommunityViewResponse> {
         let url = self.build_url(&format!("/communities/{}", community_id));
+        let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
+    /// List a community's members, admins first
+    pub async fn get_community_members(
+        &self,
+        community_id: Uuid,
+    ) -> ApiResult<Vec<CommunityMemberInfo>> {
+        let url = self.build_url(&format!("/communities/{}/members", community_id));
         let req = self.add_auth_header(self.client.get(&url));
         let response = req.send().await?;
         self.handle_response(response).await

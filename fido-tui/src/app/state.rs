@@ -173,6 +173,8 @@ pub struct App {
     pub home_state: HomeState,
     /// Community settings modal (role, member count, claim)
     pub show_community_modal: bool,
+    /// Members of the current community, loaded when the community modal opens
+    pub community_members: Vec<crate::api::CommunityMemberInfo>,
 }
 
 /// The community the board is scoped to, with the caller's standing in it

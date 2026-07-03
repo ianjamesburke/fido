@@ -161,6 +161,10 @@ pub fn create_router(state: AppState) -> Router {
             post(api::communities::claim_community),
         )
         .route(
+            "/communities/:id/members",
+            get(api::communities::list_members),
+        )
+        .route(
             "/communities/:id/membership",
             delete(api::communities::leave_community),
         )

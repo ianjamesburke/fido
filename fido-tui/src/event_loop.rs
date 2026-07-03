@@ -668,6 +668,7 @@ struct ModalStateTracker {
     new_conversation_modal: bool,
     user_search_modal: bool,
     last_search_query: String,
+    community_modal: bool,
 }
 
 impl ModalStateTracker {
@@ -678,6 +679,7 @@ impl ModalStateTracker {
             new_conversation_modal: false,
             user_search_modal: false,
             last_search_query: String::new(),
+            community_modal: false,
         }
     }
 
@@ -687,6 +689,7 @@ impl ModalStateTracker {
         self.handle_friends_modal(app).await?;
         self.handle_user_search_modal(app).await?;
         self.handle_new_conversation_modal(app).await?;
+        self.handle_community_modal(app).await?;
         Ok(())
     }
 
@@ -729,6 +732,21 @@ impl ModalStateTracker {
             app.load_mutual_friends_for_dms().await?;
         }
         self.new_conversation_modal = app.dms_state.show_new_conversation_modal;
+        Ok(())
+    }
+
+    async fn handle_community_modal(&mut self, app: &mut App) -> Result<()> {
+        if app.show_community_modal && !self.community_modal {
+            if let Some(community) = &app.community {
+                let id = community.id;
+                app.community_members = app
+                    .api_client
+                    .get_community_members(id)
+                    .await
+                    .unwrap_or_default();
+            }
+        }
+        self.community_modal = app.show_community_modal;
         Ok(())
     }
 }

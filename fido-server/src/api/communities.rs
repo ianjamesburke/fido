@@ -66,6 +66,12 @@ pub struct JoinCommunityRequest {
     pub name: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct CommunityMemberResponse {
+    pub username: String,
+    pub role: MembershipRole,
+}
+
 /// GET /communities/browse - Browse the user's starred repos with community state
 pub async fn browse_communities(
     State(state): State<AppState>,
@@ -129,6 +135,23 @@ pub async fn claim_community(
     Ok(Json(map_community_view(
         service.claim(user_id, community_id).await?,
     )))
+}
+
+/// GET /communities/:id/members - List a community's members, admins first
+pub async fn list_members(
+    State(state): State<AppState>,
+    AuthenticatedUser(_user_id): AuthenticatedUser,
+    Path(community_id): Path<Uuid>,
+) -> ApiResult<Json<Vec<CommunityMemberResponse>>> {
+    let service = CommunityService::new(state.repos.clone(), state.github_service.clone());
+    let members = service.list_members_with_usernames(&community_id)?;
+
+    Ok(Json(
+        members
+            .into_iter()
+            .map(|(username, role)| CommunityMemberResponse { username, role })
+            .collect(),
+    ))
 }
 
 /// DELETE /communities/:id/membership - Leave a community

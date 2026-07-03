@@ -168,6 +168,7 @@ impl App {
             community_error: None,
             home_state: HomeState::new(),
             show_community_modal: false,
+            community_members: Vec::new(),
         }
     }
 }

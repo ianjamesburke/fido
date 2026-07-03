@@ -141,6 +141,30 @@ impl CommunityService {
         Ok(())
     }
 
+    /// Members of a community with usernames, admins first then alphabetical.
+    pub fn list_members_with_usernames(
+        &self,
+        community_id: &Uuid,
+    ) -> ApiResult<Vec<(String, MembershipRole)>> {
+        let memberships = self.repos.memberships.list_members(community_id)?;
+        let mut members: Vec<(String, MembershipRole)> = memberships
+            .into_iter()
+            .filter_map(|m| {
+                let user = self.repos.users.get_by_id(&m.user_id).ok().flatten()?;
+                Some((user.username, m.role))
+            })
+            .collect();
+        members.sort_by(|a, b| {
+            let rank = |r: &MembershipRole| match r {
+                MembershipRole::Admin => 0,
+                MembershipRole::Contributor => 1,
+                MembershipRole::Member => 2,
+            };
+            rank(&a.1).cmp(&rank(&b.1)).then(a.0.cmp(&b.0))
+        });
+        Ok(members)
+    }
+
     #[allow(dead_code)] // Reused by downstream moderation endpoints when those routes land.
     pub fn require_role(
         &self,
@@ -357,5 +381,69 @@ mod tests {
             claimed.membership.as_ref().map(|m| m.role),
             Some(MembershipRole::Admin)
         );
+    }
+
+    #[test]
+    fn list_members_returns_usernames_admins_first() -> ApiResult<()> {
+        let db = Database::in_memory()?;
+        db.initialize()?;
+        let repos = Repositories::new(db.pool.clone());
+
+        let community = Community {
+            id: Uuid::new_v4(),
+            github_repo_id: 1,
+            owner: "octocat".to_string(),
+            name: "Hello-World".to_string(),
+            claimed_by: None,
+            require_thread_approval: false,
+            created_at: Utc::now(),
+        };
+        repos.communities.create(&community)?;
+
+        let zed_id = Uuid::new_v4();
+        repos.users.create(&fido_types::User {
+            id: zed_id,
+            username: "zed".to_string(),
+            bio: None,
+            join_date: Utc::now(),
+            is_test_user: true,
+            is_admin: false,
+        })?;
+        repos.memberships.insert_if_missing(&Membership {
+            community_id: community.id,
+            user_id: zed_id,
+            role: MembershipRole::Member,
+            created_at: Utc::now(),
+        })?;
+
+        let alice_id = Uuid::new_v4();
+        repos.users.create(&fido_types::User {
+            id: alice_id,
+            username: "alice".to_string(),
+            bio: None,
+            join_date: Utc::now(),
+            is_test_user: true,
+            is_admin: false,
+        })?;
+        repos.memberships.insert_if_missing(&Membership {
+            community_id: community.id,
+            user_id: alice_id,
+            role: MembershipRole::Admin,
+            created_at: Utc::now(),
+        })?;
+
+        let github = {
+            let _guard = crate::test_utils::env_lock().lock().unwrap();
+            std::env::set_var("FIDO_TOKEN_KEY", STANDARD.encode([9u8; 32]));
+            let github = GithubService::from_env(repos.clone()).expect("github service");
+            std::env::remove_var("FIDO_TOKEN_KEY");
+            github
+        };
+        let service = CommunityService::new(repos, github);
+
+        let members = service.list_members_with_usernames(&community.id)?;
+        assert_eq!(members[0], ("alice".to_string(), MembershipRole::Admin));
+        assert_eq!(members[1], ("zed".to_string(), MembershipRole::Member));
+        Ok(())
     }
 }
