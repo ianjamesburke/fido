@@ -53,13 +53,15 @@ impl CommunityRepository {
         Ok(community)
     }
 
-    /// Get a community by its owner/name pair
+    /// Get a community by its owner/name pair. GitHub owner/repo names are
+    /// case-insensitive, so the match uses NOCASE collation at query time
+    /// rather than a stored-column change (which would need a migration).
     pub fn get_by_owner_name(&self, owner: &str, name: &str) -> Result<Option<Community>> {
         let conn = self.pool.get()?;
         let community = conn
             .query_row(
                 "SELECT id, github_repo_id, owner, name, claimed_by, require_thread_approval, created_at
-                 FROM communities WHERE owner = ? AND name = ?",
+                 FROM communities WHERE owner = ?1 COLLATE NOCASE AND name = ?2 COLLATE NOCASE",
                 [owner, name],
                 map_community_row,
             )
@@ -203,6 +205,20 @@ mod tests {
             .expect("community exists by owner/name");
         assert_eq!(by_owner_name.id, community.id);
         assert!(repo.get_by_owner_name("octocat", "missing")?.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_by_owner_name_is_case_insensitive() -> Result<()> {
+        let (db, _user) = setup()?;
+        let repo = CommunityRepository::new(db.pool.clone());
+        let community = sample_community(99);
+        repo.create(&community)?;
+
+        let fetched = repo
+            .get_by_owner_name("OctoCat", "Hello")?
+            .expect("case-insensitive lookup finds the community");
+        assert_eq!(fetched.id, community.id);
         Ok(())
     }
 
