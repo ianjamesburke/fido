@@ -1,6 +1,8 @@
 # Fido
 
-A social media/message board built with Ratatui.
+Fido is a terminal community app for GitHub repositories.
+
+Launch it inside a repo and Fido opens that repo's community board. Launch it anywhere else and Fido shows the repo communities you have joined.
 
 ## Installation
 
@@ -18,17 +20,19 @@ Login with GitHub or try a test user. Press `?` for help.
 
 ## Features
 
-- **Keyboard-driven** - `j/k` to navigate, `u/d` to vote, `n` to post
-- **Markdown posts** - Format your thoughts with hashtags and emoji shortcodes
-- **Direct messages** - Private conversations with other users
+- **Repo communities** - Open the board for the GitHub repo in your current directory
+- **Home mode** - Browse communities you have joined
+- **Threads and channels** - Talk inside the repo context
+- **Direct messages** - Message other developers
 - **GitHub auth** - Login with your GitHub account
-- **Customizable** - Themes, sorting, display preferences
-- **Fast** - Terminal-native, no web bloat
+- **Keyboard-driven** - `j/k` to navigate, `u/d` to vote, `n` to post
 
 ## Key Controls
 
 - `Tab` - Switch tabs
 - `j/k` or arrows - Navigate
+- `Enter` - Open a community from Home mode
+- `i` - Open community settings
 - `u/d` - Upvote/Downvote
 - `n` - New post
 - `?` - Help

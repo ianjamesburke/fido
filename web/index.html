@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fido — Mockup 3b: Clean Noir</title>
+    <title>Fido - GitHub repo communities in your terminal</title>
+    <meta name="description" content="Fido opens a terminal community for the GitHub repository you are working in.">
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -565,11 +566,11 @@
     <div class="container">
 
         <section class="hero">
-            <span class="hero-label">Terminal social network for developers</span>
+            <span class="hero-label">GitHub repo communities in your terminal</span>
             <span class="hero-title">FIDO</span>
             <p class="hero-desc">
-                Keyboard-driven. Built in Rust. 100% in the terminal.<br>
-                No algorithms, no ads, no tracking. Just the content you want.
+                Launch Fido inside a GitHub repo and land in that repo's community board.
+                Talk with the people working on the same code, without leaving the terminal.
             </p>
             <div class="hero-actions">
                 <div class="install-pill">
@@ -594,20 +595,20 @@
             </div>
             <div class="hero-meta">
                 <div class="meta-item">
-                    <span class="meta-label">Language</span>
-                    <span class="meta-value">Rust</span>
+                    <span class="meta-label">Communities</span>
+                    <span class="meta-value">GitHub repos</span>
                 </div>
                 <div class="meta-item">
-                    <span class="meta-label">License</span>
-                    <span class="meta-value">Open Source</span>
+                    <span class="meta-label">Identity</span>
+                    <span class="meta-value">GitHub login</span>
                 </div>
                 <div class="meta-item">
                     <span class="meta-label">Interface</span>
                     <span class="meta-value">Terminal / TUI</span>
                 </div>
                 <div class="meta-item">
-                    <span class="meta-label">Tracking</span>
-                    <span class="meta-value">None</span>
+                    <span class="meta-label">Built With</span>
+                    <span class="meta-value">Rust</span>
                 </div>
             </div>
         </section>
@@ -638,28 +639,28 @@
 
         <section class="features-section" id="features">
             <div class="section-head">
-                <h2 class="section-title">Why Fido</h2>
+                <h2 class="section-title">How Fido Works</h2>
             </div>
             <div class="features-grid">
                 <div class="feat">
                     <span class="feat-num">01</span>
-                    <h3>Lightning Fast</h3>
-                    <p>Terminal-native. Zero overhead. Renders in microseconds.</p>
+                    <h3>Repo-Scoped</h3>
+                    <p>Start Fido in a GitHub repo and it opens that repository's community.</p>
                 </div>
                 <div class="feat">
                     <span class="feat-num">02</span>
-                    <h3>Keyboard-Driven</h3>
-                    <p>Every action on a keybind. Vim-style navigation throughout.</p>
+                    <h3>GitHub-Linked</h3>
+                    <p>Communities are created from GitHub owner/name pairs and tied back to the repo.</p>
                 </div>
                 <div class="feat">
                     <span class="feat-num">03</span>
-                    <h3>Privacy-First</h3>
-                    <p>No algorithms. No ads. No data collection. Pure signal.</p>
+                    <h3>Terminal-Native</h3>
+                    <p>Threads, replies, chat, settings, and DMs stay keyboard-driven.</p>
                 </div>
                 <div class="feat">
                     <span class="feat-num">04</span>
-                    <h3>Built with Rust</h3>
-                    <p>Memory-safe. Single binary. Ships and runs everywhere.</p>
+                    <h3>Maintainer Aware</h3>
+                    <p>Repo admins and maintainers can claim the matching Fido community.</p>
                 </div>
             </div>
         </section>
@@ -668,12 +669,12 @@
             <div class="details-col">
                 <h3>Features</h3>
                 <ul class="feat-list">
+                    <li>Repo community auto-detection</li>
+                    <li>Home view for joined communities</li>
+                    <li>Community threads and replies</li>
+                    <li>Channels for repo chat</li>
+                    <li>Maintainer community claims</li>
                     <li>Direct messaging</li>
-                    <li>Follow hashtags</li>
-                    <li>Follow users</li>
-                    <li>Upvote / downvote posts</li>
-                    <li>Customizable color schemes</li>
-                    <li>Configurable sorting and display</li>
                 </ul>
             </div>
             <div class="details-col">
@@ -701,7 +702,7 @@
 
         <section class="roadmap-section">
             <div class="section-head">
-                <h2 class="section-title">Roadmap</h2>
+                <h2 class="section-title">Next</h2>
             </div>
             <div class="roadmap-list">
                 <div class="roadmap-row">
@@ -710,8 +711,8 @@
                         <span class="roadmap-index">01</span>
                     </div>
                     <div class="roadmap-right">
-                        <h3>CLI for Instant DMs</h3>
-                        <p>Send messages without opening the TUI: <code>fido dm @user "message"</code></p>
+                        <h3>Repo-Aware CLI Commands</h3>
+                        <p>Send a message or post to the current repo community without opening the full TUI.</p>
                     </div>
                 </div>
                 <div class="roadmap-row">
@@ -720,8 +721,8 @@
                         <span class="roadmap-index">02</span>
                     </div>
                     <div class="roadmap-right">
-                        <h3>Group Chats</h3>
-                        <p>Multi-user conversations and channels for teams and communities.</p>
+                        <h3>Deeper GitHub Signals</h3>
+                        <p>Use repo roles, contribution history, and membership to shape community controls.</p>
                     </div>
                 </div>
                 <div class="roadmap-row">
@@ -730,8 +731,8 @@
                         <span class="roadmap-index">03</span>
                     </div>
                     <div class="roadmap-right">
-                        <h3>WebSocket Real-time</h3>
-                        <p>Live feed updates. No polling. Always in sync.</p>
+                        <h3>Live Repo Boards</h3>
+                        <p>Realtime updates for threads, channel messages, and notifications.</p>
                     </div>
                 </div>
             </div>
@@ -740,7 +741,7 @@
         <footer>
             <span>Built for <a href="https://kiro.dev/" target="_blank">Kiroween 2025</a></span>
             <span class="footer-logo">FIDO</span>
-            <span><a href="https://github.com/ianjamesburke/fido" target="_blank">GitHub →</a></span>
+            <span><a href="https://github.com/ianjamesburke/fido" target="_blank">GitHub</a></span>
         </footer>
 
     </div>

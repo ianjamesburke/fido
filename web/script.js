@@ -1,6 +1,6 @@
-// Minimal script for coming soon page
+// Minimal script for the static landing page.
 document.addEventListener('DOMContentLoaded', function() {
-    // No terminal functionality needed for coming soon page
+    // The live terminal is embedded by the page iframe.
 });
 
 // Console easter egg for curious developers
@@ -13,7 +13,7 @@ console.log(
     'font-family: monospace; color: #0ea5e9;'
 );
 console.log(
-    '%cWelcome to Fido! 🐕\n' +
+    '%cFido opens GitHub repo communities in your terminal.\n' +
     'Built with Rust + Ratatui',
     'font-family: monospace; color: #a3a3a3;'
 );

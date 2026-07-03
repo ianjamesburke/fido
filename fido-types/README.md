@@ -1,10 +1,11 @@
 # fido-types
 
-Shared types for the [Fido](https://github.com/ianjamesburke/fido) social platform.
+Shared types for [Fido](https://github.com/ianjamesburke/fido), a terminal community app for GitHub repositories.
 
-This crate provides the core data models and types used across the Fido ecosystem, including:
-- User models
-- Post and message structures
+This crate provides the core models used by the server and TUI, including:
+- Users and sessions
+- GitHub-linked communities
+- Posts, channels, and messages
 - API request/response types
 - Common enums and utilities
 

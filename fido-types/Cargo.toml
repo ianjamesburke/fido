@@ -4,11 +4,11 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Shared types for the Fido social platform"
+description = "Shared types for Fido's GitHub repo communities"
 repository.workspace = true
 homepage.workspace = true
 readme = "README.md"
-keywords = ["social", "types", "fido"]
+keywords = ["community", "github", "types", "fido"]
 categories = ["data-structures"]
 
 [dependencies]

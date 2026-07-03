@@ -4,11 +4,11 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "A blazing-fast, keyboard-driven social platform for developers"
+description = "A terminal community app for GitHub repositories"
 repository.workspace = true
 homepage.workspace = true
 readme = "README.md"
-keywords = ["tui", "social", "terminal", "ratatui"]
+keywords = ["tui", "community", "terminal", "github", "ratatui"]
 categories = ["command-line-utilities"]
 
 [dependencies]
