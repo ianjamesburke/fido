@@ -26,13 +26,14 @@ RUN apt-get update && \
         nginx \
         gettext-base \
         curl \
+        gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Install ttyd from GitHub releases (not available in Debian repos)
 # Pin to a known-good SHA-256 so a compromised/altered release asset fails the build.
 # Hash is for the ttyd 1.7.7 `ttyd.x86_64` release asset. Confirm if the pin ever fails.
 RUN curl -fL https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -o /usr/local/bin/ttyd && \
-    echo "ec4dab7b311599b6217d1f929e1a99655e2a2f5db2c58d94dced19cff87d8c22  /usr/local/bin/ttyd" | sha256sum -c - && \
+    echo "8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55  /usr/local/bin/ttyd" | sha256sum -c - && \
     chmod +x /usr/local/bin/ttyd
 
 # Copy compiled binaries
@@ -78,8 +79,7 @@ ENV RUST_BACKTRACE=1
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
-# Drop root: run all services (nginx, ttyd, fido-server) as the non-root user.
-USER fido
-
-# Use start script as entrypoint
-ENTRYPOINT ["/usr/local/bin/start.sh"]
+# The entrypoint starts as root only long enough to fix ownership of the
+# runtime-mounted volume (Railway mounts /data as root, shadowing the image-time
+# chown), then drops to the non-root `fido` user via gosu for all services.
+ENTRYPOINT ["/bin/sh", "-c", "chown -R fido:fido /data /var/log/fido 2>/dev/null || true; exec gosu fido /usr/local/bin/start.sh"]
