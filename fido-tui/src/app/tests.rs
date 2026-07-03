@@ -932,3 +932,100 @@ fn dm_stray_key_on_request_selection_does_not_enter_typing_mode() {
 
     assert_eq!(app.input_mode, InputMode::Navigation);
 }
+
+fn test_post_created_at(created_at: &str) -> Post {
+    Post {
+        id: uuid::Uuid::new_v4(),
+        author_id: uuid::Uuid::new_v4(),
+        author_username: "poster".to_string(),
+        community_id: uuid::Uuid::new_v4(),
+        content: "test post".to_string(),
+        created_at: created_at.parse().unwrap(),
+        upvotes: 0,
+        downvotes: 0,
+        approved: true,
+        hashtags: Vec::new(),
+        user_vote: None,
+        parent_post_id: None,
+        reply_count: 0,
+        reply_to_user_id: None,
+        reply_to_username: None,
+    }
+}
+
+fn test_activity_created_at(created_at: &str) -> fido_types::ActivityItem {
+    fido_types::ActivityItem {
+        github_id: 1,
+        kind: fido_types::ActivityKind::Issue,
+        number: 42,
+        title: "test issue".to_string(),
+        author_login: "octocat".to_string(),
+        state: fido_types::ActivityState::Open,
+        created_at: created_at.parse().unwrap(),
+        html_url: "https://github.com/owner/repo/issues/42".to_string(),
+    }
+}
+
+fn test_posts_state_with(
+    posts: Vec<Post>,
+    activity: Vec<fido_types::ActivityItem>,
+    loading: bool,
+) -> PostsState {
+    use ratatui::widgets::ListState;
+
+    PostsState {
+        posts,
+        list_state: ListState::default(),
+        loading,
+        error: None,
+        message: None,
+        show_new_post_modal: false,
+        new_post_content: String::new(),
+        pending_load: false,
+        current_filter: PostFilter::All,
+        show_filter_modal: false,
+        filter_modal_state: FilterModalState {
+            selected_tab: FilterTab::All,
+            hashtag_list: Vec::new(),
+            user_list: Vec::new(),
+            selected_index: 0,
+            search_input: String::new(),
+            search_mode: false,
+            search_results: Vec::new(),
+            checked_hashtags: Vec::new(),
+            checked_users: Vec::new(),
+            show_add_hashtag_input: false,
+            add_hashtag_input: String::new(),
+        },
+        at_end_of_feed: false,
+        activity_items: activity,
+        activity_loading: false,
+        activity_error: None,
+        activity_pending_load: false,
+        feed_entries: Vec::new(),
+    }
+}
+
+#[test]
+fn feed_entries_interleave_by_created_at_desc() {
+    let posts = vec![
+        test_post_created_at("2026-07-02T12:00:00Z"),
+        test_post_created_at("2026-06-30T12:00:00Z"),
+    ];
+    let activity = vec![test_activity_created_at("2026-07-01T12:00:00Z")];
+    let entries = rebuild_feed_entries(&posts, &activity);
+    assert_eq!(
+        entries,
+        vec![FeedEntry::Post(0), FeedEntry::Activity(0), FeedEntry::Post(1)]
+    );
+}
+
+#[test]
+fn selected_feed_entry_accounts_for_loading_offset() {
+    let posts = vec![test_post_created_at("2026-07-02T12:00:00Z")];
+    let activity = vec![test_activity_created_at("2026-07-01T12:00:00Z")];
+    let mut state = test_posts_state_with(posts, activity, true);
+    state.rebuild_feed();
+    state.list_state.select(Some(1)); // 0 is the loading spinner row
+    assert_eq!(state.selected_feed_entry(), Some(FeedEntry::Post(0)));
+}

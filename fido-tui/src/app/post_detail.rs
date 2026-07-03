@@ -959,12 +959,20 @@ impl App {
                     if let Some(index) = self.posts_state.posts.iter().position(|p| p.id == post_id)
                     {
                         self.posts_state.posts.remove(index);
+                        self.posts_state.rebuild_feed();
                         if self.posts_state.posts.is_empty() {
-                            self.posts_state.list_state.select(None);
+                            if self.posts_state.feed_entries.is_empty() {
+                                self.posts_state.list_state.select(None);
+                            } else {
+                                self.posts_state
+                                    .list_state
+                                    .select(Some(self.posts_state.items_before_posts()));
+                            }
                         } else if index >= self.posts_state.posts.len() {
-                            self.posts_state
-                                .list_state
-                                .select(Some(self.posts_state.posts.len() - 1));
+                            let list_index = self
+                                .posts_state
+                                .post_index_to_list_index(self.posts_state.posts.len() - 1);
+                            self.posts_state.list_state.select(Some(list_index));
                         }
                     }
                     self.posts_state.message = Some((

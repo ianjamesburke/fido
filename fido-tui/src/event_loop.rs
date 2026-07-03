@@ -228,6 +228,13 @@ impl EventLoop {
             app.load_posts().await?;
         }
 
+        // Activity load runs after the posts load so the board is already
+        // populated when it lands (load_posts sets this flag on success).
+        if app.posts_state.activity_pending_load {
+            app.posts_state.activity_pending_load = false;
+            app.load_activity().await;
+        }
+
         // Load hashtags when modal is opened and hashtags list is empty
         if app.hashtags_state.show_hashtags_modal
             && app.hashtags_state.hashtags.is_empty()
@@ -637,9 +644,9 @@ impl EventLoop {
     }
 
     async fn handle_post_selection(&self, app: &mut App) -> Result<()> {
-        if let Some(selected_index) = app.posts_state.list_state.selected() {
-            if selected_index < app.posts_state.posts.len() {
-                let post_id = app.posts_state.posts[selected_index].id;
+        if let Some(list_index) = app.posts_state.list_state.selected() {
+            if let Some(post_index) = app.posts_state.list_index_to_post_index(list_index) {
+                let post_id = app.posts_state.posts[post_index].id;
                 app.open_post_detail(post_id).await?;
             }
         }

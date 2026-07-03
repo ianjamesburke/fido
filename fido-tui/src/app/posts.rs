@@ -158,6 +158,7 @@ impl App {
             Ok(posts) => {
                 let has_posts = !posts.is_empty();
                 self.posts_state.posts = posts;
+                self.posts_state.rebuild_feed();
                 // Server now includes user_vote in each post
                 if has_posts {
                     self.posts_state.list_state.select(Some(0));
@@ -165,6 +166,8 @@ impl App {
                     self.posts_state.list_state.select(None);
                 }
                 self.posts_state.loading = false;
+                self.posts_state.activity_loading = true;
+                self.posts_state.activity_pending_load = true;
             }
             Err(e) => {
                 let error_msg = categorize_error(&e.to_string());
@@ -178,11 +181,16 @@ impl App {
 
     /// Vote on the currently selected post
     pub async fn vote_on_selected_post(&mut self, direction: &str) -> Result<()> {
-        if let Some(selected_index) = self.posts_state.list_state.selected() {
+        if let Some(list_index) = self.posts_state.list_state.selected() {
+            let Some(post_index) = self.posts_state.list_index_to_post_index(list_index) else {
+                // Selection is an activity row, not a post - nothing to vote on
+                return Ok(());
+            };
+
             // Clear any previous errors
             self.posts_state.error = None;
 
-            let selected_post = &mut self.posts_state.posts[selected_index];
+            let selected_post = &mut self.posts_state.posts[post_index];
             let post_id = selected_post.id;
 
             // Check if user has already voted on this post
@@ -410,22 +418,19 @@ impl App {
     }
 
     pub fn next_post(&mut self) {
-        if self.posts_state.posts.is_empty() {
+        if self.posts_state.feed_entries.is_empty() {
             return;
         }
 
-        // Get current post index (not list index)
-        let current_post_index = self
-            .posts_state
-            .list_state
-            .selected()
-            .and_then(|list_idx| self.posts_state.list_index_to_post_index(list_idx));
+        let offset = self.posts_state.items_before_posts();
+        let total_items = offset + self.posts_state.feed_entries.len();
+        let current = self.posts_state.list_state.selected();
 
-        let next_post_index = match current_post_index {
+        let next = match current {
             Some(i) => {
                 // Stop at bottom, don't wrap around
-                if i >= self.posts_state.posts.len() - 1 {
-                    // At last post - show "End of Feed" indicator
+                if i >= total_items - 1 {
+                    // At the end of the feed - show "End of Feed" indicator
                     self.posts_state.at_end_of_feed = true;
                     i
                 } else {
@@ -435,32 +440,31 @@ impl App {
             }
             None => {
                 self.posts_state.at_end_of_feed = false;
-                0
+                offset
             }
         };
 
-        // Convert post index to list index and update selection
-        let list_index = self.posts_state.post_index_to_list_index(next_post_index);
-        self.posts_state.list_state.select(Some(list_index));
+        self.posts_state.list_state.select(Some(next));
     }
 
     pub fn previous_post(&mut self) {
-        if self.posts_state.posts.is_empty() {
+        if self.posts_state.feed_entries.is_empty() {
             return;
         }
 
         // Clear end-of-feed indicator when scrolling up
         self.posts_state.at_end_of_feed = false;
 
+        let offset = self.posts_state.items_before_posts();
         let current = self.posts_state.list_state.selected();
 
         match current {
-            Some(i) if i > 0 => {
+            Some(i) if i > offset => {
                 self.posts_state.list_state.select(Some(i - 1));
             }
             _ => {
                 // Already at top or no selection
-                self.posts_state.list_state.select(Some(0));
+                self.posts_state.list_state.select(Some(offset));
             }
         }
     }

@@ -67,6 +67,11 @@ impl App {
                     add_hashtag_input: String::new(),
                 },
                 at_end_of_feed: false,
+                activity_items: Vec::new(),
+                activity_loading: false,
+                activity_error: None,
+                activity_pending_load: false,
+                feed_entries: Vec::new(),
             },
             profile_state: ProfileState {
                 profile: None,

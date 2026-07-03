@@ -307,6 +307,17 @@ impl ApiClient {
         self.handle_response(response).await
     }
 
+    /// Recent GitHub issues/PRs for a community's repo
+    pub async fn get_community_activity(
+        &self,
+        community_id: Uuid,
+    ) -> ApiResult<CommunityActivityResponse> {
+        let url = self.build_url(&format!("/communities/{}/activity", community_id));
+        let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
     /// Create a new post
     pub async fn create_post(&self, community_id: Uuid, content: String) -> ApiResult<Post> {
         let url = format!("{}/posts", self.base_url);
@@ -667,6 +678,14 @@ pub struct CommunityResponse {
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct MembershipResponse {
     pub role: fido_types::MembershipRole,
+}
+
+/// Response body for `GET /communities/:id/activity`
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct CommunityActivityResponse {
+    pub items: Vec<ActivityItem>,
+    #[allow(dead_code)] // surfaced in the activity feed header in the next task
+    pub fetched_at: String,
 }
 
 #[derive(Debug, serde::Serialize)]

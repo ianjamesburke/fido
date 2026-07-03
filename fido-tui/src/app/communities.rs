@@ -11,6 +11,11 @@ use crate::api::CommunityViewResponse;
 use super::{categorize_error, App};
 
 impl App {
+    /// The id of the community whose board is currently shown, if any.
+    pub fn current_community_id(&self) -> Option<uuid::Uuid> {
+        self.community.as_ref().map(|c| c.id)
+    }
+
     /// Entry point after login or session restore.
     pub async fn init_community_context(&mut self) -> Result<()> {
         self.community = None;
@@ -28,6 +33,7 @@ impl App {
     async fn enter_repo_community(&mut self, owner: &str, name: &str) {
         match self.api_client.join_community(owner, name).await {
             Ok(view) => {
+                self.clear_activity();
                 self.apply_community_view(view);
             }
             Err(e) => {
@@ -80,6 +86,7 @@ impl App {
 
         match self.api_client.get_community(community_id).await {
             Ok(view) => {
+                self.clear_activity();
                 self.apply_community_view(view);
                 self.load_posts().await?;
             }
@@ -98,6 +105,7 @@ impl App {
         self.posts_state.posts.clear();
         self.posts_state.list_state.select(None);
         self.posts_state.error = None;
+        self.clear_activity();
     }
 
     /// Repo mode: retry after a failed join (server down, repo unresolvable).
