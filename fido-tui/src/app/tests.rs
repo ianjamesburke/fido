@@ -835,3 +835,26 @@ async fn open_user_profile_surfaces_fetch_error() {
     assert_eq!(view.username, "ghost");
     assert!(view.error.is_some());
 }
+
+#[test]
+fn follow_toggle_transitions() {
+    use crate::app::App;
+    use fido_types::RelationshipStatus as R;
+    assert_eq!(
+        App::next_relationship_after_toggle(&R::None),
+        Some((true, R::Following))
+    );
+    assert_eq!(
+        App::next_relationship_after_toggle(&R::FollowsYou),
+        Some((true, R::MutualFriends))
+    );
+    assert_eq!(
+        App::next_relationship_after_toggle(&R::Following),
+        Some((false, R::None))
+    );
+    assert_eq!(
+        App::next_relationship_after_toggle(&R::MutualFriends),
+        Some((false, R::FollowsYou))
+    );
+    assert_eq!(App::next_relationship_after_toggle(&R::Self_), None);
+}

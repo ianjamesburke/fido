@@ -474,6 +474,22 @@ impl ApiClient {
         self.handle_response(response).await
     }
 
+    /// Follow a user
+    pub async fn follow_user(&self, user_id: Uuid) -> ApiResult<()> {
+        let url = format!("{}/users/{}/follow", self.base_url, user_id);
+        let req = self.add_auth_header(self.client.post(&url));
+        req.send().await?.error_for_status()?;
+        Ok(())
+    }
+
+    /// Unfollow a user
+    pub async fn unfollow_user(&self, user_id: Uuid) -> ApiResult<()> {
+        let url = format!("{}/users/{}/follow", self.base_url, user_id);
+        let req = self.add_auth_header(self.client.delete(&url));
+        req.send().await?.error_for_status()?;
+        Ok(())
+    }
+
     // OAuth endpoints
 
     /// Initiate GitHub Device Flow

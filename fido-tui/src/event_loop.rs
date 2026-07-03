@@ -489,6 +489,12 @@ impl EventLoop {
                     app.open_user_profile(id, username).await?;
                 }
             }
+            KeyCode::Char('f') | KeyCode::Char('F') if app.user_profile_view.is_some() => {
+                app.toggle_follow_from_profile().await?;
+            }
+            KeyCode::Char('m') | KeyCode::Char('M') if app.user_profile_view.is_some() => {
+                app.message_user_from_profile().await?;
+            }
             _ => {
                 // Delegate to synchronous key handling
                 app.handle_key_event(key)?;
