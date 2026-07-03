@@ -484,7 +484,11 @@ impl EventLoop {
             }
             // o: open the selected repo-activity item on GitHub
             KeyCode::Char('o')
-                if app.current_tab == Tab::Posts
+                if app.current_screen == Screen::Main
+                    && app.current_tab == Tab::Posts
+                    && !app.viewing_post_detail
+                    && !app.composer_state.is_open()
+                    && !app.posts_state.show_filter_modal
                     && app.input_mode == InputMode::Navigation
                     && app.user_profile_view.is_none()
                     && app.selected_activity_url().is_some() =>

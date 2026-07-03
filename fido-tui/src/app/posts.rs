@@ -65,6 +65,7 @@ impl App {
             self.posts_state.posts.clear();
             self.posts_state.list_state.select(None);
             self.posts_state.loading = false;
+            self.posts_state.rebuild_feed();
             return Ok(());
         };
 

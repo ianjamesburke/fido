@@ -1053,6 +1053,37 @@ fn open_selected_activity_noops_when_selection_is_a_post() {
 }
 
 #[test]
+fn logout_shaped_posts_clear_leaves_feed_entries_empty() {
+    let posts = vec![test_post_created_at("2026-07-02T12:00:00Z")];
+    let activity = vec![test_activity_created_at("2026-07-01T12:00:00Z")];
+    let mut app = App::new();
+    app.posts_state = test_posts_state_with(posts, activity, false);
+    app.posts_state.rebuild_feed();
+    app.posts_state.list_state.select(Some(0));
+    assert!(!app.posts_state.feed_entries.is_empty());
+
+    // Mirror the logout path: clear posts, then clear_activity() (which
+    // also rebuilds the feed).
+    app.posts_state.posts.clear();
+    app.clear_activity();
+
+    assert!(
+        app.posts_state.feed_entries.is_empty(),
+        "feed_entries must be rebuilt empty after posts are cleared"
+    );
+    assert_eq!(
+        app.posts_state.selected_feed_entry(),
+        None,
+        "selection helpers must not resolve to a stale index into an emptied posts vec"
+    );
+    assert_eq!(
+        app.posts_state.list_index_to_post_index(0),
+        None,
+        "list_index_to_post_index must not resolve to a stale post index"
+    );
+}
+
+#[test]
 fn open_selected_activity_returns_url_when_selection_is_activity() {
     let posts = vec![test_post_created_at("2026-06-30T12:00:00Z")];
     let activity = vec![test_activity_created_at("2026-07-01T12:00:00Z")];
