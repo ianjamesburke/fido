@@ -37,28 +37,37 @@ impl App {
 
         self.friends_state.following = following
             .into_iter()
-            .map(|u| UserInfo {
-                username: u.username,
-                follower_count: u.follower_count,
-                following_count: u.following_count,
+            .filter_map(|u| {
+                Some(UserInfo {
+                    id: u.id.parse().ok()?,
+                    username: u.username,
+                    follower_count: u.follower_count,
+                    following_count: u.following_count,
+                })
             })
             .collect();
 
         self.friends_state.followers = followers
             .into_iter()
-            .map(|u| UserInfo {
-                username: u.username,
-                follower_count: u.follower_count,
-                following_count: u.following_count,
+            .filter_map(|u| {
+                Some(UserInfo {
+                    id: u.id.parse().ok()?,
+                    username: u.username,
+                    follower_count: u.follower_count,
+                    following_count: u.following_count,
+                })
             })
             .collect();
 
         self.friends_state.mutual_friends = mutual
             .into_iter()
-            .map(|u| UserInfo {
-                username: u.username,
-                follower_count: u.follower_count,
-                following_count: u.following_count,
+            .filter_map(|u| {
+                Some(UserInfo {
+                    id: u.id.parse().ok()?,
+                    username: u.username,
+                    follower_count: u.follower_count,
+                    following_count: u.following_count,
+                })
             })
             .collect();
 

@@ -101,6 +101,7 @@ pub enum SocialTab {
 /// User information for social lists
 #[derive(Debug, Clone)]
 pub struct UserInfo {
+    pub id: uuid::Uuid,
     pub username: String,
     pub follower_count: usize,
     pub following_count: usize,
@@ -131,6 +132,7 @@ pub struct UserSearchState {
 
 #[derive(Debug, Clone)]
 pub struct UserSearchResult {
+    pub id: uuid::Uuid,
     pub username: String,
 }
 

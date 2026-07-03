@@ -290,10 +290,13 @@ impl App {
             Ok(friends) => {
                 self.dms_state.available_mutual_friends = friends
                     .into_iter()
-                    .map(|f| UserInfo {
-                        username: f.username,
-                        follower_count: f.follower_count,
-                        following_count: f.following_count,
+                    .filter_map(|f| {
+                        Some(UserInfo {
+                            id: f.id.parse().ok()?,
+                            username: f.username,
+                            follower_count: f.follower_count,
+                            following_count: f.following_count,
+                        })
                     })
                     .collect();
             }

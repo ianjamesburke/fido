@@ -76,8 +76,11 @@ impl App {
             Ok(results) => {
                 self.user_search_state.search_results = results
                     .into_iter()
-                    .map(|r| UserSearchResult {
-                        username: r.username,
+                    .filter_map(|r| {
+                        Some(UserSearchResult {
+                            id: r.id.parse().ok()?,
+                            username: r.username,
+                        })
                     })
                     .collect();
                 self.user_search_state.selected_index = 0;

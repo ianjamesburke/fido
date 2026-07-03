@@ -808,3 +808,15 @@ fn test_dm_selection_stays_on_new_conversation_when_no_conversations() {
         "Should stay on NewConversation when no conversations exist"
     );
 }
+
+#[test]
+fn user_info_carries_id() {
+    let id = uuid::Uuid::new_v4();
+    let info = crate::app::UserInfo {
+        id,
+        username: "alice".to_string(),
+        follower_count: 1,
+        following_count: 2,
+    };
+    assert_eq!(info.id, id);
+}

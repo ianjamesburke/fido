@@ -529,6 +529,7 @@ impl Default for ApiClient {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct SocialUserInfo {
+    pub id: String,
     pub username: String,
     pub follower_count: usize,
     pub following_count: usize,
@@ -536,6 +537,7 @@ pub struct SocialUserInfo {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct UserSearchResult {
+    pub id: String,
     pub username: String,
 }
 
