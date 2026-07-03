@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod auth;
+pub mod badge;
 pub mod chat;
 pub mod communities;
 pub mod config;

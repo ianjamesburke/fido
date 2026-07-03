@@ -53,6 +53,21 @@ impl CommunityRepository {
         Ok(community)
     }
 
+    /// Get a community by its owner/name pair
+    pub fn get_by_owner_name(&self, owner: &str, name: &str) -> Result<Option<Community>> {
+        let conn = self.pool.get()?;
+        let community = conn
+            .query_row(
+                "SELECT id, github_repo_id, owner, name, claimed_by, require_thread_approval, created_at
+                 FROM communities WHERE owner = ? AND name = ?",
+                [owner, name],
+                map_community_row,
+            )
+            .optional()
+            .context("Failed to fetch community by owner/name")?;
+        Ok(community)
+    }
+
     /// Get a community by its GitHub numeric repo id
     pub fn get_by_github_repo_id(&self, github_repo_id: i64) -> Result<Option<Community>> {
         let conn = self.pool.get()?;
@@ -182,6 +197,12 @@ mod tests {
             .get_by_github_repo_id(42)?
             .expect("community exists by repo id");
         assert_eq!(by_repo.id, community.id);
+
+        let by_owner_name = repo
+            .get_by_owner_name("octocat", "hello")?
+            .expect("community exists by owner/name");
+        assert_eq!(by_owner_name.id, community.id);
+        assert!(repo.get_by_owner_name("octocat", "missing")?.is_none());
         Ok(())
     }
 

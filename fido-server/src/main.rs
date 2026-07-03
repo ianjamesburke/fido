@@ -269,6 +269,8 @@ async fn main() {
     let mut app = Router::new()
         // Health check
         .route("/health", get(health_check))
+        // Public community badge SVG
+        .route("/badge/:owner/:repo_svg", get(api::badge::community_badge))
         // Realtime WebSocket gateway
         .route("/ws", get(api::ws::ws_handler));
 

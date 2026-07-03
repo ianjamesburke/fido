@@ -998,3 +998,64 @@ async fn community_activity_requires_auth_and_rejects_unknown_community() -> Res
 
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Community badge SVG endpoint
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn community_badge_is_public_and_reflects_member_count() -> Result<()> {
+    let server = spawn_server(None).await?;
+    let repos = &server.state.repos;
+
+    // Unknown repo 404s, no auth header sent.
+    let unknown = reqwest::Client::new()
+        .get(format!(
+            "http://{}/badge/octocat/does-not-exist.svg",
+            server.addr
+        ))
+        .send()
+        .await?;
+    assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
+    let content_type = unknown
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    assert!(content_type.starts_with("text/plain"));
+
+    // Seed a community with two members.
+    let (community, _channel) = seed_community(repos, false)?;
+    let alice = create_user(repos, "e2e-badge-alice")?;
+    let bob = create_user(repos, "e2e-badge-bob")?;
+    add_member(repos, community.id, alice.id, MembershipRole::Admin)?;
+    add_member(repos, community.id, bob.id, MembershipRole::Member)?;
+
+    let response = reqwest::Client::new()
+        .get(format!(
+            "http://{}/badge/{}/{}.svg",
+            server.addr, community.owner, community.name
+        ))
+        .send()
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok()),
+        Some("image/svg+xml")
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get("cache-control")
+            .and_then(|v| v.to_str().ok()),
+        Some("public, max-age=300")
+    );
+    let body = response.text().await?;
+    assert!(body.contains("2 members"));
+
+    Ok(())
+}
