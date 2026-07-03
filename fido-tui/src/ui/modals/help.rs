@@ -311,6 +311,8 @@ pub fn add_dms_tab_shortcuts(
             ("Enter", "Open conversation / Start new"),
             ("Type", "Compose message"),
             ("Enter", "Send message"),
+            ("a", "Accept DM request (Request row selected)"),
+            ("x", "Decline DM request (Request row selected)"),
             ("Esc", "Clear message / Stop typing"),
             (":emoji:", "Use emoji shortcodes"),
         ],

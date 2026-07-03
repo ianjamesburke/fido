@@ -347,7 +347,8 @@ impl EventLoop {
                     && !app.posts_state.show_new_post_modal
                     && !app.viewing_post_detail
                     && !app.composer_state.is_open()
-                    && !app.posts_state.show_filter_modal =>
+                    && !app.posts_state.show_filter_modal
+                    && !app.user_search_state.show_modal =>
             {
                 if app.is_home_list_active() {
                     app.open_home_selection().await?;

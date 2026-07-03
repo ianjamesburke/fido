@@ -372,6 +372,14 @@ INSERT OR IGNORE INTO direct_messages (id, from_user_id, to_user_id, content, cr
     ('750e8400-e29b-41d4-a716-446655440011', '550e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440003', 'Great! Should we add more indexes?', '2024-01-08T16:15:00Z', 1),
     ('750e8400-e29b-41d4-a716-446655440012', '550e8400-e29b-41d4-a716-446655440003', '550e8400-e29b-41d4-a716-446655440002', 'Let''s wait and see the query patterns first.', '2024-01-08T16:20:00Z', 0);
 
+-- The DM threads seeded above require matching dm_conversations rows: get_conversations()
+-- joins direct_messages summaries against dm_conversations and 404s if a pair is missing one.
+-- user_a/user_b must satisfy user_a < user_b (enforced by CHECK).
+INSERT OR IGNORE INTO dm_conversations (user_a, user_b, state, initiator_id, created_at) VALUES
+    ('550e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440002', 'accepted', '550e8400-e29b-41d4-a716-446655440001', '2024-01-10T11:00:00Z'),
+    ('550e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440003', 'accepted', '550e8400-e29b-41d4-a716-446655440001', '2024-01-09T14:00:00Z'),
+    ('550e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440003', 'accepted', '550e8400-e29b-41d4-a716-446655440002', '2024-01-08T16:00:00Z');
+
 -- ============================================================================
 -- REPLY POSTS (Threaded Conversations)
 -- ============================================================================

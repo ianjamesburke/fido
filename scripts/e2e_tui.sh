@@ -74,6 +74,7 @@ PORT="$PORT" \
     DATABASE_PATH="$WORK/fido.db" \
     GITHUB_API_BASE="http://127.0.0.1:$STUB_PORT" \
     FIDO_TOKEN_KEY="$(head -c 32 /dev/urandom | base64)" \
+    ENVIRONMENT="development" \
     "$SERVER_BIN" --reset-db >"$WORK/server.log" 2>&1 &
 SERVER_PID=$!
 
@@ -147,6 +148,40 @@ keys Enter
 wait_for "hello from the e2e harness" "board opened from home list"
 keys Escape
 wait_for "Your Communities" "Esc returns to home list"
+
+tmux kill-session -t "$SESSION"
+
+# --- Scenario 4: search -> profile -> message connection path ----------------
+# Server seeds three test users (alice, bob, charlie) plus a pre-accepted
+# alice<->bob DM thread; we're logged in as alice (session restored from
+# scenario 1) and message bob via search -> profile -> DM.
+echo "==> scenario 4: search user, view profile, send DM"
+launch_tui "$REPO"
+wait_for "testowner/testrepo" "repo community board (session restored, scenario 4)"
+
+keys 's'
+wait_for "Search Users" "user search modal"
+tmux send-keys -t "$SESSION" -l "bob"
+sleep 0.3
+wait_for "bob" "search result row for bob"
+keys Enter
+wait_for "User Profile" "profile modal opens"
+pane | grep -qF "@bob" || fail "profile modal should show @bob"
+
+keys 'm'
+wait_for "Message Input (Enter to send)" "DMs tab conversation with bob"
+tmux send-keys -t "$SESSION" -l "hello from e2e"
+sleep 0.3
+keys Enter
+sleep 0.5
+
+MSG_COUNT=$(sqlite3 "$WORK/fido.db" \
+    "SELECT count(*) FROM direct_messages dm
+     JOIN users s ON dm.from_user_id = s.id
+     JOIN users r ON dm.to_user_id = r.id
+     WHERE s.username = 'alice' AND r.username = 'bob'
+       AND dm.content = 'hello from e2e';")
+[[ "$MSG_COUNT" == "1" ]] || fail "DM from alice to bob not found (count=$MSG_COUNT)"
 
 tmux kill-session -t "$SESSION"
 

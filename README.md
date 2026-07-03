@@ -71,6 +71,8 @@ See [QUICKSTART.md](QUICKSTART.md) for the longer walkthrough.
 - `i` - Open community settings
 - `u/d` - Upvote or downvote
 - `n` - New post
+- `p` - View profile
+- `s` - Search users
 - `?` - Help
 - `q` - Quit
 
