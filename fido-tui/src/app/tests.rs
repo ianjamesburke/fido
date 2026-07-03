@@ -824,6 +824,9 @@ fn user_info_carries_id() {
 #[tokio::test]
 async fn open_user_profile_surfaces_fetch_error() {
     let mut app = App::new();
+    // Point at an unroutable address so the fetch fails deterministically,
+    // regardless of network or FIDO_SERVER_URL.
+    app.api_client = crate::api::ApiClient::new("http://127.0.0.1:1");
     let id = uuid::Uuid::new_v4();
     app.open_user_profile(id, "ghost".to_string())
         .await
