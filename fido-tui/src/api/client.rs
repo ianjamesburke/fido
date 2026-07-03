@@ -40,7 +40,6 @@ pub struct ConversationInfo {
     pub other_user_id: String,
     pub other_username: String,
     pub last_message: String,
-    pub last_message_time: String,
     pub unread_count: usize,
     pub state: fido_types::DmConversationState,
     pub initiated_by_me: bool,
@@ -51,7 +50,6 @@ pub struct ConversationInfo {
 pub struct DmRequestInfo {
     pub from_user_id: String,
     pub from_username: String,
-    pub created_at: String,
 }
 
 /// A community member as returned by `GET /communities/:id/members`

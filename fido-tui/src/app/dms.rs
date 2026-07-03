@@ -456,6 +456,11 @@ impl App {
                     // accept/decline — handled async in event_loop
                 }
                 _ => {
+                    // A Request row has no compose surface — stray keys must not
+                    // enter Typing mode (there's nowhere for them to go).
+                    if matches!(self.dms_state.selection, DMSelection::Request(_)) {
+                        return Ok(());
+                    }
                     // Any other key starts typing mode (for message input)
                     self.input_mode = InputMode::Typing;
                     self.handle_dm_input(key);

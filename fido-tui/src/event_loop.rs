@@ -348,7 +348,8 @@ impl EventLoop {
                     && !app.viewing_post_detail
                     && !app.composer_state.is_open()
                     && !app.posts_state.show_filter_modal
-                    && !app.user_search_state.show_modal =>
+                    && !app.user_search_state.show_modal
+                    && app.user_profile_view.is_none() =>
             {
                 if app.is_home_list_active() {
                     app.open_home_selection().await?;
@@ -383,7 +384,8 @@ impl EventLoop {
                 if app.current_screen == Screen::Main
                     && app.current_tab == Tab::Posts
                     && !app.composer_state.is_open()
-                    && !app.posts_state.show_filter_modal =>
+                    && !app.posts_state.show_filter_modal
+                    && app.user_profile_view.is_none() =>
             {
                 self.handle_vote(app, "up").await?;
             }
@@ -391,7 +393,8 @@ impl EventLoop {
                 if app.current_screen == Screen::Main
                     && app.current_tab == Tab::Posts
                     && !app.composer_state.is_open()
-                    && !app.posts_state.show_filter_modal =>
+                    && !app.posts_state.show_filter_modal
+                    && app.user_profile_view.is_none() =>
             {
                 self.handle_vote(app, "down").await?;
             }

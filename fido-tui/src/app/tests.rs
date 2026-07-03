@@ -917,3 +917,18 @@ fn dm_request_selection_restored_after_acting_on_one() {
         crate::app::DMSelection::Conversation(0)
     ));
 }
+
+#[test]
+fn dm_stray_key_on_request_selection_does_not_enter_typing_mode() {
+    let mut app = App::new();
+    app.dms_state.pending_requests = vec![crate::app::DmRequest {
+        from_user_id: uuid::Uuid::new_v4(),
+        from_username: "alice".to_string(),
+    }];
+    app.dms_state.selection = crate::app::DMSelection::Request(0);
+    app.input_mode = InputMode::Navigation;
+
+    app.handle_dms_keys(key_event(KeyCode::Char('z'))).unwrap();
+
+    assert_eq!(app.input_mode, InputMode::Navigation);
+}
