@@ -1,9 +1,10 @@
 use crate::app::{App, DMSelection, FilterTab, InputMode, PostFilter, Screen, Tab};
-use crate::auth::AuthFlow;
+use crate::auth::{self, AuthFlow, RestoredSession};
 use crate::{log_key_event, ui};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use std::time::Duration;
+use tokio::task::JoinHandle;
 
 pub struct EventLoop {
     modal_tracker: ModalStateTracker,
@@ -11,16 +12,26 @@ pub struct EventLoop {
     last_dm_selection: DMSelection,
     last_terminal_size: (u16, u16),
     last_device_poll: std::time::Instant,
+    startup_started: bool,
+    startup_data_load_pending: bool,
+    session_restore_task: Option<JoinHandle<Result<Option<RestoredSession>, String>>>,
+    update_check_task: Option<JoinHandle<Option<String>>>,
+    is_web_mode: bool,
 }
 
 impl EventLoop {
-    pub fn new() -> Self {
+    pub fn new(is_web_mode: bool) -> Self {
         Self {
             modal_tracker: ModalStateTracker::new(),
             last_tab: Tab::Posts, // Default starting tab
             last_dm_selection: DMSelection::NewConversation,
             last_terminal_size: (0, 0),
             last_device_poll: std::time::Instant::now(),
+            startup_started: false,
+            startup_data_load_pending: false,
+            session_restore_task: None,
+            update_check_task: None,
+            is_web_mode,
         }
     }
 
@@ -43,6 +54,9 @@ impl EventLoop {
             // Process events
             self.process_events(app, auth_flow).await?;
 
+            // Start and drain startup network work only after at least one frame.
+            self.handle_startup_tasks(app, auth_flow).await?;
+
             // Handle pending loads
             self.handle_pending_loads(app).await?;
             app.flush_finished_vote_tasks().await;
@@ -55,6 +69,91 @@ impl EventLoop {
 
             // Handle DM conversation changes
             self.handle_dm_conversation_changes(app).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn handle_startup_tasks(
+        &mut self,
+        app: &mut App,
+        auth_flow: &mut AuthFlow,
+    ) -> Result<()> {
+        if !self.startup_started {
+            self.startup_started = true;
+
+            let api_client = app.api_client.clone();
+            self.session_restore_task = Some(tokio::spawn(async move {
+                auth::restore_existing_session(api_client)
+                    .await
+                    .map_err(|e| e.to_string())
+            }));
+
+            if !self.is_web_mode {
+                self.update_check_task = Some(tokio::spawn(crate::check_for_updates()));
+            }
+        }
+
+        if self
+            .update_check_task
+            .as_ref()
+            .map(|task| task.is_finished())
+            .unwrap_or(false)
+        {
+            let handle = self.update_check_task.take().unwrap();
+            if let Ok(Some(latest_version)) = handle.await {
+                app.update_available = Some(latest_version);
+            }
+        }
+
+        if self
+            .session_restore_task
+            .as_ref()
+            .map(|task| task.is_finished())
+            .unwrap_or(false)
+        {
+            let handle = self.session_restore_task.take().unwrap();
+            match handle.await {
+                Ok(Ok(Some(restored))) if app.current_screen == Screen::Auth => {
+                    log::info!("Restored session for user: {}", restored.user.username);
+                    auth_flow
+                        .api_client_mut()
+                        .set_session_token(Some(restored.session_token.clone()));
+                    app.api_client = restored.api_client;
+                    app.auth_state.current_user = Some(restored.user);
+                    app.auth_state.loading = false;
+                    app.auth_state.error = None;
+                    app.current_screen = Screen::Main;
+                    self.startup_data_load_pending = true;
+                    return Ok(());
+                }
+                Ok(Ok(Some(restored))) => {
+                    log::debug!(
+                        "Ignoring restored startup session for {} after screen changed",
+                        restored.user.username
+                    );
+                }
+                Ok(Ok(None)) => {
+                    log::info!("No valid session found, showing authentication screen");
+                    app.auth_state.loading = false;
+                }
+                Ok(Err(e)) => {
+                    log::warn!("Startup session restore failed: {}", e);
+                    app.auth_state.loading = false;
+                }
+                Err(e) => {
+                    log::warn!("Startup session restore task failed: {}", e);
+                    app.auth_state.loading = false;
+                }
+            }
+        }
+
+        if self.startup_data_load_pending && app.current_screen == Screen::Main {
+            self.startup_data_load_pending = false;
+            let _ = app.load_settings().await;
+            app.load_filter_preference();
+            let _ = app.init_community_context().await;
+            let _ = app.load_posts().await;
         }
 
         Ok(())
@@ -305,11 +404,12 @@ impl EventLoop {
 
         // Handle the async key events that were previously in main.rs
         match key.code {
-            KeyCode::Char('l') if app.current_screen == Screen::Auth => {
+            KeyCode::Char('l') if app.current_screen == Screen::Auth && !app.auth_state.loading => {
                 app.load_test_users().await?;
             }
             KeyCode::Char('g') | KeyCode::Char('G')
                 if app.current_screen == Screen::Auth
+                    && !app.auth_state.loading
                     && !app.auth_state.github_auth_in_progress
                     && app.auth_state.show_github_option =>
             {
@@ -336,6 +436,7 @@ impl EventLoop {
             }
             KeyCode::Enter
                 if app.current_screen == Screen::Auth
+                    && !app.auth_state.loading
                     && !app.auth_state.github_auth_in_progress =>
             {
                 app.login_selected_user().await?;

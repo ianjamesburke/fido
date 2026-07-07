@@ -34,6 +34,18 @@ pub fn create_router(state: AppState) -> Router {
     // Configure CORS using environment-aware configuration
     let security_config = security::SecurityConfig::from_env()
         .unwrap_or_else(|_| security::SecurityConfig::default());
+    create_router_with_security_config(state, &security_config)
+}
+
+/// Create the shared API router used by production startup and tests.
+///
+/// This intentionally excludes production-only static file fallback routing;
+/// callers that serve the web terminal can attach that fallback after the API
+/// router is built.
+pub fn create_router_with_security_config(
+    state: AppState,
+    security_config: &security::SecurityConfig,
+) -> Router {
     let cors_config = security::CorsConfig::new(
         security_config.environment,
         security_config.allowed_origins.clone(),
@@ -209,4 +221,77 @@ pub fn create_router(state: AppState) -> Router {
 
 async fn health_check() -> &'static str {
     "OK"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::{Context, Result};
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use reqwest::StatusCode;
+
+    const TEST_TOKEN_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
+    fn test_state() -> Result<AppState> {
+        let db = db::Database::in_memory().context("create in-memory database")?;
+        db.initialize().context("initialize schema")?;
+        let repos = db::repositories::Repositories::new(db.pool.clone());
+
+        let _guard = test_utils::env_lock().lock().unwrap();
+        std::env::set_var("FIDO_TOKEN_KEY", TEST_TOKEN_KEY);
+        let state = AppState::new_with_repos(db, repos).context("build app state")?;
+        std::env::remove_var("FIDO_TOKEN_KEY");
+
+        Ok(state)
+    }
+
+    async fn status_for(config: security::SecurityConfig, path: &str) -> Result<StatusCode> {
+        let router = create_router_with_security_config(test_state()?, &config);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .context("bind test listener")?;
+        let addr = listener.local_addr().context("read listener addr")?;
+
+        tokio::spawn(async move {
+            axum::serve(listener, router)
+                .await
+                .expect("test server crashed");
+        });
+
+        let response = reqwest::get(format!("http://{addr}{path}"))
+            .await
+            .context("send test request")?;
+        Ok(response.status())
+    }
+
+    #[tokio::test]
+    async fn mounts_test_login_routes_in_development() -> Result<()> {
+        let config = security::SecurityConfig {
+            environment: security::Environment::Development,
+            ..Default::default()
+        };
+
+        assert_eq!(status_for(config, "/users/test").await?, StatusCode::OK);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn omits_test_login_routes_in_production() -> Result<()> {
+        let config = security::SecurityConfig {
+            environment: security::Environment::Production,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            status_for(config, "/users/test").await?,
+            StatusCode::NOT_FOUND
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn token_key_fixture_is_valid() -> Result<()> {
+        assert_eq!(STANDARD.decode(TEST_TOKEN_KEY)?.len(), 32);
+        Ok(())
+    }
 }
