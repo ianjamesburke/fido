@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fido Stint Implementation"
+  short_description: "Ship Fido stint tasks end to end."
+  default_prompt: "Use $implement-stint-fido to implement Fido .stint tasks end to end, including PR verification, release, crates publish, reinstall, and Railway health checks."
