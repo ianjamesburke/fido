@@ -237,6 +237,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn test_validate_config_does_not_expose_secrets() {
         let _guard = crate::test_utils::env_lock().lock().unwrap();
         // Set a test GitHub client ID to verify it's not exposed

@@ -61,6 +61,11 @@ e2e-tui:
     chmod +x ./scripts/e2e_tui.sh
     ./scripts/e2e_tui.sh
 
+# Focused startup smoke: first frame must render before network startup work
+e2e-tui-startup:
+    chmod +x ./scripts/e2e_tui_startup_smoke.sh
+    ./scripts/e2e_tui_startup_smoke.sh
+
 # Deploy to Railway (triggers rebuild from current branch)
 deploy:
     railway up

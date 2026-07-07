@@ -23,7 +23,6 @@ mod integration_tests {
         // - POST /posts with content containing #rust #programming
         // - GET /posts/:id to verify hashtags are included
         // - Verify database has hashtag entries
-        assert!(true, "Integration test placeholder");
     }
 
     /// Test Scenario: Follow/unfollow flow
@@ -38,7 +37,6 @@ mod integration_tests {
         // - GET /hashtags/followed to verify
         // - DELETE /hashtags/follow/:name
         // - GET /hashtags/followed to verify removal
-        assert!(true, "Integration test placeholder");
     }
 
     /// Test Scenario: Filtered post retrieval
@@ -53,7 +51,6 @@ mod integration_tests {
         // - GET /posts?hashtag=rust&sort=newest
         // - Verify filtered results
         // - Test with sort=top and sort=hot
-        assert!(true, "Integration test placeholder");
     }
 
     /// Test Scenario: Hashtag search
@@ -68,7 +65,6 @@ mod integration_tests {
         // - GET /hashtags/search?q=rust
         // - Verify results include rust, rustlang, etc.
         // - Verify sorting by post count
-        assert!(true, "Integration test placeholder");
     }
 
     /// Test Scenario: Activity tracking
@@ -84,7 +80,6 @@ mod integration_tests {
         // - GET /posts?hashtag=rust
         // - GET /users/:id/profile
         // - Verify recent_hashtags includes tracked hashtags
-        assert!(true, "Integration test placeholder");
     }
 
     /// Test Scenario: Sort preference persistence
@@ -97,7 +92,6 @@ mod integration_tests {
         // - PUT /config with sort_order
         // - GET /config to verify
         // - Restart session and verify persistence
-        assert!(true, "Integration test placeholder");
     }
 }
 

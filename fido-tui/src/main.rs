@@ -86,7 +86,7 @@ async fn fetch_latest_version() -> Result<String> {
 }
 
 /// Check crates.io for the latest version of fido
-async fn check_for_updates() -> Option<String> {
+pub(crate) async fn check_for_updates() -> Option<String> {
     let latest = fetch_latest_version().await.ok()?;
 
     // Simple version comparison (works for semver)
@@ -227,34 +227,11 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Check for updates (quick, non-blocking with 3s timeout, skip in web mode)
-    if !is_web_mode {
-        if let Some(latest_version) = check_for_updates().await {
-            app.update_available = Some(latest_version);
-        }
-    }
-
-    // Check for existing session on startup
     let mut auth_flow = auth::AuthFlow::new(app.api_client.clone())?;
-    if let Ok(Some(user)) = auth_flow.check_existing_session().await {
-        log::info!("Restored session for user: {}", user.username);
-        app.auth_state.current_user = Some(user);
-        app.current_screen = app::Screen::Main;
-
-        // Update API client with session token
-        app.api_client = auth_flow.api_client().clone();
-
-        // Load initial data
-        let _ = app.load_settings().await;
-        app.load_filter_preference();
-        let _ = app.init_community_context().await;
-        let _ = app.load_posts().await;
-    } else {
-        log::info!("No valid session found, showing authentication screen");
-    }
+    app.auth_state.loading = true;
 
     // Main event loop
-    let mut event_loop = event_loop::EventLoop::new();
+    let mut event_loop = event_loop::EventLoop::new(is_web_mode);
 
     event_loop.run(&mut app, &mut auth_flow, &mut tui).await?;
 

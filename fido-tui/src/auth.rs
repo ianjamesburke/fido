@@ -4,10 +4,70 @@ use fido_types::User;
 use crate::api::{ApiClient, ApiError};
 use crate::session::SessionStore;
 
+pub struct RestoredSession {
+    pub user: User,
+    pub session_token: String,
+    pub api_client: ApiClient,
+}
+
+pub async fn restore_existing_session(
+    mut api_client: ApiClient,
+) -> Result<Option<RestoredSession>> {
+    let session_store = SessionStore::for_server(api_client.base_url())
+        .context("Failed to initialize server-scoped session store")?;
+
+    // Try to load session token from file
+    let token = match session_store.load()? {
+        Some(t) => t,
+        None => {
+            log::debug!("No existing session found");
+            return Ok(None);
+        }
+    };
+
+    log::info!("Found existing session token, validating with server");
+
+    // Set the session token in the API client
+    api_client.set_session_token(Some(token.clone()));
+
+    // Validate the session with the server
+    match api_client.validate_session().await {
+        Ok(response) if response.valid => {
+            log::info!("Session is valid for user: {}", response.user.username);
+            Ok(Some(RestoredSession {
+                user: response.user,
+                session_token: token,
+                api_client,
+            }))
+        }
+        Ok(_) => {
+            log::warn!("Session validation returned invalid");
+            // Clear invalid session
+            let _ = session_store.delete();
+            Ok(None)
+        }
+        Err(ApiError::Unauthorized(_))
+        | Err(ApiError::NotFound(_))
+        | Err(ApiError::BadRequest(_)) => {
+            log::warn!("Session token rejected by server, clearing local token");
+            let _ = session_store.delete();
+            Ok(None)
+        }
+        Err(e) => {
+            // Keep the local token on transient failures (network/server/rate-limit).
+            // This prevents unnecessary re-authentication after temporary outages.
+            log::warn!(
+                "Session validation failed due to transient error; keeping local token: {}",
+                e
+            );
+            Ok(None)
+        }
+    }
+}
+
 /// Manages the OAuth authentication flow for the TUI client.
 ///
 /// This struct handles:
-/// - Checking for existing sessions
 /// - Initiating GitHub OAuth flow
 /// - Opening the system browser
 /// - Polling for session completion
@@ -27,59 +87,6 @@ impl AuthFlow {
             api_client,
             session_store,
         })
-    }
-
-    /// Checks for an existing session and validates it with the server.
-    ///
-    /// # Returns
-    ///
-    /// - `Ok(Some(user))` if a valid session exists
-    /// - `Ok(None)` if no session exists or the session is invalid
-    /// - `Err(_)` if there's an error communicating with the server
-    pub async fn check_existing_session(&mut self) -> Result<Option<User>> {
-        // Try to load session token from file
-        let token = match self.session_store.load()? {
-            Some(t) => t,
-            None => {
-                log::debug!("No existing session found");
-                return Ok(None);
-            }
-        };
-
-        log::info!("Found existing session token, validating with server");
-
-        // Set the session token in the API client
-        self.api_client.set_session_token(Some(token.clone()));
-
-        // Validate the session with the server
-        match self.api_client.validate_session().await {
-            Ok(response) if response.valid => {
-                log::info!("Session is valid for user: {}", response.user.username);
-                Ok(Some(response.user))
-            }
-            Ok(_) => {
-                log::warn!("Session validation returned invalid");
-                // Clear invalid session
-                let _ = self.session_store.delete();
-                Ok(None)
-            }
-            Err(ApiError::Unauthorized(_))
-            | Err(ApiError::NotFound(_))
-            | Err(ApiError::BadRequest(_)) => {
-                log::warn!("Session token rejected by server, clearing local token");
-                let _ = self.session_store.delete();
-                Ok(None)
-            }
-            Err(e) => {
-                // Keep the local token on transient failures (network/server/rate-limit).
-                // This prevents unnecessary re-authentication after temporary outages.
-                log::warn!(
-                    "Session validation failed due to transient error; keeping local token: {}",
-                    e
-                );
-                Ok(None)
-            }
-        }
     }
 
     /// Initiates the GitHub Device Flow by requesting a device code from the server.
