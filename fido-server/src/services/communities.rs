@@ -118,7 +118,7 @@ impl CommunityService {
             .await?;
         if !can_claim(&permission) {
             return Err(ApiError::Forbidden(
-                "GitHub admin or maintain permission required".to_string(),
+                "GitHub admin permission required".to_string(),
             ));
         }
 
@@ -250,7 +250,7 @@ impl CommunityService {
 }
 
 fn can_claim(permission: &RepoPermission) -> bool {
-    permission.admin || permission.maintain
+    permission.admin
 }
 
 #[cfg(all(test, feature = "sqlite-tests"))]
@@ -283,7 +283,7 @@ mod tests {
                 "private": false,
                 "owner": { "login": "octocat" },
                 "permissions": {
-                    "admin": false,
+                    "admin": true,
                     "maintain": true,
                     "push": true,
                     "triage": true,
@@ -356,6 +356,32 @@ mod tests {
             })
             .expect("create user");
         user_id
+    }
+
+    #[test]
+    fn maintain_permission_alone_cannot_claim() {
+        let permission = RepoPermission {
+            admin: false,
+            maintain: true,
+            push: true,
+            triage: true,
+            pull: true,
+        };
+
+        assert!(!can_claim(&permission));
+    }
+
+    #[test]
+    fn admin_permission_can_claim() {
+        let permission = RepoPermission {
+            admin: true,
+            maintain: false,
+            push: false,
+            triage: false,
+            pull: true,
+        };
+
+        assert!(can_claim(&permission));
     }
 
     #[tokio::test]

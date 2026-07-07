@@ -122,7 +122,7 @@ async fn github_fixture_server() -> Result<String> {
             "private": false,
             "owner": { "login": "octocat" },
             "permissions": {
-                "admin": false,
+                "admin": true,
                 "maintain": true,
                 "push": true,
                 "triage": true,
@@ -414,7 +414,7 @@ async fn communities_browse_and_claim_e2e() -> Result<()> {
     assert!(browse[0]["community"].is_object());
     assert_eq!(browse[0]["membership"]["role"], "contributor");
 
-    // Claim verifies maintain permission via GitHub and grants admin.
+    // Claim verifies admin permission via GitHub and grants admin.
     let response = client
         .post(&format!("/communities/{}/claim", community_id), &json!({}))
         .await?;

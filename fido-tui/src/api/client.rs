@@ -299,7 +299,7 @@ impl ApiClient {
         self.handle_response(response).await
     }
 
-    /// Claim admin of a community (server verifies GitHub admin/maintain permission)
+    /// Claim admin of a community (server verifies GitHub admin permission)
     pub async fn claim_community(&self, community_id: Uuid) -> ApiResult<CommunityViewResponse> {
         let url = self.build_url(&format!("/communities/{}/claim", community_id));
         let req = self.add_auth_header(self.client.post(&url).json(&serde_json::json!({})));

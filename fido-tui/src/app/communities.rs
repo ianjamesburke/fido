@@ -117,8 +117,8 @@ impl App {
         Ok(())
     }
 
-    /// Claim admin of the current community; the server verifies GitHub
-    /// admin/maintain permission on the repo.
+    /// Claim admin of the current community; the server verifies GitHub admin
+    /// permission on the repo.
     pub async fn claim_current_community(&mut self) -> Result<()> {
         let Some(community_id) = self.community.as_ref().map(|c| c.id) else {
             return Ok(());

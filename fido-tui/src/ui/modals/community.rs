@@ -91,7 +91,7 @@ pub fn render_community_modal(frame: &mut Frame, app: &mut App, area: Rect) {
 
     if !community.claimed {
         lines.push(Line::from(Span::styled(
-            "c: Claim admin (requires GitHub admin/maintain on the repo)",
+            "c: Claim admin (requires GitHub admin on the repo)",
             Style::default().fg(theme.success),
         )));
     }
