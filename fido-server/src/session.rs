@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 const DEFAULT_SESSION_MAX_AGE_DAYS: i64 = 30;
-const DEFAULT_SESSION_IDLE_TIMEOUT_HOURS: i64 = 72;
+const DEFAULT_SESSION_IDLE_TIMEOUT_HOURS: i64 = 24 * 30;
 
 /// Hash a raw session token for storage/lookup.
 ///
@@ -376,7 +376,7 @@ mod tests {
             .create_session(user_id)
             .expect("Failed to create session");
 
-        // Manually set last_activity to 31 days ago (beyond the 72-hour idle timeout)
+        // Manually set last_activity to 31 days ago (beyond the 30-day idle timeout)
         let conn = db.connection().expect("Failed to get connection");
         let old_activity = (Utc::now() - Duration::days(31)).to_rfc3339();
         conn.execute(
@@ -411,7 +411,7 @@ mod tests {
             .create_session(user_id)
             .expect("Failed to create session");
 
-        // Set last_activity to 1 hour ago (within the 72-hour idle timeout)
+        // Set last_activity to 1 hour ago (within the 30-day idle timeout)
         let conn = db.connection().expect("Failed to get connection");
         let recent_activity = (Utc::now() - Duration::hours(1)).to_rfc3339();
         conn.execute(
