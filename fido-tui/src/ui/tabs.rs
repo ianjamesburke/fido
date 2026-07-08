@@ -371,11 +371,6 @@ pub fn render_main_screen(frame: &mut Frame, app: &mut App) {
         render_save_confirmation_modal(frame, app, area);
     }
 
-    // Render DM error modal
-    if app.dms_state.show_dm_error_modal {
-        render_dm_error_modal(frame, app, area);
-    }
-
     // Render friends modal
     if app.friends_state.show_friends_modal {
         render_friends_modal(frame, app, area);

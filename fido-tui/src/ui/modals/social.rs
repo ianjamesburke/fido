@@ -307,70 +307,46 @@ pub fn render_new_conversation_modal(frame: &mut Frame, app: &mut App, area: Rec
         ])
         .split(inner);
 
-    // Render search bar
     let search_config = SearchBarConfig {
         query: &app.dms_state.new_conversation_search_query,
         is_active: app.dms_state.new_conversation_search_mode,
-        placeholder: "Press / to search",
+        placeholder: "Type a username",
         mode: SearchBarMode::Slash,
     };
     render_search_bar(frame, chunks[0], &search_config, &theme);
 
-    // Get filtered user list
-    let filtered_users = app.get_filtered_mutual_friends();
-
-    if filtered_users.is_empty() {
+    if app.dms_state.new_conversation_loading {
+        render_loading_state(frame, chunks[1], "Searching users...", &theme);
+    } else if app.dms_state.new_conversation_results.is_empty() {
         let empty_msg = if app.dms_state.new_conversation_search_query.is_empty() {
-            "No mutual friends available for messaging"
+            "Type a username to start a DM"
+        } else if app.dms_state.new_conversation_search_query.len() < 2 {
+            "Keep typing to search"
         } else {
-            "No users match your search"
+            "No matches. Enter will try the typed username."
         };
 
         render_empty_state(frame, chunks[1], empty_msg, &theme);
     } else {
         let list_config = UserListConfig {
             selected_index: app.dms_state.new_conversation_selected_index,
-            show_stats: true,
+            show_stats: false,
         };
-        render_user_list(frame, chunks[1], &filtered_users, &list_config, &theme);
+        render_user_list(
+            frame,
+            chunks[1],
+            &app.dms_state.new_conversation_results,
+            &list_config,
+            &theme,
+        );
     }
 
-    // Render footer with context-sensitive shortcuts
-    let footer_text = if app.dms_state.new_conversation_search_mode {
-        "Type to search | Esc: Exit search"
-    } else {
-        "↑/↓/j/k: Navigate | Enter: Start Conversation | /: Search | Esc: Close"
-    };
-
-    render_footer(frame, chunks[2], footer_text, &theme);
-}
-
-/// Render DM error modal
-pub fn render_dm_error_modal(frame: &mut Frame, app: &App, area: Rect) {
-    let theme = get_theme_colors(app);
-
-    let config = ModalConfig::new("Error")
-        .with_size(50, 30)
-        .with_border_color(theme.error);
-    let inner = render_modal_container(frame, area, &config, &theme);
-
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(0),    // Error message
-            Constraint::Length(2), // Footer
-        ])
-        .split(inner);
-
-    // Error message
-    let message = Paragraph::new(app.dms_state.dm_error_message.as_str())
-        .alignment(Alignment::Center)
-        .wrap(Wrap { trim: true })
-        .style(Style::default().fg(theme.text));
-    frame.render_widget(message, chunks[0]);
-
-    // Footer
-    render_footer(frame, chunks[1], "Enter: Add Friend | Esc: Cancel", &theme);
+    render_footer(
+        frame,
+        chunks[2],
+        "Type: Search | ↑/↓/j/k: Navigate | Enter: Start DM | Esc: Close",
+        &theme,
+    );
 }
 
 /// Render user search modal using shared components

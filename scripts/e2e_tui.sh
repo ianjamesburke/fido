@@ -20,6 +20,8 @@ PORT="${E2E_PORT:-34567}"
 STUB_PORT=$((PORT + 1))
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/fido-e2e.XXXXXX")"
 SESSION="fido-e2e-$$"
+ALICE_SESSION="$SESSION-alice"
+AARON_SESSION="$SESSION-aaron"
 FIDO_BIN="$ROOT/target/debug/fido"
 SERVER_BIN="$ROOT/target/debug/fido-server"
 
@@ -28,6 +30,8 @@ STUB_PID=""
 
 cleanup() {
     tmux kill-session -t "$SESSION" 2>/dev/null || true
+    tmux kill-session -t "$ALICE_SESSION" 2>/dev/null || true
+    tmux kill-session -t "$AARON_SESSION" 2>/dev/null || true
     [[ -n "$SERVER_PID" ]] && kill "$SERVER_PID" 2>/dev/null || true
     [[ -n "$STUB_PID" ]] && kill "$STUB_PID" 2>/dev/null || true
 }
@@ -35,8 +39,10 @@ trap cleanup EXIT
 
 fail() {
     echo "FAIL: $1"
-    echo "--- pane ---"
-    tmux capture-pane -p -t "$SESSION" 2>/dev/null || echo "(no pane)"
+    for session_name in "$SESSION" "$ALICE_SESSION" "$AARON_SESSION"; do
+        echo "--- pane: $session_name ---"
+        tmux capture-pane -p -t "$session_name" 2>/dev/null || echo "(no pane)"
+    done
     echo "--- server log tail ---"
     tail -n 30 "$WORK/server.log" 2>/dev/null || true
     echo "--- stub log tail ---"
@@ -48,6 +54,7 @@ fail() {
 }
 
 pane() { tmux capture-pane -p -t "$SESSION"; }
+pane_for() { tmux capture-pane -p -t "$1"; }
 
 # wait_for <pattern> <description> [tries]
 wait_for() {
@@ -61,7 +68,19 @@ wait_for() {
     fail "timed out waiting for: $what (pattern: $pattern)"
 }
 
+wait_for_in() {
+    local target="$1" pattern="$2" what="$3" tries="${4:-75}"
+    for ((i = 0; i < tries; i++)); do
+        if pane_for "$target" 2>/dev/null | grep -qF "$pattern"; then
+            return 0
+        fi
+        sleep 0.2
+    done
+    fail "timed out waiting for: $what in $target (pattern: $pattern)"
+}
+
 keys() { tmux send-keys -t "$SESSION" "$@"; sleep 0.3; }
+keys_in() { local target="$1"; shift; tmux send-keys -t "$target" "$@"; sleep 0.3; }
 
 echo "==> building binaries"
 cargo build --quiet --bin fido --bin fido-server
@@ -98,8 +117,12 @@ NON_REPO="$WORK/non-repo"
 mkdir -p "$NON_REPO"
 
 launch_tui() { # $1 = working directory
-    tmux new-session -d -s "$SESSION" -x 140 -y 40 -c "$1" \
-        "env HOME='$E2E_HOME' '$FIDO_BIN' --server http://127.0.0.1:$PORT --verbose"
+    launch_tui_for "$SESSION" "$E2E_HOME" "$1"
+}
+
+launch_tui_for() { # $1 = tmux session, $2 = HOME, $3 = working directory
+    tmux new-session -d -s "$1" -x 140 -y 40 -c "$3" \
+        "env HOME='$2' '$FIDO_BIN' --server http://127.0.0.1:$PORT --verbose"
 }
 
 # --- Scenario 1: repo mode — launch inside a repo, land on its board -------
@@ -257,6 +280,74 @@ MSG_COUNT=$(sqlite3 "$WORK/fido.db" \
 [[ "$MSG_COUNT" == "1" ]] || fail "DM from alice to bob not found (count=$MSG_COUNT)"
 
 tmux kill-session -t "$SESSION"
+
+# --- Scenario 4b: pending DM request inbox from two live TUI sessions --------
+# Alice stays open on the DMs tab while a separate non-community test user sends
+# the first message from another HOME. The request should arrive over realtime,
+# render as a request row, and accept into an accepted conversation.
+echo "==> scenario 4b: two-session pending DM request inbox"
+sqlite3 "$WORK/fido.db" \
+    "INSERT OR IGNORE INTO users (id, username, bio, join_date, is_test_user, is_admin)
+         VALUES ('550e8400-e29b-41d4-a716-44665544a001', 'aaron', 'Outside any community', '2023-12-31T00:00:00Z', 1, 0);
+     INSERT OR IGNORE INTO user_configs (user_id, color_scheme, sort_order, max_posts_display, emoji_enabled)
+         VALUES ('550e8400-e29b-41d4-a716-44665544a001', 'Default', 'Newest', 25, 1);"
+
+AARON_HOME="$WORK/home-aaron"
+mkdir -p "$AARON_HOME"
+
+launch_tui_for "$ALICE_SESSION" "$E2E_HOME" "$REPO"
+wait_for_in "$ALICE_SESSION" "testowner/testrepo" "alice repo community board"
+keys_in "$ALICE_SESSION" Tab
+wait_for_in "$ALICE_SESSION" "#general" "alice chat tab"
+keys_in "$ALICE_SESSION" Tab
+wait_for_in "$ALICE_SESSION" "Conversations" "alice DMs tab"
+
+launch_tui_for "$AARON_SESSION" "$AARON_HOME" "$NON_REPO"
+wait_for_in "$AARON_SESSION" "Authentication" "aaron auth screen"
+keys_in "$AARON_SESSION" 'l'
+wait_for_in "$AARON_SESSION" "aaron" "aaron test user row"
+keys_in "$AARON_SESSION" Enter
+wait_for_in "$AARON_SESSION" "Your Communities" "aaron home mode"
+keys_in "$AARON_SESSION" Tab
+keys_in "$AARON_SESSION" Tab
+wait_for_in "$AARON_SESSION" "Conversations" "aaron DMs tab"
+
+keys_in "$AARON_SESSION" 'n'
+wait_for_in "$AARON_SESSION" "New Conversation" "aaron new conversation modal"
+tmux send-keys -t "$AARON_SESSION" -l "alice"
+sleep 0.6
+wait_for_in "$AARON_SESSION" "alice" "alice search result in DM modal"
+keys_in "$AARON_SESSION" Enter
+wait_for_in "$AARON_SESSION" "New conversation with @alice" "aaron pending draft for alice"
+tmux send-keys -t "$AARON_SESSION" -l "request from aaron e2e"
+sleep 0.3
+keys_in "$AARON_SESSION" Enter
+wait_for_in "$AARON_SESSION" "Request sent" "aaron sees pending request state"
+
+wait_for_in "$ALICE_SESSION" "@aaron wants to chat" "alice receives pending DM request" 100
+keys_in "$ALICE_SESSION" Up
+keys_in "$ALICE_SESSION" 'a'
+sleep 0.6
+
+DM_STATE=$(sqlite3 "$WORK/fido.db" \
+    "SELECT dc.state
+       FROM dm_conversations dc
+       JOIN users ua ON dc.user_a = ua.id
+       JOIN users ub ON dc.user_b = ub.id
+      WHERE (ua.username = 'aaron' AND ub.username = 'alice')
+         OR (ua.username = 'alice' AND ub.username = 'aaron');")
+[[ "$DM_STATE" == "accepted" ]] || fail "pending DM request was not accepted from Alice UI (state=$DM_STATE)"
+
+DM_REQUEST_MSG_COUNT=$(sqlite3 "$WORK/fido.db" \
+    "SELECT count(*) FROM direct_messages dm
+     JOIN users s ON dm.from_user_id = s.id
+     JOIN users r ON dm.to_user_id = r.id
+     WHERE s.username = 'aaron' AND r.username = 'alice'
+       AND dm.content = 'request from aaron e2e';")
+[[ "$DM_REQUEST_MSG_COUNT" == "1" ]] || fail "pending DM request message not found (count=$DM_REQUEST_MSG_COUNT)"
+
+tmux kill-session -t "$ALICE_SESSION"
+tmux kill-session -t "$AARON_SESSION"
 
 # --- Scenario 5: repo activity feed --------------------------------------
 # Opening the board triggers a background fetch of GitHub issues for the

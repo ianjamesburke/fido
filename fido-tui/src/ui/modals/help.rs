@@ -172,7 +172,7 @@ pub fn add_main_screen_shortcuts(
             "User Profile View",
             vec![
                 ("f", "Follow/Unfollow user"),
-                ("m", "Open DM conversation (mutual friends only)"),
+                ("m", "Open DM conversation"),
                 ("Esc / q", "Close profile"),
             ],
         ));
