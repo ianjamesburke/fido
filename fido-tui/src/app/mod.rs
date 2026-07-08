@@ -14,6 +14,7 @@ mod friends;
 mod hashtags;
 mod helpers;
 mod navigation;
+mod notifications;
 mod post_detail;
 mod posts;
 mod profile;

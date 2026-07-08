@@ -15,6 +15,11 @@ pub fn handle_modal_keys(app: &mut App, key: KeyEvent) -> Result<Option<()>> {
         return Ok(Some(()));
     }
 
+    if app.notifications_state.show {
+        app.handle_notifications_panel_keys(key)?;
+        return Ok(Some(()));
+    }
+
     // Priority 3: Filter modal
     if app.posts_state.show_filter_modal {
         if matches!(key.code, KeyCode::Esc) {

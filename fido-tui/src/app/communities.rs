@@ -147,7 +147,7 @@ impl App {
         Ok(())
     }
 
-    fn apply_community_view(&mut self, view: CommunityViewResponse) {
+    pub(crate) fn apply_community_view(&mut self, view: CommunityViewResponse) {
         self.community = Some(crate::app::state::CommunityContext {
             id: view.community.id,
             owner: view.community.owner,
