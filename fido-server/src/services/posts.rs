@@ -189,6 +189,29 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn rejecting_thread_deletes_and_notifies_author() -> Result<()> {
+        let (repos, _event_bus, community, admin, author, _mentioned) = setup()?;
+        let service = PostService::new(repos.clone(), Arc::new(RecordingEventBus::default()));
+        let pending = Post {
+            approved: false,
+            ..post(&author, community.id, "pending")
+        };
+        service.create_post(&pending).expect("pending creates");
+        service
+            .reject_post(admin.id, &pending.id)
+            .expect("admin rejects");
+
+        assert!(repos.posts.get_by_id(&pending.id)?.is_none());
+        let notifications = repos.notifications.list_for_user(&author.id, 10, 0)?;
+        assert_eq!(notifications.len(), 1);
+        assert_eq!(
+            notifications[0].notification_type,
+            NotificationType::ThreadRejected
+        );
+        Ok(())
+    }
 }
 
 impl PostService {
@@ -351,6 +374,34 @@ impl PostService {
             post.community_id.to_string(),
         )?;
         self.populate_post(&mut post, Some(user_id))?;
+        Ok(post)
+    }
+
+    pub fn reject_post(&self, user_id: Uuid, post_id: &Uuid) -> ApiResult<Post> {
+        let post = self
+            .repos
+            .posts
+            .get_by_id(post_id)?
+            .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
+        if post.parent_post_id.is_some() {
+            return Err(ApiError::BadRequest(
+                "Replies do not require approval".to_string(),
+            ));
+        }
+        if post.approved {
+            return Err(ApiError::BadRequest(
+                "Thread is already approved".to_string(),
+            ));
+        }
+        self.require_admin(user_id, post.community_id)?;
+        self.repos.posts.delete(post_id)?;
+        NotificationService::new(self.repos.clone(), self.event_bus.clone()).create(
+            post.author_id,
+            NotificationType::ThreadRejected,
+            user_id,
+            "community",
+            post.community_id.to_string(),
+        )?;
         Ok(post)
     }
 

@@ -117,6 +117,7 @@ pub fn create_router_with_security_config(
         .route("/posts", get(api::posts::get_posts))
         .route("/posts", post(api::posts::create_post))
         .route("/posts/:id/approve", post(api::posts::approve_post))
+        .route("/posts/:id/reject", post(api::posts::reject_post))
         .route("/posts/:id/vote", post(api::posts::vote_on_post))
         .route("/posts/:id/replies", get(api::posts::get_replies))
         .route("/posts/:id/reply", post(api::posts::create_reply))

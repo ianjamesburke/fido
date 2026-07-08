@@ -259,22 +259,35 @@ pub fn add_posts_feed_shortcuts(
         return;
     }
 
-    shortcuts.push((
-        "Board",
-        vec![
-            ("↓/j", "Next post"),
-            ("↑/k", "Previous post"),
-            ("Space/Enter", "Open post detail"),
-            ("u", "Upvote selected post"),
-            ("d", "Downvote selected post"),
-            ("n", "New post"),
-            ("i", "Community info & settings"),
-            ("b", "Browse starred repos"),
-            ("f", "Filter posts"),
-            ("s", "Search users"),
-            ("p", "View author profile"),
-        ],
-    ));
+    let mut board_shortcuts = vec![
+        ("↓/j", "Next post"),
+        ("↑/k", "Previous post"),
+        ("Space/Enter", "Open post detail"),
+        ("u", "Upvote selected post"),
+        ("d", "Downvote selected post"),
+        ("n", "New post"),
+        ("i", "Community info & settings"),
+        ("b", "Browse starred repos"),
+        ("s", "Search users"),
+        ("p", "View author profile"),
+    ];
+    if app.is_current_community_admin() {
+        board_shortcuts.push(("a", "Review pending threads"));
+    }
+    shortcuts.push(("Board", board_shortcuts));
+
+    if app.posts_state.show_approval_queue {
+        shortcuts.push((
+            "Pending Threads",
+            vec![
+                ("↓/j", "Next pending thread"),
+                ("↑/k", "Previous pending thread"),
+                ("a", "Approve selected thread"),
+                ("x", "Reject selected thread"),
+                ("Esc", "Return to board"),
+            ],
+        ));
+    }
 
     if app.posts_state.show_new_post_modal {
         shortcuts.push((

@@ -42,6 +42,7 @@ impl App {
     pub async fn load_posts(&mut self) -> Result<()> {
         self.posts_state.loading = true;
         self.posts_state.error = None;
+        self.posts_state.current_filter = PostFilter::All;
 
         // Yield to allow UI to render the loading state
         tokio::task::yield_now().await;
@@ -71,89 +72,16 @@ impl App {
 
         self.posts_state.message = None;
 
-        // Apply current filter
-        let result = match &self.posts_state.current_filter {
-            PostFilter::All => {
-                self.api_client
-                    .get_posts(
-                        community_id,
-                        Some(max_posts),
-                        Some(sort_order.clone()),
-                        None,
-                        None,
-                    )
-                    .await
-            }
-            PostFilter::Hashtag(tag) => {
-                self.api_client
-                    .get_posts(
-                        community_id,
-                        Some(max_posts),
-                        Some(sort_order.clone()),
-                        Some(tag.clone()),
-                        None,
-                    )
-                    .await
-            }
-            PostFilter::User(user) => {
-                self.api_client
-                    .get_posts(
-                        community_id,
-                        Some(max_posts),
-                        Some(sort_order.clone()),
-                        None,
-                        Some(user.clone()),
-                    )
-                    .await
-            }
-            PostFilter::Multi { hashtags, users } => {
-                // Fetch posts for each filter and combine them
-                let mut all_posts = Vec::new();
-
-                // Fetch for each hashtag
-                for hashtag in hashtags {
-                    if let Ok(posts) = self
-                        .api_client
-                        .get_posts(
-                            community_id,
-                            Some(max_posts),
-                            Some(sort_order.clone()),
-                            Some(hashtag.clone()),
-                            None,
-                        )
-                        .await
-                    {
-                        all_posts.extend(posts);
-                    }
-                }
-
-                // Fetch for each user
-                for username in users {
-                    if let Ok(posts) = self
-                        .api_client
-                        .get_posts(
-                            community_id,
-                            Some(max_posts),
-                            Some(sort_order.clone()),
-                            None,
-                            Some(username.clone()),
-                        )
-                        .await
-                    {
-                        all_posts.extend(posts);
-                    }
-                }
-
-                // Remove duplicates by post ID
-                all_posts.sort_by(|a, b| b.created_at.cmp(&a.created_at)); // Sort by newest first
-                all_posts.dedup_by(|a, b| a.id == b.id);
-
-                // Limit to max_posts
-                all_posts.truncate(max_posts as usize);
-
-                Ok(all_posts)
-            }
-        };
+        let result = self
+            .api_client
+            .get_posts(
+                community_id,
+                Some(max_posts),
+                Some(sort_order.clone()),
+                None,
+                None,
+            )
+            .await;
 
         match result {
             Ok(posts) => {
@@ -181,6 +109,170 @@ impl App {
         }
 
         Ok(())
+    }
+
+    pub fn is_current_community_admin(&self) -> bool {
+        self.community.as_ref().and_then(|community| community.role)
+            == Some(fido_types::MembershipRole::Admin)
+    }
+
+    pub fn clear_approval_queue(&mut self) {
+        self.posts_state.pending_threads.clear();
+        self.posts_state.pending_threads_list_state.select(None);
+        self.posts_state.show_approval_queue = false;
+        self.posts_state.pending_threads_loading = false;
+        self.posts_state.pending_threads_loaded = false;
+        self.posts_state.pending_threads_error = None;
+    }
+
+    pub async fn open_approval_queue(&mut self) -> Result<()> {
+        if !self.is_current_community_admin() {
+            self.posts_state.error =
+                Some("Community admin role required to review pending threads.".to_string());
+            return Ok(());
+        }
+        self.posts_state.show_approval_queue = true;
+        self.posts_state.pending_threads_error = None;
+        self.load_pending_threads().await
+    }
+
+    pub fn close_approval_queue(&mut self) {
+        self.posts_state.show_approval_queue = false;
+        self.posts_state.pending_threads_error = None;
+        self.input_mode = InputMode::Navigation;
+    }
+
+    pub async fn load_pending_threads(&mut self) -> Result<()> {
+        let Some(community_id) = self.current_community_id() else {
+            self.posts_state.pending_threads_error =
+                Some("Open a community before reviewing pending threads.".to_string());
+            return Ok(());
+        };
+
+        self.posts_state.pending_threads_loading = true;
+        self.posts_state.pending_threads_error = None;
+
+        match self
+            .api_client
+            .get_pending_posts(community_id, Some(50))
+            .await
+        {
+            Ok(posts) => {
+                let has_posts = !posts.is_empty();
+                self.posts_state.pending_threads = posts;
+                self.posts_state.pending_threads_loaded = true;
+                if has_posts {
+                    self.posts_state.pending_threads_list_state.select(Some(0));
+                } else {
+                    self.posts_state.pending_threads_list_state.select(None);
+                }
+            }
+            Err(e) => {
+                self.posts_state.pending_threads_error = Some(categorize_error(&e.to_string()));
+            }
+        }
+
+        self.posts_state.pending_threads_loading = false;
+        Ok(())
+    }
+
+    pub fn next_pending_thread(&mut self) {
+        let len = self.posts_state.pending_threads.len();
+        if len == 0 {
+            self.posts_state.pending_threads_list_state.select(None);
+            return;
+        }
+        let current = self
+            .posts_state
+            .pending_threads_list_state
+            .selected()
+            .unwrap_or(0);
+        self.posts_state
+            .pending_threads_list_state
+            .select(Some((current + 1).min(len - 1)));
+    }
+
+    pub fn previous_pending_thread(&mut self) {
+        let len = self.posts_state.pending_threads.len();
+        if len == 0 {
+            self.posts_state.pending_threads_list_state.select(None);
+            return;
+        }
+        let current = self
+            .posts_state
+            .pending_threads_list_state
+            .selected()
+            .unwrap_or(0);
+        self.posts_state
+            .pending_threads_list_state
+            .select(Some(current.saturating_sub(1)));
+    }
+
+    fn selected_pending_thread_id(&self) -> Option<uuid::Uuid> {
+        self.posts_state
+            .pending_threads_list_state
+            .selected()
+            .and_then(|i| self.posts_state.pending_threads.get(i))
+            .map(|post| post.id)
+    }
+
+    pub async fn approve_selected_pending_thread(&mut self) -> Result<()> {
+        let Some(post_id) = self.selected_pending_thread_id() else {
+            return Ok(());
+        };
+
+        match self.api_client.approve_post(post_id).await {
+            Ok(post) => {
+                self.remove_pending_thread(post_id);
+                self.load_posts().await?;
+                self.posts_state.message = Some((
+                    format!("Approved @{}'s thread.", post.author_username),
+                    std::time::Instant::now(),
+                ));
+            }
+            Err(e) => {
+                self.posts_state.pending_threads_error = Some(categorize_error(&e.to_string()));
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn reject_selected_pending_thread(&mut self) -> Result<()> {
+        let Some(post_id) = self.selected_pending_thread_id() else {
+            return Ok(());
+        };
+
+        match self.api_client.reject_post(post_id).await {
+            Ok(post) => {
+                self.remove_pending_thread(post_id);
+                self.posts_state.message = Some((
+                    format!("Rejected @{}'s thread.", post.author_username),
+                    std::time::Instant::now(),
+                ));
+            }
+            Err(e) => {
+                self.posts_state.pending_threads_error = Some(categorize_error(&e.to_string()));
+            }
+        }
+        Ok(())
+    }
+
+    fn remove_pending_thread(&mut self, post_id: uuid::Uuid) {
+        let previous = self
+            .posts_state
+            .pending_threads_list_state
+            .selected()
+            .unwrap_or(0);
+        self.posts_state
+            .pending_threads
+            .retain(|post| post.id != post_id);
+        if self.posts_state.pending_threads.is_empty() {
+            self.posts_state.pending_threads_list_state.select(None);
+        } else {
+            self.posts_state.pending_threads_list_state.select(Some(
+                previous.min(self.posts_state.pending_threads.len().saturating_sub(1)),
+            ));
+        }
     }
 
     /// Vote on the currently selected post
@@ -243,6 +335,7 @@ impl App {
     }
 
     /// Open filter modal
+    #[allow(dead_code)]
     pub fn open_filter_modal(&mut self) {
         self.posts_state.show_filter_modal = true;
         self.posts_state.filter_modal_state.selected_index = 0;
@@ -391,22 +484,11 @@ impl App {
     }
 
     /// Save current filter preference to disk
-    fn save_filter_preference(&self) {
-        if let Some(user) = &self.auth_state.current_user {
-            let prefs = self.posts_state.current_filter.to_preferences();
-            let _ = self
-                .config_manager
-                .save_preferences(&user.id.to_string(), &prefs);
-        }
-    }
+    fn save_filter_preference(&self) {}
 
     /// Load filter preference from disk
     pub fn load_filter_preference(&mut self) {
-        if let Some(user) = &self.auth_state.current_user {
-            if let Ok(Some(prefs)) = self.config_manager.load_preferences(&user.id.to_string()) {
-                self.posts_state.current_filter = PostFilter::from_preferences(&prefs);
-            }
-        }
+        self.posts_state.current_filter = PostFilter::All;
     }
 
     /// Add character to new post content

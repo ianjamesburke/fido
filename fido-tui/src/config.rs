@@ -12,6 +12,7 @@ pub struct SessionData {
 }
 
 /// User preferences stored locally
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserPreferences {
     pub filter_type: String, // "all", "hashtag", "user", "multi"
@@ -60,6 +61,7 @@ impl ConfigManager {
     }
 
     /// Get the preferences file path for a specific user
+    #[allow(dead_code)]
     fn get_preferences_file(&self, user_id: &str) -> PathBuf {
         self.config_dir.join(format!("prefs_{}.json", user_id))
     }
@@ -99,6 +101,7 @@ impl ConfigManager {
     }
 
     /// Save user preferences
+    #[allow(dead_code)]
     pub fn save_preferences(&self, user_id: &str, prefs: &UserPreferences) -> Result<()> {
         let prefs_file = self.get_preferences_file(user_id);
         let json =
@@ -110,6 +113,7 @@ impl ConfigManager {
     }
 
     /// Load user preferences
+    #[allow(dead_code)]
     pub fn load_preferences(&self, user_id: &str) -> Result<Option<UserPreferences>> {
         let prefs_file = self.get_preferences_file(user_id);
 

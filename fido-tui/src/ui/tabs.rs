@@ -888,6 +888,102 @@ fn render_home_list(frame: &mut Frame, app: &mut App, area: Rect) {
     frame.render_stateful_widget(list, area, &mut app.home_state.list_state);
 }
 
+/// Admin mode: pending top-level threads for the current community.
+fn render_approval_queue(frame: &mut Frame, app: &mut App, area: Rect) {
+    let theme = get_theme_colors(app);
+    let title = " Pending Threads ";
+
+    if app.posts_state.pending_threads_loading {
+        render_panel_lines(
+            frame,
+            area,
+            title,
+            create_loading_display("Loading pending threads...", &theme),
+            &theme,
+        );
+        return;
+    }
+
+    if let Some(error) = &app.posts_state.pending_threads_error {
+        render_panel_lines(
+            frame,
+            area,
+            title,
+            create_error_display(error, Some("Press Esc to return to the board"), &theme),
+            &theme,
+        );
+        return;
+    }
+
+    if app.posts_state.pending_threads.is_empty() {
+        let empty = Paragraph::new(vec![
+            Line::from(""),
+            Line::from(Span::styled(
+                "No pending threads",
+                Style::default()
+                    .fg(theme.success)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "New threads that require approval will appear here.",
+                Style::default().fg(theme.text_dim),
+            )),
+        ])
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::ALL).title(title));
+        frame.render_widget(empty, area);
+        return;
+    }
+
+    let selected = app.posts_state.pending_threads_list_state.selected();
+    let width = area.width.saturating_sub(6) as usize;
+    let items: Vec<ListItem> = app
+        .posts_state
+        .pending_threads
+        .iter()
+        .enumerate()
+        .map(|(index, post)| {
+            let is_selected = selected == Some(index);
+            let header_style = if is_selected {
+                Style::default()
+                    .fg(theme.success)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.primary)
+            };
+            let prefix = if is_selected { "> " } else { "  " };
+            let mut lines = vec![Line::from(vec![
+                Span::styled(prefix, header_style),
+                Span::styled(format!("@{}", post.author_username), header_style),
+                Span::raw(" • "),
+                Span::styled(
+                    format_timestamp(&post.created_at),
+                    Style::default().fg(theme.text_dim),
+                ),
+            ])];
+            for content_line in post.content.lines() {
+                for wrapped in textwrap::wrap(content_line, width) {
+                    lines.push(Line::from(Span::styled(
+                        format!("  {}", wrapped),
+                        Style::default().fg(theme.text),
+                    )));
+                }
+            }
+            lines.push(Line::from(Span::styled(
+                "  a: approve  x: reject",
+                Style::default().fg(theme.text_dim),
+            )));
+            lines.push(Line::from(""));
+            ListItem::new(lines)
+        })
+        .collect();
+
+    let list =
+        styled_list(items, &theme, None).block(Block::default().borders(Borders::ALL).title(title));
+    frame.render_stateful_widget(list, area, &mut app.posts_state.pending_threads_list_state);
+}
+
 /// Render Posts tab with global feed
 pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) {
     // Log at start of render
@@ -934,6 +1030,11 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
         return;
     }
 
+    if app.posts_state.show_approval_queue {
+        render_approval_queue(frame, app, posts_area);
+        return;
+    }
+
     let community_title = community_board_title(app);
 
     // Only show full-page loading on initial load (when there are no posts yet)
@@ -946,10 +1047,6 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
             &theme,
         );
 
-        // Render filter modal if open (even when loading)
-        if app.posts_state.show_filter_modal {
-            render_filter_modal(frame, app, area);
-        }
         return;
     }
 
@@ -980,10 +1077,6 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
         );
         frame.render_widget(empty, posts_area);
 
-        // Render filter modal if open (even when no posts)
-        if app.posts_state.show_filter_modal {
-            render_filter_modal(frame, app, area);
-        }
         return;
     }
 
@@ -1170,26 +1263,13 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
         items.push(ListItem::new(end_of_feed));
     }
 
-    // Build title with current filter
-    let title = match &app.posts_state.current_filter {
-        crate::app::PostFilter::All => community_title,
-        crate::app::PostFilter::Hashtag(tag) => format!("{} / #{}", community_title, tag),
-        crate::app::PostFilter::User(username) => format!("{} / @{}", community_title, username),
-        crate::app::PostFilter::Multi { hashtags, users } => {
-            let total = hashtags.len() + users.len();
-            format!("{} / Filtered ({} items)", community_title, total)
-        }
-    };
-
-    let posts_widget =
-        styled_list(items, &theme, None).block(Block::default().borders(Borders::ALL).title(title));
+    let posts_widget = styled_list(items, &theme, None).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(community_title),
+    );
 
     frame.render_stateful_widget(posts_widget, posts_area, &mut app.posts_state.list_state);
-
-    // Render filter modal if open
-    if app.posts_state.show_filter_modal {
-        render_filter_modal(frame, app, area);
-    }
 }
 
 /// Create a formatted error message display with optional help text

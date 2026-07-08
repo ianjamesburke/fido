@@ -437,6 +437,19 @@ pub async fn approve_post(
     Ok(Json(service.approve_post(user_id, &post_id)?))
 }
 
+/// POST /posts/:id/reject - Reject a pending top-level thread.
+pub async fn reject_post(
+    State(state): State<AppState>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
+    Path(post_id): Path<String>,
+) -> ApiResult<Json<Post>> {
+    let post_id = Uuid::parse_str(&post_id)
+        .map_err(|_| ApiError::BadRequest("Invalid post ID".to_string()))?;
+
+    let service = PostService::new(state.repos.clone(), state.event_bus.clone());
+    Ok(Json(service.reject_post(user_id, &post_id)?))
+}
+
 #[cfg(all(test, feature = "sqlite-tests"))]
 mod tests {
     use super::*;
