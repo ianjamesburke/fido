@@ -386,14 +386,10 @@ pub struct DMsState {
     pub unread_counts: std::collections::HashMap<uuid::Uuid, usize>, // user_id -> unread count
     pub current_conversation_user: Option<uuid::Uuid>, // Track open conversation
     pub needs_message_load: bool,                      // Flag to trigger message loading
-    /// Show DM error modal with friend suggestions
-    pub show_dm_error_modal: bool,
-    /// Error message to display in the modal
-    pub dm_error_message: String,
-    /// Username that failed when attempting to start a conversation
-    pub failed_username: Option<String>,
-    /// Mutual friends available for DMs (full user info with stats)
-    pub available_mutual_friends: Vec<UserInfo>,
+    /// Search results for starting a new DM conversation
+    pub new_conversation_results: Vec<UserSearchResult>,
+    /// Whether the new conversation search is loading
+    pub new_conversation_loading: bool,
     /// Selected index in new conversation modal
     pub new_conversation_selected_index: usize,
     /// Search mode for new conversation modal

@@ -4,28 +4,14 @@ use ratatui::style::Style;
 use tui_textarea::TextArea;
 use uuid::Uuid;
 
-use super::{categorize_error, App, Conversation, DMSelection, DmRequest, InputMode, UserInfo};
+use super::{
+    categorize_error, App, Conversation, DMSelection, DmRequest, InputMode, UserSearchResult,
+};
 
 impl App {
-    /// Close DM error modal
-    pub fn close_dm_error_modal(&mut self) {
-        self.dms_state.show_dm_error_modal = false;
-        self.dms_state.dm_error_message.clear();
-        self.dms_state.failed_username = None;
-    }
-
     /// Clear DM error message (non-modal error text)
     pub fn clear_dm_error(&mut self) {
         self.dms_state.error = None;
-    }
-
-    /// Handle DM error modal key events
-    pub fn handle_dm_error_modal_keys(&mut self, key: KeyEvent) -> Result<()> {
-        if key.code == KeyCode::Enter {
-            // Just close the error modal - user can search for the person in social modal
-            self.close_dm_error_modal();
-        }
-        Ok(())
     }
 
     /// Load DM conversations
@@ -292,52 +278,13 @@ impl App {
             }
             Err(e) => {
                 let error_str = e.to_string();
-                // Check if this is a "user not found" error
-                if error_str.contains("404")
-                    || error_str.contains("not found")
-                    || error_str.contains("User not found")
-                {
-                    // Show DM error modal with friend suggestion
-                    self.dms_state.show_dm_error_modal = true;
-                    self.dms_state.dm_error_message = format!(
-                        "User '@{}' not found. Add them as a friend first?",
-                        to_username
-                    );
-                    self.dms_state.failed_username = Some(to_username);
-                    // Clear the pending conversation
-                    self.dms_state.pending_conversation_username = None;
-                } else {
-                    let error_msg = categorize_error(&error_str);
-                    self.dms_state.error = Some(error_msg);
-                }
+                self.dms_state.pending_conversation_username = None;
+                self.dms_state.selection = DMSelection::NewConversation;
+                let error_msg = categorize_error(&error_str);
+                self.dms_state.error = Some(error_msg);
             }
         }
 
-        Ok(())
-    }
-
-    /// Load mutual friends for DM availability
-    pub async fn load_mutual_friends_for_dms(&mut self) -> Result<()> {
-        match self.api_client.get_mutual_friends_list().await {
-            Ok(friends) => {
-                self.dms_state.available_mutual_friends = friends
-                    .into_iter()
-                    .filter_map(|f| {
-                        Some(UserInfo {
-                            id: f.id.parse().ok()?,
-                            username: f.username,
-                            follower_count: f.follower_count,
-                            following_count: f.following_count,
-                        })
-                    })
-                    .collect();
-            }
-            Err(e) => {
-                // Don't block the modal from opening, just clear the list
-                self.dms_state.available_mutual_friends.clear();
-                eprintln!("Failed to load mutual friends: {}", e);
-            }
-        }
         Ok(())
     }
 
@@ -348,37 +295,72 @@ impl App {
         self.dms_state.new_conversation_selected_index = 0;
         self.dms_state.new_conversation_search_mode = false;
         self.dms_state.new_conversation_search_query.clear();
+        self.dms_state.new_conversation_results.clear();
+        self.dms_state.new_conversation_loading = false;
         self.input_mode = InputMode::Navigation;
     }
 
-    /// Get filtered mutual friends list for new conversation modal
-    pub fn get_filtered_mutual_friends(&self) -> Vec<&UserInfo> {
-        let query = self.dms_state.new_conversation_search_query.to_lowercase();
+    /// Search users for starting a DM conversation.
+    pub async fn search_users_for_dm(&mut self) -> Result<()> {
+        let query = self
+            .dms_state
+            .new_conversation_search_query
+            .trim()
+            .to_string();
 
-        if query.is_empty() {
-            self.dms_state.available_mutual_friends.iter().collect()
-        } else {
-            self.dms_state
-                .available_mutual_friends
-                .iter()
-                .filter(|u| u.username.to_lowercase().contains(&query))
-                .collect()
+        if query.len() < 2 {
+            self.dms_state.new_conversation_results.clear();
+            self.dms_state.new_conversation_selected_index = 0;
+            self.dms_state.new_conversation_loading = false;
+            return Ok(());
         }
+
+        self.dms_state.new_conversation_loading = true;
+        self.dms_state.error = None;
+
+        match self.api_client.search_users(query).await {
+            Ok(results) => {
+                self.dms_state.new_conversation_results = results
+                    .into_iter()
+                    .filter_map(|r| {
+                        Some(UserSearchResult {
+                            id: r.id.parse().ok()?,
+                            username: r.username,
+                        })
+                    })
+                    .collect();
+                self.dms_state.new_conversation_selected_index = 0;
+                self.dms_state.new_conversation_loading = false;
+            }
+            Err(e) => {
+                self.dms_state.new_conversation_results.clear();
+                self.dms_state.new_conversation_loading = false;
+                self.dms_state.error = Some(format!("User search failed: {}", e));
+            }
+        }
+
+        Ok(())
     }
 
     /// Start new conversation (just prepare, don't send anything yet)
     pub async fn start_new_conversation(&mut self) -> Result<()> {
-        // Get the selected user from the filtered list
-        let filtered = self.get_filtered_mutual_friends();
-        if filtered.is_empty() {
+        let typed_username = self
+            .dms_state
+            .new_conversation_search_query
+            .trim()
+            .trim_start_matches('@')
+            .to_string();
+        let selected_username = self
+            .dms_state
+            .new_conversation_results
+            .get(self.dms_state.new_conversation_selected_index)
+            .map(|user| user.username.clone());
+
+        let to_username = selected_username.unwrap_or(typed_username);
+        if to_username.is_empty() {
+            self.dms_state.error = Some("Type a username to start a DM.".to_string());
             return Ok(());
         }
-
-        let selected_index = self
-            .dms_state
-            .new_conversation_selected_index
-            .min(filtered.len() - 1);
-        let to_username = filtered[selected_index].username.clone();
 
         self.dms_state.error = None;
 
@@ -420,7 +402,9 @@ impl App {
                     self.dms_state.show_new_conversation_modal = true;
                     self.dms_state.new_conversation_username.clear();
                     self.dms_state.new_conversation_search_query.clear();
+                    self.dms_state.new_conversation_results.clear();
                     self.dms_state.new_conversation_selected_index = 0;
+                    self.dms_state.new_conversation_search_mode = true;
                     self.input_mode = InputMode::Typing;
                 }
                 KeyCode::Enter => match &self.dms_state.selection {
@@ -429,7 +413,9 @@ impl App {
                         self.dms_state.show_new_conversation_modal = true;
                         self.dms_state.new_conversation_username.clear();
                         self.dms_state.new_conversation_search_query.clear();
+                        self.dms_state.new_conversation_results.clear();
                         self.dms_state.new_conversation_selected_index = 0;
+                        self.dms_state.new_conversation_search_mode = true;
                         self.input_mode = InputMode::Typing;
                     }
                     DMSelection::PendingDraft => {
@@ -498,33 +484,12 @@ impl App {
 
     /// Handle keys for new conversation modal
     pub fn handle_new_conversation_modal_keys(&mut self, key: KeyEvent) -> Result<()> {
-        // If in search mode, handle search input
-        if self.dms_state.new_conversation_search_mode {
-            match key.code {
-                KeyCode::Char(c) => {
-                    self.dms_state.new_conversation_search_query.push(c);
-                    self.dms_state.new_conversation_selected_index = 0;
-                }
-                KeyCode::Backspace => {
-                    self.dms_state.new_conversation_search_query.pop();
-                    self.dms_state.new_conversation_selected_index = 0;
-                }
-                KeyCode::Esc => {
-                    self.dms_state.new_conversation_search_mode = false;
-                }
-                _ => {}
-            }
-            return Ok(());
-        }
-
-        // Normal navigation mode
         match key.code {
             KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
-                let filtered = self.get_filtered_mutual_friends();
-                if !filtered.is_empty() {
+                if !self.dms_state.new_conversation_results.is_empty() {
                     self.dms_state.new_conversation_selected_index =
                         (self.dms_state.new_conversation_selected_index + 1)
-                            .min(filtered.len() - 1);
+                            .min(self.dms_state.new_conversation_results.len() - 1);
                 }
             }
             KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => {
@@ -535,6 +500,14 @@ impl App {
             }
             KeyCode::Char('/') => {
                 self.dms_state.new_conversation_search_mode = true;
+            }
+            KeyCode::Char(c) => {
+                self.dms_state.new_conversation_search_query.push(c);
+                self.dms_state.new_conversation_selected_index = 0;
+            }
+            KeyCode::Backspace => {
+                self.dms_state.new_conversation_search_query.pop();
+                self.dms_state.new_conversation_selected_index = 0;
             }
             KeyCode::Enter => {
                 // Start conversation with selected user (will be handled async in main loop)

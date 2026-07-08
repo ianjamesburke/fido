@@ -56,16 +56,6 @@ pub fn handle_modal_keys(app: &mut App, key: KeyEvent) -> Result<Option<()>> {
         return Ok(Some(()));
     }
 
-    // DM error modal
-    if app.dms_state.show_dm_error_modal {
-        if matches!(key.code, KeyCode::Esc) {
-            app.close_dm_error_modal();
-            return Ok(Some(()));
-        }
-        app.handle_dm_error_modal_keys(key)?;
-        return Ok(Some(()));
-    }
-
     // DM error message (not modal, just error text in DMs tab)
     if app.current_tab == Tab::DMs
         && app.dms_state.error.is_some()

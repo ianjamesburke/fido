@@ -1022,6 +1022,27 @@ fn dm_stray_key_on_request_selection_does_not_enter_typing_mode() {
     assert_eq!(app.input_mode, InputMode::Navigation);
 }
 
+#[tokio::test]
+async fn start_new_dm_accepts_typed_username_without_mutual_friend_gate() {
+    let mut app = App::new();
+    app.dms_state.show_new_conversation_modal = true;
+    app.dms_state.new_conversation_search_query = "@octocat".to_string();
+    app.dms_state.new_conversation_results.clear();
+
+    app.start_new_conversation().await.unwrap();
+
+    assert_eq!(
+        app.dms_state.pending_conversation_username.as_deref(),
+        Some("octocat")
+    );
+    assert!(matches!(
+        app.dms_state.selection,
+        crate::app::DMSelection::PendingDraft
+    ));
+    assert!(!app.dms_state.show_new_conversation_modal);
+    assert_eq!(app.input_mode, InputMode::Typing);
+}
+
 #[test]
 fn realtime_thread_created_upserts_once_for_current_board() {
     let mut app = App::new();

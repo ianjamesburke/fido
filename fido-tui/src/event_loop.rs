@@ -1002,6 +1002,7 @@ struct ModalStateTracker {
     new_conversation_modal: bool,
     user_search_modal: bool,
     last_search_query: String,
+    last_dm_search_query: String,
     community_modal: bool,
 }
 
@@ -1013,6 +1014,7 @@ impl ModalStateTracker {
             new_conversation_modal: false,
             user_search_modal: false,
             last_search_query: String::new(),
+            last_dm_search_query: String::new(),
             community_modal: false,
         }
     }
@@ -1062,8 +1064,17 @@ impl ModalStateTracker {
     }
 
     async fn handle_new_conversation_modal(&mut self, app: &mut App) -> Result<()> {
-        if app.dms_state.show_new_conversation_modal && !self.new_conversation_modal {
-            app.load_mutual_friends_for_dms().await?;
+        if app.dms_state.show_new_conversation_modal {
+            if !self.new_conversation_modal {
+                self.last_dm_search_query.clear();
+            }
+
+            if app.dms_state.new_conversation_search_query != self.last_dm_search_query {
+                self.last_dm_search_query = app.dms_state.new_conversation_search_query.clone();
+                app.search_users_for_dm().await?;
+            }
+        } else {
+            self.last_dm_search_query.clear();
         }
         self.new_conversation_modal = app.dms_state.show_new_conversation_modal;
         Ok(())
