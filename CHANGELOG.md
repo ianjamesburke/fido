@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Proxy API WebSocket upgrades through nginx for the `/ws` realtime gateway.
+
 ### Removed
 
 
