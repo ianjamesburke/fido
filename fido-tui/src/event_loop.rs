@@ -389,6 +389,9 @@ impl EventLoop {
                 if !app.dms_state.conversations_loaded || app.dms_state.error.is_some() {
                     app.load_conversations().await?;
                 }
+                if app.dms_state.selection.conversation_index().is_some() {
+                    app.dms_state.needs_message_load = true;
+                }
             }
             Tab::Settings => {
                 if app.settings_state.config.is_none() || app.settings_state.error.is_some() {

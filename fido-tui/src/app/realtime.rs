@@ -244,7 +244,9 @@ impl App {
             return;
         };
 
-        let is_open = self.dms_state.current_conversation_user == Some(other_user_id);
+        let is_open = self.current_screen == Screen::Main
+            && self.current_tab == Tab::DMs
+            && self.dms_state.current_conversation_user == Some(other_user_id);
         let is_incoming = !from_me;
 
         if is_open {
@@ -252,6 +254,9 @@ impl App {
             visible_message.is_read = true;
             self.dms_state.messages.push(visible_message);
             self.dms_state.unread_counts.insert(other_user_id, 0);
+            if is_incoming {
+                self.dms_state.needs_message_load = true;
+            }
         } else if is_incoming {
             let count = self
                 .dms_state

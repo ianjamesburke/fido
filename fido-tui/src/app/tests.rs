@@ -987,6 +987,56 @@ fn realtime_dm_message_appends_once_to_open_conversation() {
         app.dms_state.unread_counts.get(&other_user_id).copied(),
         Some(0)
     );
+    assert!(
+        app.dms_state.needs_message_load,
+        "visible incoming realtime messages should schedule a REST refresh so the server marks them read"
+    );
+}
+
+#[test]
+fn realtime_dm_message_hidden_tab_counts_unread_instead_of_open_read() {
+    let mut app = App::new();
+    let current_user_id = uuid::Uuid::new_v4();
+    let other_user_id = uuid::Uuid::new_v4();
+    app.auth_state.current_user = Some(test_user(current_user_id, "me"));
+    app.current_screen = Screen::Main;
+    app.current_tab = Tab::Posts;
+    app.dms_state.current_conversation_user = Some(other_user_id);
+    app.dms_state.conversations = vec![crate::app::Conversation {
+        other_user_id,
+        other_username: "friend".to_string(),
+        last_message: "before".to_string(),
+        unread_count: 0,
+        state: fido_types::DmConversationState::Accepted,
+        initiated_by_me: false,
+    }];
+
+    let message = fido_types::DirectMessage {
+        id: uuid::Uuid::new_v4(),
+        from_user_id: other_user_id,
+        to_user_id: current_user_id,
+        from_username: "friend".to_string(),
+        to_username: "me".to_string(),
+        content: "hidden tab".to_string(),
+        created_at: chrono::Utc::now(),
+        is_read: false,
+    };
+
+    app.apply_realtime_envelope(test_envelope(Event::DmMessageCreated(message)));
+
+    assert!(
+        app.dms_state.messages.is_empty(),
+        "hidden DMs should not append as if the conversation were visible"
+    );
+    assert_eq!(
+        app.dms_state.unread_counts.get(&other_user_id).copied(),
+        Some(1)
+    );
+    assert_eq!(app.dms_state.conversations[0].unread_count, 1);
+    assert!(
+        !app.dms_state.needs_message_load,
+        "hidden tab should wait for the next DMs load to mark messages read"
+    );
 }
 
 #[test]
