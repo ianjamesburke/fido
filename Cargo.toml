@@ -7,7 +7,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.5.3"
+version = "0.5.4"
 edition = "2021"
 authors = ["Ian Burke"]
 license = "MIT"
@@ -60,4 +60,4 @@ base64 = "0.22"
 aes-gcm-siv = "0.11"
 
 # Internal workspace crates
-fido-types = { path = "fido-types", version = "0.5.3" }
+fido-types = { path = "fido-types", version = "0.5.4" }

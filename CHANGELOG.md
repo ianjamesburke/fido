@@ -17,6 +17,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [0.5.4] - 2026-07-08
+
+### Added
+
+- Chat tab for each repo community with live channel messages over the authenticated realtime connection.
+- Thread approval queue for community admins, including approve and reject actions from the TUI.
+- DM request inbox in the DMs tab with accept and decline actions, plus typed username fallback when starting a conversation.
+- Notifications panel on `v`; Enter opens the notification source and marks it read, while `a` marks all read.
+- Two-session tmux E2E coverage that drives separate users against one local server through chat, DM requests, notifications, approvals, and repo-scoped boards.
+
+### Changed
+
+- The TUI now treats GitHub repository communities as the primary launch surface: running `fido` inside a repo opens that repo's community, while running outside a repo opens Home.
+- New DM creation relies on server-side accepted/pending rules instead of a client-side mutual-friend gate.
+- README and QUICKSTART now describe the repo-community workflow, current controls, local testing, and release flow.
+
+### Removed
+
+- Stale v1 social overview documentation and old screenshot assets from the global-feed era.
+
+
+
 ## [0.5.0] - 2026-07-03
 
 ### Added

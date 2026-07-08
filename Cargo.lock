@@ -703,7 +703,7 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "fido"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "anyhow",
  "chrono",
@@ -734,7 +734,7 @@ dependencies = [
 
 [[package]]
 name = "fido-server"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "aes-gcm-siv",
  "anyhow",
@@ -767,7 +767,7 @@ dependencies = [
 
 [[package]]
 name = "fido-types"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "chrono",
  "serde",

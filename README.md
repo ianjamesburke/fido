@@ -4,11 +4,7 @@ Fido is a terminal community app for GitHub repositories.
 
 Run it inside a repo and Fido opens that repo's community board. Run it outside a repo and Fido shows the communities you have joined. Posts, replies, channels, DMs, and notifications stay tied to the GitHub projects people are already working in.
 
-Built for Kiroween 2025.
-
-![Fido](assets/Screenshot%202025-12-07%20at%209.43.19 PM.png)
-
-![Fido](assets/Screenshot%202025-12-07%20at%209.53.56 PM.png)
+![Fido terminal demo](assets/fido-demo.png)
 
 ## Badge
 
@@ -78,7 +74,11 @@ See [QUICKSTART.md](QUICKSTART.md) for the longer walkthrough.
 - `Tab` - Switch tabs
 - `j/k` or arrows - Navigate
 - `Enter` - Open the selected community from Home mode
+- `b` - Browse starred GitHub repositories
+- `v` - Open notifications
 - `i` - Open community settings
+- `a` - Open approval queue as a community admin
+- `o` - Open the selected GitHub issue or PR in a browser
 - `u/d` - Upvote or downvote
 - `n` - New post
 - `p` - View profile
@@ -144,10 +144,9 @@ Open http://localhost:8080.
 ## Tests
 
 ```bash
-cargo test
-cargo test -p fido-server --features sqlite-tests
-cargo fmt
-cargo clippy
+cargo fmt --check
+cargo test --workspace
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```
 
 The TUI end-to-end harness drives the real binary in tmux with a temporary server and a stubbed GitHub API:

@@ -565,8 +565,7 @@ impl App {
                 self.remove_char_from_post();
             }
             KeyCode::Enter => {
-                // Don't add newline - Ctrl+Enter is handled in main loop for submission
-                // Regular Enter does nothing in single-line post input
+                // Do not add a newline; submit is handled by the main event loop.
             }
             _ => {}
         }
