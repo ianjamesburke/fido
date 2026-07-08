@@ -36,6 +36,17 @@ pub fn action_bar_text(app: &App) -> &'static str {
                 "u/d: Vote | n: Post | i: Community | b: Browse | f: Filter | Space: View"
             }
         }
+        crate::app::Tab::Chat => {
+            if app.community.is_none() {
+                "Open a community to use chat"
+            } else if app.chat_state.channels.is_empty() {
+                "No channels available"
+            } else if app.input_mode == crate::app::InputMode::Typing {
+                "Enter: Send | Esc: Clear | Type: Compose"
+            } else {
+                "↑/↓/j/k: Navigate | Type: Compose | Enter: Focus input"
+            }
+        }
         crate::app::Tab::DMs => {
             let has_active_conversation = app.dms_state.selection.conversation_index().is_some();
             let has_pending_draft = app.dms_state.pending_conversation_username.is_some();

@@ -243,6 +243,7 @@ pub fn render_main_screen(frame: &mut Frame, app: &mut App) {
         crate::app::Tab::Posts => {
             render_posts_tab_with_data(frame, app, content_chunks[1]);
         }
+        crate::app::Tab::Chat => render_chat_tab(frame, app, content_chunks[1]),
         crate::app::Tab::DMs => render_dms_tab(frame, app, content_chunks[1]),
         crate::app::Tab::Profile => render_profile_tab(frame, app, content_chunks[1]),
         crate::app::Tab::Settings => render_settings_tab(frame, app, content_chunks[1]),
@@ -462,6 +463,18 @@ fn render_left_rail(frame: &mut Frame, app: &App, area: Rect) {
         &theme,
     ));
 
+    let chat_label = app
+        .chat_state
+        .selected_channel()
+        .map(|channel| format!("# {}", channel.name))
+        .unwrap_or_else(|| "# chat".to_string());
+    lines.push(rail_line(
+        app.current_tab == crate::app::Tab::Chat,
+        &chat_label,
+        theme.secondary,
+        &theme,
+    ));
+
     for community in app.home_state.communities.iter().take(6) {
         let label = format!(
             "  {}/{}",
@@ -651,12 +664,13 @@ pub fn render_tab_header(frame: &mut Frame, app: &mut App, area: Rect) {
     } else {
         "Board"
     };
-    let tabs = [board_label, "DMs", "Profile", "Settings"];
+    let tabs = [board_label, "Chat", "DMs", "Profile", "Settings"];
     let current_index = match app.current_tab {
         crate::app::Tab::Posts => 0,
-        crate::app::Tab::DMs => 1,
-        crate::app::Tab::Profile => 2,
-        crate::app::Tab::Settings => 3,
+        crate::app::Tab::Chat => 1,
+        crate::app::Tab::DMs => 2,
+        crate::app::Tab::Profile => 3,
+        crate::app::Tab::Settings => 4,
     };
 
     let mut tab_spans = vec![];
@@ -670,7 +684,7 @@ pub fn render_tab_header(frame: &mut Frame, app: &mut App, area: Rect) {
         };
 
         // Add unread badge for DMs tab
-        let tab_text = if i == 1 && total_unread > 0 {
+        let tab_text = if i == 2 && total_unread > 0 {
             format!(" {} ({}) ", tab, total_unread)
         } else {
             format!(" {} ", tab)
@@ -1279,6 +1293,266 @@ fn truncated_activity_line(item: &fido_types::ActivityItem, available_width: usi
 fn format_timestamp(timestamp: &chrono::DateTime<chrono::Utc>) -> String {
     // Format as date and time
     timestamp.format("%Y-%m-%d %H:%M").to_string()
+}
+
+/// Render channel chat for the current community.
+pub fn render_chat_tab(frame: &mut Frame, app: &mut App, area: Rect) {
+    let theme = get_theme_colors(app);
+
+    let has_error = app.chat_state.error.is_some();
+    let layout = banner_layout(area, false, has_error);
+
+    if has_error {
+        if let Some(error) = &app.chat_state.error {
+            if let Some(error_area) = layout.error {
+                render_error_banner(frame, error_area, error, &theme);
+            }
+        }
+    }
+
+    if app.community.is_none() {
+        render_panel_lines(
+            frame,
+            layout.content,
+            "Chat",
+            vec![
+                Line::from(""),
+                Line::from(Span::styled(
+                    "No community open",
+                    Style::default()
+                        .fg(theme.warning)
+                        .add_modifier(Modifier::BOLD),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Open a repo community before using chat.",
+                    Style::default().fg(theme.text_dim),
+                )),
+            ],
+            &theme,
+        );
+        return;
+    }
+
+    if app.chat_state.loading && app.chat_state.channels.is_empty() {
+        render_panel_lines(
+            frame,
+            layout.content,
+            "Chat",
+            create_loading_display("Loading chat...", &theme),
+            &theme,
+        );
+        return;
+    }
+
+    if app.chat_state.channels.is_empty() {
+        render_panel_lines(
+            frame,
+            layout.content,
+            "Chat",
+            vec![
+                Line::from(""),
+                Line::from(Span::styled(
+                    "No channels available",
+                    Style::default()
+                        .fg(theme.warning)
+                        .add_modifier(Modifier::BOLD),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "This community does not have a chat channel yet.",
+                    Style::default().fg(theme.text_dim),
+                )),
+            ],
+            &theme,
+        );
+        return;
+    }
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(6)])
+        .split(layout.content);
+
+    render_channel_messages(frame, app, chunks[0]);
+    render_channel_input(frame, app, chunks[1]);
+}
+
+fn render_channel_messages(frame: &mut Frame, app: &mut App, area: Rect) {
+    let theme = get_theme_colors(app);
+    let channel_name = app
+        .chat_state
+        .selected_channel()
+        .map(|channel| channel.name.as_str())
+        .unwrap_or("chat");
+    let title = format!(" #{} ", channel_name);
+
+    if app.chat_state.messages.is_empty() {
+        let empty_lines = vec![
+            Line::from(""),
+            Line::from(Span::styled(
+                "No messages yet",
+                Style::default()
+                    .fg(theme.warning)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Type below to start the channel.",
+                Style::default().fg(theme.text_dim),
+            )),
+        ];
+        let empty = Paragraph::new(empty_lines)
+            .alignment(Alignment::Center)
+            .block(Block::default().borders(Borders::ALL).title(title));
+        frame.render_widget(empty, area);
+        return;
+    }
+
+    let viewport_height = area.height.saturating_sub(2) as usize;
+    let lines_per_message = 4;
+    let messages_per_screen = (viewport_height / lines_per_message).max(1);
+    let total_messages = app.chat_state.messages.len();
+    let selected = app
+        .chat_state
+        .list_state
+        .selected()
+        .unwrap_or(total_messages.saturating_sub(1));
+    let start_index = selected.saturating_sub(messages_per_screen.saturating_sub(1));
+    let message_width = (area.width as usize).saturating_sub(8);
+    let current_user = app.auth_state.current_user.as_ref();
+    let current_user_id = current_user.map(|user| user.id);
+    let current_username = current_user.map(|user| user.username.as_str());
+
+    let mut items = Vec::new();
+    if app.chat_state.loading_older {
+        items.push(ListItem::new(Line::from(Span::styled(
+            "Loading older messages...",
+            Style::default().fg(theme.text_dim),
+        ))));
+    } else if app.chat_state.at_history_start && start_index == 0 {
+        items.push(ListItem::new(Line::from(Span::styled(
+            "Start of channel history",
+            Style::default().fg(theme.text_dim),
+        ))));
+    }
+
+    for (index, message) in app
+        .chat_state
+        .messages
+        .iter()
+        .enumerate()
+        .skip(start_index)
+        .take(messages_per_screen)
+    {
+        let is_selected = index == selected;
+        let is_from_me = Some(message.author_id) == current_user_id;
+        let author = chat_author_label(message, current_username, is_from_me);
+        let timestamp = message.created_at.format("%H:%M").to_string();
+        let header_style = if is_from_me {
+            Style::default().fg(theme.primary)
+        } else {
+            Style::default().fg(theme.success)
+        };
+        let prefix = if is_selected { ">" } else { " " };
+
+        let mut lines = vec![Line::from(vec![
+            Span::styled(prefix, Style::default().fg(theme.text_dim)),
+            Span::styled(
+                format!(" [{}] ", timestamp),
+                Style::default().fg(theme.text_dim),
+            ),
+            Span::styled(author, header_style.add_modifier(Modifier::BOLD)),
+        ])];
+
+        for content_line in message.content.lines() {
+            for wrapped in textwrap::wrap(content_line, message_width) {
+                lines.push(chat_content_line(
+                    &wrapped,
+                    current_username,
+                    is_selected,
+                    &theme,
+                ));
+            }
+        }
+        lines.push(Line::from(""));
+        items.push(ListItem::new(lines));
+    }
+
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title(title))
+        .highlight_style(
+            Style::default()
+                .fg(theme.success)
+                .bg(theme.highlight_bg)
+                .add_modifier(Modifier::BOLD),
+        );
+    frame.render_stateful_widget(list, area, &mut app.chat_state.list_state);
+}
+
+fn chat_author_label(
+    message: &fido_types::Message,
+    current_username: Option<&str>,
+    is_from_me: bool,
+) -> String {
+    if is_from_me {
+        return current_username
+            .map(|username| format!("@{}", username))
+            .unwrap_or_else(|| "you".to_string());
+    }
+
+    let id = message.author_id.to_string();
+    format!("user:{}", &id[..8])
+}
+
+fn chat_content_line(
+    content: &str,
+    current_username: Option<&str>,
+    selected: bool,
+    theme: &ThemeColors,
+) -> Line<'static> {
+    let mention = current_username
+        .map(|username| content.contains(&format!("@{}", username)))
+        .unwrap_or(false);
+    let style = if mention {
+        Style::default()
+            .fg(theme.warning)
+            .add_modifier(Modifier::BOLD)
+    } else if selected {
+        Style::default().fg(theme.text)
+    } else {
+        Style::default().fg(theme.text_dim)
+    };
+    Line::from(Span::styled(format!("  {}", content), style))
+}
+
+fn render_channel_input(frame: &mut Frame, app: &mut App, area: Rect) {
+    let theme = get_theme_colors(app);
+    let channel_name = app
+        .chat_state
+        .selected_channel()
+        .map(|channel| channel.name.as_str())
+        .unwrap_or("chat");
+    let title = if app.input_mode == crate::app::InputMode::Typing {
+        format!(" Message #{} (Enter to send) ", channel_name)
+    } else {
+        format!(" Message #{} ", channel_name)
+    };
+
+    app.chat_state
+        .message_textarea
+        .set_style(Style::default().fg(theme.primary));
+    app.chat_state
+        .message_textarea
+        .set_cursor_style(Style::default().fg(theme.background).bg(theme.primary));
+    app.chat_state
+        .message_textarea
+        .set_cursor_line_style(Style::default());
+    app.chat_state
+        .message_textarea
+        .set_block(Block::default().borders(Borders::ALL).title(title));
+
+    frame.render_widget(&app.chat_state.message_textarea, area);
 }
 
 /// Render DMs tab

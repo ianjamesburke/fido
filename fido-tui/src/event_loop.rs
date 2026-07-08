@@ -86,6 +86,9 @@ impl EventLoop {
 
             // Handle DM conversation changes
             self.handle_dm_conversation_changes(app).await?;
+
+            // Handle channel history pagination after keyboard navigation
+            self.handle_chat_pending_loads(app).await?;
         }
 
         self.stop_realtime();
@@ -393,6 +396,11 @@ impl EventLoop {
                     app.dms_state.needs_message_load = true;
                 }
             }
+            Tab::Chat => {
+                if !app.chat_state.loaded || app.chat_state.error.is_some() {
+                    app.load_chat().await?;
+                }
+            }
             Tab::Settings => {
                 if app.settings_state.config.is_none() || app.settings_state.error.is_some() {
                     app.load_settings().await?;
@@ -418,6 +426,19 @@ impl EventLoop {
             app.dms_state.needs_message_load = false;
         } else if app.dms_state.selection != self.last_dm_selection {
             self.last_dm_selection = app.dms_state.selection.clone();
+        }
+
+        Ok(())
+    }
+
+    async fn handle_chat_pending_loads(&mut self, app: &mut App) -> Result<()> {
+        if app.current_tab != Tab::Chat {
+            return Ok(());
+        }
+
+        if app.chat_state.pending_older_load {
+            app.chat_state.pending_older_load = false;
+            app.load_older_channel_messages().await?;
         }
 
         Ok(())
@@ -631,6 +652,13 @@ impl EventLoop {
                     && app.input_mode == InputMode::Typing =>
             {
                 app.send_dm().await?;
+            }
+            KeyCode::Enter
+                if app.current_tab == Tab::Chat
+                    && app.input_mode == InputMode::Typing
+                    && !app.community_browser_state.show =>
+            {
+                app.send_channel_message().await?;
             }
             KeyCode::Char('u') | KeyCode::Char('U')
                 if app.current_screen == Screen::Main

@@ -161,6 +161,7 @@ pub fn handle_main_keys(app: &mut App, key: KeyEvent) -> Result<()> {
         }
         _ => match app.current_tab {
             Tab::Posts => posts::handle_posts_keys(app, key)?,
+            Tab::Chat => app.handle_chat_keys(key)?,
             Tab::Profile => profile::handle_profile_keys(app, key)?,
             Tab::DMs => dms::handle_dms_keys(app, key)?,
             Tab::Settings => settings::handle_settings_keys(app, key)?,

@@ -1,6 +1,6 @@
 use super::*;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use fido_types::{Event, EventEnvelope, Post};
+use fido_types::{Channel, ChannelMessageEvent, Event, EventEnvelope, Message, Post};
 
 /// Put the app on a community board (the launch-repo path in production).
 fn set_test_community(app: &mut App) {
@@ -37,6 +37,8 @@ fn test_rail_tab_order_matches_launch_shell() {
     let mut app = App::new();
     app.current_tab = Tab::Posts;
 
+    app.next_tab();
+    assert_eq!(app.current_tab, Tab::Chat);
     app.next_tab();
     assert_eq!(app.current_tab, Tab::DMs);
     app.next_tab();
@@ -1004,6 +1006,52 @@ fn realtime_thread_created_upserts_once_for_current_board() {
 
     assert_eq!(app.posts_state.posts.len(), 1);
     assert_eq!(app.posts_state.feed_entries.len(), 1);
+}
+
+#[test]
+fn realtime_channel_message_appends_once_to_open_channel() {
+    let mut app = App::new();
+    let current_user_id = uuid::Uuid::new_v4();
+    let community_id = uuid::Uuid::new_v4();
+    let channel_id = uuid::Uuid::new_v4();
+
+    app.auth_state.current_user = Some(test_user(current_user_id, "me"));
+    app.current_screen = Screen::Main;
+    app.current_tab = Tab::Chat;
+    app.community = Some(crate::app::state::CommunityContext {
+        id: community_id,
+        owner: "owner".to_string(),
+        name: "repo".to_string(),
+        role: Some(fido_types::MembershipRole::Member),
+        member_count: 2,
+        claimed: true,
+    });
+    app.chat_state.channels = vec![Channel {
+        id: channel_id,
+        community_id,
+        name: "general".to_string(),
+        created_at: chrono::Utc::now(),
+    }];
+
+    let message = Message {
+        id: uuid::Uuid::new_v4(),
+        channel_id,
+        author_id: uuid::Uuid::new_v4(),
+        content: "hello channel".to_string(),
+        created_at: chrono::Utc::now(),
+    };
+    let event = Event::MessageCreated(ChannelMessageEvent {
+        message: message.clone(),
+        community_id,
+    });
+
+    app.apply_realtime_envelope(test_envelope(event.clone()));
+    app.apply_realtime_envelope(test_envelope(event));
+
+    assert_eq!(app.chat_state.messages.len(), 1);
+    assert_eq!(app.chat_state.messages[0].content, "hello channel");
+    assert_eq!(app.chat_state.list_state.selected(), Some(0));
+    assert_eq!(app.realtime_state.channel_message_count, 1);
 }
 
 #[test]

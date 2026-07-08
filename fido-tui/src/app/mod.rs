@@ -6,6 +6,7 @@ pub(crate) use error::categorize_error;
 mod activity;
 mod auth;
 mod build;
+mod chat;
 mod communities;
 mod composer;
 mod dms;
