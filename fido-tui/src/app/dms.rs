@@ -127,6 +127,9 @@ impl App {
         match self.api_client.get_conversation(other_user_id).await {
             Ok(messages) => {
                 self.dms_state.messages = messages;
+                self.realtime_state
+                    .seen_dm_messages
+                    .extend(self.dms_state.messages.iter().map(|message| message.id));
 
                 // Mark conversation as read when opening it
                 self.mark_conversation_as_read(other_user_id).await?;

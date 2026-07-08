@@ -1,11 +1,14 @@
-use fido_types::{ActivityItem, Post, User, UserProfile};
+use fido_types::{
+    ActivityItem, ChannelMessageEvent, NotificationUnreadCount, Post, User, UserProfile,
+};
 
 use ratatui::widgets::ListState;
+use std::collections::HashSet;
 use std::time::Instant;
 use tui_textarea::TextArea;
 use uuid::Uuid;
 
-use crate::api::ApiClient;
+use crate::api::{ApiClient, RealtimeConnectionStatus};
 
 /// Get platform-appropriate modifier key name for display
 /// Returns "Cmd" on macOS, "Ctrl" on other platforms
@@ -175,6 +178,43 @@ pub struct App {
     pub show_community_modal: bool,
     /// Members of the current community, loaded when the community modal opens
     pub community_members: Vec<crate::api::CommunityMemberInfo>,
+    /// Realtime transport and applied-event bookkeeping
+    pub realtime_state: RealtimeState,
+}
+
+/// Realtime transport state plus idempotency markers for pushed events.
+pub struct RealtimeState {
+    pub status: RealtimeConnectionStatus,
+    pub last_error: Option<String>,
+    pub last_event_at: Option<Instant>,
+    pub unread_notifications: Vec<NotificationUnreadCount>,
+    pub last_channel_message: Option<ChannelMessageEvent>,
+    pub channel_message_count: u64,
+    pub seen_posts: HashSet<Uuid>,
+    pub seen_dm_messages: HashSet<Uuid>,
+    pub seen_notifications: HashSet<Uuid>,
+    pub seen_channel_messages: HashSet<Uuid>,
+}
+
+impl RealtimeState {
+    pub fn new() -> Self {
+        Self {
+            status: RealtimeConnectionStatus::Disabled,
+            last_error: None,
+            last_event_at: None,
+            unread_notifications: Vec::new(),
+            last_channel_message: None,
+            channel_message_count: 0,
+            seen_posts: HashSet::new(),
+            seen_dm_messages: HashSet::new(),
+            seen_notifications: HashSet::new(),
+            seen_channel_messages: HashSet::new(),
+        }
+    }
+
+    pub fn is_polling_fallback_active(&self) -> bool {
+        self.status.uses_polling_fallback()
+    }
 }
 
 /// The community the board is scoped to, with the caller's standing in it

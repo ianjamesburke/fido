@@ -1,6 +1,6 @@
 use super::*;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use fido_types::Post;
+use fido_types::{Event, EventEnvelope, Post};
 
 /// Put the app on a community board (the launch-repo path in production).
 fn set_test_community(app: &mut App) {
@@ -933,6 +933,85 @@ fn dm_stray_key_on_request_selection_does_not_enter_typing_mode() {
     assert_eq!(app.input_mode, InputMode::Navigation);
 }
 
+#[test]
+fn realtime_thread_created_upserts_once_for_current_board() {
+    let mut app = App::new();
+    app.current_screen = Screen::Main;
+    set_test_community(&mut app);
+
+    let community_id = app.community.as_ref().unwrap().id;
+    let mut post = test_post_created_at("2026-07-02T12:00:00Z");
+    post.community_id = community_id;
+
+    app.apply_realtime_envelope(test_envelope(Event::ThreadCreated(post.clone())));
+    app.apply_realtime_envelope(test_envelope(Event::ThreadCreated(post)));
+
+    assert_eq!(app.posts_state.posts.len(), 1);
+    assert_eq!(app.posts_state.feed_entries.len(), 1);
+}
+
+#[test]
+fn realtime_dm_message_appends_once_to_open_conversation() {
+    let mut app = App::new();
+    let current_user_id = uuid::Uuid::new_v4();
+    let other_user_id = uuid::Uuid::new_v4();
+    app.auth_state.current_user = Some(test_user(current_user_id, "me"));
+    app.current_screen = Screen::Main;
+    app.current_tab = Tab::DMs;
+    app.dms_state.current_conversation_user = Some(other_user_id);
+    app.dms_state.conversations = vec![crate::app::Conversation {
+        other_user_id,
+        other_username: "friend".to_string(),
+        last_message: "before".to_string(),
+        unread_count: 0,
+        state: fido_types::DmConversationState::Accepted,
+        initiated_by_me: false,
+    }];
+
+    let message = fido_types::DirectMessage {
+        id: uuid::Uuid::new_v4(),
+        from_user_id: other_user_id,
+        to_user_id: current_user_id,
+        from_username: "friend".to_string(),
+        to_username: "me".to_string(),
+        content: "hello".to_string(),
+        created_at: chrono::Utc::now(),
+        is_read: false,
+    };
+
+    app.apply_realtime_envelope(test_envelope(Event::DmMessageCreated(message.clone())));
+    app.apply_realtime_envelope(test_envelope(Event::DmMessageCreated(message)));
+
+    assert_eq!(app.dms_state.messages.len(), 1);
+    assert_eq!(
+        app.dms_state.unread_counts.get(&other_user_id).copied(),
+        Some(0)
+    );
+}
+
+#[test]
+fn realtime_notification_created_increments_group_once() {
+    let mut app = App::new();
+    let notification = fido_types::Notification {
+        id: uuid::Uuid::new_v4(),
+        user_id: uuid::Uuid::new_v4(),
+        notification_type: fido_types::NotificationType::Mention,
+        actor_id: uuid::Uuid::new_v4(),
+        subject_type: "post".to_string(),
+        subject_id: "abc".to_string(),
+        read: false,
+        created_at: chrono::Utc::now(),
+    };
+
+    app.apply_realtime_envelope(test_envelope(Event::NotificationCreated(
+        notification.clone(),
+    )));
+    app.apply_realtime_envelope(test_envelope(Event::NotificationCreated(notification)));
+
+    assert_eq!(app.realtime_state.unread_notifications.len(), 1);
+    assert_eq!(app.realtime_state.unread_notifications[0].count, 1);
+}
+
 fn test_post_created_at(created_at: &str) -> Post {
     Post {
         id: uuid::Uuid::new_v4(),
@@ -950,6 +1029,24 @@ fn test_post_created_at(created_at: &str) -> Post {
         reply_count: 0,
         reply_to_user_id: None,
         reply_to_username: None,
+    }
+}
+
+fn test_user(id: uuid::Uuid, username: &str) -> fido_types::User {
+    fido_types::User {
+        id,
+        username: username.to_string(),
+        bio: None,
+        join_date: chrono::Utc::now(),
+        is_test_user: true,
+        is_admin: false,
+    }
+}
+
+fn test_envelope(event: Event) -> EventEnvelope {
+    EventEnvelope {
+        event,
+        ts: chrono::Utc::now(),
     }
 }
 

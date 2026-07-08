@@ -27,6 +27,8 @@ tui-textarea = "0.6"
 
 reqwest.workspace = true
 tokio.workspace = true
+tokio-tungstenite.workspace = true
+futures-util.workspace = true
 
 emojis = "0.6"
 dirs = "5.0"

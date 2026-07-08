@@ -159,6 +159,9 @@ impl App {
             Ok(posts) => {
                 let has_posts = !posts.is_empty();
                 self.posts_state.posts = posts;
+                self.realtime_state
+                    .seen_posts
+                    .extend(self.posts_state.posts.iter().map(|post| post.id));
                 self.posts_state.rebuild_feed();
                 // Server now includes user_vote in each post
                 if has_posts {

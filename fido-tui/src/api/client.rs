@@ -128,9 +128,27 @@ impl ApiClient {
         self.session_token = token;
     }
 
+    /// Current session token used for authenticated requests.
+    pub fn session_token(&self) -> Option<&str> {
+        self.session_token.as_deref()
+    }
+
     /// Server URL used to scope local session storage.
     pub fn base_url(&self) -> &str {
         &self.base_url
+    }
+
+    /// WebSocket URL for the realtime gateway that matches the configured API origin.
+    pub fn websocket_url(&self) -> String {
+        let base = self.base_url.trim_end_matches('/');
+        let websocket_base = if let Some(rest) = base.strip_prefix("https://") {
+            format!("wss://{}", rest)
+        } else if let Some(rest) = base.strip_prefix("http://") {
+            format!("ws://{}", rest)
+        } else {
+            format!("ws://{}", base)
+        };
+        format!("{}/ws", websocket_base)
     }
 
     /// Helper to add session token to request if available
@@ -599,11 +617,13 @@ impl ApiClient {
         Ok(())
     }
 
-    // Placeholder for future WebSocket integration
-    // TODO: Add WebSocket support for real-time updates
-    // pub async fn connect_websocket(&self) -> ApiResult<WebSocketStream> {
-    //     // WebSocket connection logic will go here
-    // }
+    /// Get grouped unread notification counts.
+    pub async fn get_notification_unread_counts(&self) -> ApiResult<Vec<NotificationUnreadCount>> {
+        let url = self.build_url("/notifications/unread-count");
+        let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
 }
 
 impl Default for ApiClient {

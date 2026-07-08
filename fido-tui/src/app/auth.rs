@@ -47,6 +47,7 @@ impl App {
         self.community_error = None;
         self.show_community_modal = false;
         self.home_state = super::state::HomeState::new();
+        self.realtime_state = super::state::RealtimeState::new();
 
         // Reset GitHub Device Flow state
         self.auth_state.github_auth_in_progress = false;
