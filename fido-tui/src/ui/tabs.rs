@@ -473,10 +473,14 @@ pub fn render_global_footer(frame: &mut Frame, app: &mut App, area: Rect) {
     // Clear the area first to prevent text bleeding
     frame.render_widget(Clear, area);
 
+    let footer_text = format!(
+        "RT: {} | Tab/Shift+Tab: Tabs | Shift+L: Logout | ?: Help | q/Esc: Quit | ↑/↓/j/k: Navigate",
+        app.realtime_state.status.label()
+    );
     render_footer_with_style(
         frame,
         area,
-        "Tab: Next | Shift+Tab: Previous | Shift+L: Logout | ?: Help | q/Esc: Quit | ↑/↓/j/k: Navigate",
+        &footer_text,
         &theme,
         Style::default().fg(theme.text_dim),
     );

@@ -17,6 +17,7 @@ mod post_detail;
 mod posts;
 mod profile;
 mod profile_view;
+mod realtime;
 mod settings;
 mod user_search;
 

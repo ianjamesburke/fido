@@ -174,6 +174,7 @@ impl App {
             home_state: HomeState::new(),
             show_community_modal: false,
             community_members: Vec::new(),
+            realtime_state: RealtimeState::new(),
         }
     }
 }

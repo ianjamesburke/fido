@@ -3,19 +3,28 @@ use crate::auth::{self, AuthFlow, RestoredSession};
 use crate::{log_key_event, ui};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+use uuid::Uuid;
+
+const REALTIME_FALLBACK_POLL_INTERVAL: Duration = Duration::from_secs(10);
 
 pub struct EventLoop {
     modal_tracker: ModalStateTracker,
     last_tab: Tab,
     last_dm_selection: DMSelection,
     last_terminal_size: (u16, u16),
-    last_device_poll: std::time::Instant,
+    last_device_poll: Instant,
     startup_started: bool,
     startup_data_load_pending: bool,
     session_restore_task: Option<JoinHandle<Result<Option<RestoredSession>, String>>>,
     update_check_task: Option<JoinHandle<Option<String>>>,
+    realtime_task: Option<JoinHandle<()>>,
+    realtime_rx: Option<mpsc::Receiver<crate::api::RealtimeClientEvent>>,
+    realtime_user_id: Option<Uuid>,
+    last_realtime_fallback_poll: Instant,
+    realtime_refetch_pending: bool,
     is_web_mode: bool,
 }
 
@@ -26,11 +35,16 @@ impl EventLoop {
             last_tab: Tab::Posts, // Default starting tab
             last_dm_selection: DMSelection::NewConversation,
             last_terminal_size: (0, 0),
-            last_device_poll: std::time::Instant::now(),
+            last_device_poll: Instant::now(),
             startup_started: false,
             startup_data_load_pending: false,
             session_restore_task: None,
             update_check_task: None,
+            realtime_task: None,
+            realtime_rx: None,
+            realtime_user_id: None,
+            last_realtime_fallback_poll: Instant::now(),
+            realtime_refetch_pending: false,
             is_web_mode,
         }
     }
@@ -47,6 +61,9 @@ impl EventLoop {
 
             // Clear expired messages
             app.clear_expired_messages();
+
+            // Drain pushed events before rendering this frame.
+            self.handle_realtime(app).await?;
 
             // Render UI
             self.render_ui(app, tui)?;
@@ -71,6 +88,103 @@ impl EventLoop {
             self.handle_dm_conversation_changes(app).await?;
         }
 
+        self.stop_realtime();
+        Ok(())
+    }
+
+    async fn handle_realtime(&mut self, app: &mut App) -> Result<()> {
+        self.sync_realtime_lifecycle(app);
+        self.drain_realtime_events(app);
+        self.handle_realtime_polling_fallback(app).await
+    }
+
+    fn sync_realtime_lifecycle(&mut self, app: &mut App) {
+        let Some(current_user) = app.auth_state.current_user.as_ref() else {
+            self.stop_realtime();
+            app.apply_realtime_status(crate::api::RealtimeConnectionStatus::Disabled.into());
+            return;
+        };
+        if app.current_screen != Screen::Main {
+            self.stop_realtime();
+            app.apply_realtime_status(crate::api::RealtimeConnectionStatus::Disabled.into());
+            return;
+        }
+        if app.api_client.session_token().is_none() {
+            self.stop_realtime();
+            app.apply_realtime_status(crate::api::RealtimeConnectionStatus::Disabled.into());
+            return;
+        }
+
+        if self.realtime_user_id != Some(current_user.id) {
+            self.stop_realtime();
+        }
+
+        if self.realtime_task.is_some() {
+            return;
+        }
+        if app.realtime_state.status == crate::api::RealtimeConnectionStatus::Unauthorized {
+            return;
+        }
+
+        let (handle, rx) = crate::api::spawn_realtime_task(app.api_client.clone());
+        self.realtime_task = Some(handle);
+        self.realtime_rx = Some(rx);
+        self.realtime_user_id = Some(current_user.id);
+        self.realtime_refetch_pending = false;
+    }
+
+    fn stop_realtime(&mut self) {
+        if let Some(handle) = self.realtime_task.take() {
+            handle.abort();
+        }
+        self.realtime_rx = None;
+        self.realtime_user_id = None;
+        self.realtime_refetch_pending = false;
+    }
+
+    fn drain_realtime_events(&mut self, app: &mut App) {
+        loop {
+            let event = match self.realtime_rx.as_mut() {
+                Some(rx) => rx.try_recv(),
+                None => return,
+            };
+
+            match event {
+                Ok(crate::api::RealtimeClientEvent::Status(update)) => {
+                    app.apply_realtime_status(update);
+                }
+                Ok(crate::api::RealtimeClientEvent::Event(envelope)) => {
+                    app.apply_realtime_envelope(*envelope);
+                }
+                Ok(crate::api::RealtimeClientEvent::RefetchRequired) => {
+                    self.realtime_refetch_pending = true;
+                }
+                Err(mpsc::error::TryRecvError::Empty) => return,
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    self.realtime_rx = None;
+                    self.realtime_task = None;
+                    return;
+                }
+            }
+        }
+    }
+
+    async fn handle_realtime_polling_fallback(&mut self, app: &mut App) -> Result<()> {
+        if !app.realtime_state.is_polling_fallback_active() {
+            return Ok(());
+        }
+
+        let poll_due =
+            self.last_realtime_fallback_poll.elapsed() >= REALTIME_FALLBACK_POLL_INTERVAL;
+        if !poll_due && !self.realtime_refetch_pending {
+            return Ok(());
+        }
+
+        self.realtime_refetch_pending = false;
+        self.last_realtime_fallback_poll = Instant::now();
+        if let Err(e) = app.refresh_realtime_fallback_visible_surface().await {
+            app.realtime_state.last_error = Some(e.to_string());
+        }
         Ok(())
     }
 
@@ -274,6 +388,9 @@ impl EventLoop {
             Tab::DMs => {
                 if !app.dms_state.conversations_loaded || app.dms_state.error.is_some() {
                     app.load_conversations().await?;
+                }
+                if app.dms_state.selection.conversation_index().is_some() {
+                    app.dms_state.needs_message_load = true;
                 }
             }
             Tab::Settings => {
