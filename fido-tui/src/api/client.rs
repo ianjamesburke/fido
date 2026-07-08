@@ -722,6 +722,35 @@ impl ApiClient {
         let response = req.send().await?;
         self.handle_response(response).await
     }
+
+    /// List recent notifications.
+    pub async fn get_notifications(
+        &self,
+        limit: usize,
+        offset: usize,
+    ) -> ApiResult<Vec<Notification>> {
+        let url = self.build_url(&format!("/notifications?limit={}&offset={}", limit, offset));
+        let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
+    /// Mark a single notification or all notifications as read.
+    pub async fn mark_notifications_read(
+        &self,
+        notification_id: Option<Uuid>,
+        all: bool,
+    ) -> ApiResult<()> {
+        let url = self.build_url("/notifications/mark-read");
+        let request = MarkNotificationsReadRequest {
+            notification_id,
+            all,
+        };
+        let req = self.add_auth_header(self.client.post(&url).json(&request));
+        let response = req.send().await?;
+        let _: serde_json::Value = self.handle_response(response).await?;
+        Ok(())
+    }
 }
 
 impl Default for ApiClient {

@@ -325,7 +325,11 @@ keys_in "$AARON_SESSION" Enter
 wait_for_in "$AARON_SESSION" "Request sent" "aaron sees pending request state"
 
 wait_for_in "$ALICE_SESSION" "@aaron wants to chat" "alice receives pending DM request" 100
-keys_in "$ALICE_SESSION" Up
+keys_in "$ALICE_SESSION" 'v'
+wait_for_in "$ALICE_SESSION" "Notifications" "alice notifications panel"
+wait_for_in "$ALICE_SESSION" "Sent you a DM request" "alice DM request notification"
+keys_in "$ALICE_SESSION" Enter
+wait_for_in "$ALICE_SESSION" "@aaron wants to chat" "notification jumps to DM request"
 keys_in "$ALICE_SESSION" 'a'
 sleep 0.6
 

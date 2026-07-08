@@ -1,6 +1,6 @@
 use fido_types::{
-    ActivityItem, Channel, ChannelMessageEvent, Message, NotificationUnreadCount, Post, User,
-    UserProfile,
+    ActivityItem, Channel, ChannelMessageEvent, Message, Notification, NotificationUnreadCount,
+    Post, User, UserProfile,
 };
 
 use ratatui::widgets::ListState;
@@ -152,6 +152,7 @@ pub struct App {
     pub profile_state: ProfileState,
     pub dms_state: DMsState,
     pub settings_state: SettingsState,
+    pub notifications_state: NotificationsState,
     pub post_detail_state: Option<PostDetailState>,
     pub viewing_post_detail: bool,
     pub config_manager: crate::config::ConfigManager,
@@ -198,6 +199,16 @@ pub struct RealtimeState {
     pub seen_dm_messages: HashSet<Uuid>,
     pub seen_notifications: HashSet<Uuid>,
     pub seen_channel_messages: HashSet<Uuid>,
+}
+
+/// Notifications overlay state.
+pub struct NotificationsState {
+    pub show: bool,
+    pub notifications: Vec<Notification>,
+    pub selected_index: usize,
+    pub loading: bool,
+    pub error: Option<String>,
+    pub loaded: bool,
 }
 
 impl RealtimeState {

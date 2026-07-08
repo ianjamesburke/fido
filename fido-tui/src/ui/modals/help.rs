@@ -113,7 +113,11 @@ pub fn get_shortcuts_for_context(
     // Global shortcuts (always shown)
     shortcuts.push((
         "Global",
-        vec![("q / Esc", "Quit application"), ("?", "Toggle this help")],
+        vec![
+            ("q / Esc", "Quit application"),
+            ("v", "Open notifications"),
+            ("?", "Toggle this help"),
+        ],
     ));
 
     // Add logout for main screen
@@ -174,6 +178,18 @@ pub fn add_main_screen_shortcuts(
                 ("f", "Follow/Unfollow user"),
                 ("m", "Open DM conversation"),
                 ("Esc / q", "Close profile"),
+            ],
+        ));
+    }
+
+    if app.notifications_state.show {
+        shortcuts.push((
+            "Notifications",
+            vec![
+                ("↑/↓/j/k", "Navigate"),
+                ("Enter", "Open and mark read"),
+                ("a", "Mark all read"),
+                ("v / Esc", "Close notifications"),
             ],
         ));
     }

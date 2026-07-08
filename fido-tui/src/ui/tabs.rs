@@ -395,6 +395,10 @@ pub fn render_main_screen(frame: &mut Frame, app: &mut App) {
         render_community_browser(frame, app, area);
     }
 
+    if app.notifications_state.show {
+        render_notifications_panel(frame, app, area);
+    }
+
     // Render help modal (highest priority - render last)
     if app.show_help {
         render_help_modal(frame, app, area);
@@ -435,6 +439,7 @@ fn render_left_rail(frame: &mut Frame, app: &App, area: Rect) {
     let theme = get_theme_colors(app);
     let total_unread: usize = app.dms_state.unread_counts.values().sum();
     let request_count = app.dms_state.pending_requests.len();
+    let notification_count = app.total_unread_notifications();
 
     let mut lines = Vec::new();
     lines.push(Line::from(Span::styled(
@@ -534,6 +539,17 @@ fn render_left_rail(frame: &mut Frame, app: &App, area: Rect) {
         app.current_tab == crate::app::Tab::Profile,
         "Profile",
         theme.primary,
+        &theme,
+    ));
+    let notifications_label = if notification_count > 0 {
+        format!("v Notifications ({})", notification_count)
+    } else {
+        "v Notifications".to_string()
+    };
+    lines.push(rail_line(
+        false,
+        &notifications_label,
+        theme.warning,
         &theme,
     ));
     lines.push(rail_line(
@@ -726,7 +742,7 @@ pub fn render_global_footer(frame: &mut Frame, app: &mut App, area: Rect) {
     frame.render_widget(Clear, area);
 
     let footer_text = format!(
-        "RT: {} | Tab/Shift+Tab: Rail | b: Browse repos | Shift+L: Logout | ?: Help | q/Esc: Quit",
+        "RT: {} | Tab/Shift+Tab: Rail | v: Notifications | b: Browse repos | Shift+L: Logout | ?: Help | q/Esc: Quit",
         app.realtime_state.status.label()
     );
     render_footer_with_style(

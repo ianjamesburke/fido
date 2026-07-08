@@ -579,6 +579,22 @@ impl EventLoop {
             {
                 app.login_selected_user().await?;
             }
+            KeyCode::Char('v') | KeyCode::Char('V')
+                if app.current_screen == Screen::Main
+                    && app.input_mode == InputMode::Navigation
+                    && !app.notifications_state.show
+                    && !app.composer_state.is_open()
+                    && !app.dms_state.show_new_conversation_modal
+                    && !app.show_help =>
+            {
+                app.open_notifications_panel().await?;
+            }
+            KeyCode::Enter if app.notifications_state.show => {
+                app.open_selected_notification().await?;
+            }
+            KeyCode::Char('a') | KeyCode::Char('A') if app.notifications_state.show => {
+                app.mark_all_notifications_read().await?;
+            }
             KeyCode::Enter if app.composer_state.is_open() => {
                 app.submit_composer().await?;
             }
