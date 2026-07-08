@@ -618,6 +618,7 @@ impl EventLoop {
             KeyCode::Enter | KeyCode::Char(' ')
                 if app.current_tab == Tab::Posts
                     && !app.posts_state.show_new_post_modal
+                    && !app.posts_state.show_approval_queue
                     && !app.viewing_post_detail
                     && !app.composer_state.is_open()
                     && !app.posts_state.show_filter_modal
@@ -646,6 +647,35 @@ impl EventLoop {
             {
                 app.retry_community().await?;
             }
+            KeyCode::Char('a') | KeyCode::Char('A')
+                if app.current_screen == Screen::Main
+                    && app.current_tab == Tab::Posts
+                    && app.posts_state.show_approval_queue
+                    && app.input_mode == InputMode::Navigation =>
+            {
+                app.approve_selected_pending_thread().await?;
+            }
+            KeyCode::Char('x') | KeyCode::Char('X')
+                if app.current_screen == Screen::Main
+                    && app.current_tab == Tab::Posts
+                    && app.posts_state.show_approval_queue
+                    && app.input_mode == InputMode::Navigation =>
+            {
+                app.reject_selected_pending_thread().await?;
+            }
+            KeyCode::Char('a') | KeyCode::Char('A')
+                if app.current_screen == Screen::Main
+                    && app.current_tab == Tab::Posts
+                    && app.input_mode == InputMode::Navigation
+                    && !app.posts_state.show_approval_queue
+                    && !app.viewing_post_detail
+                    && !app.composer_state.is_open()
+                    && !app.posts_state.show_filter_modal
+                    && app.user_profile_view.is_none()
+                    && app.is_current_community_admin() =>
+            {
+                app.open_approval_queue().await?;
+            }
             KeyCode::Enter
                 if app.current_tab == Tab::DMs
                     && !app.dms_state.show_new_conversation_modal
@@ -663,6 +693,7 @@ impl EventLoop {
             KeyCode::Char('u') | KeyCode::Char('U')
                 if app.current_screen == Screen::Main
                     && app.current_tab == Tab::Posts
+                    && !app.posts_state.show_approval_queue
                     && !app.composer_state.is_open()
                     && !app.posts_state.show_filter_modal
                     && app.user_profile_view.is_none() =>
@@ -672,6 +703,7 @@ impl EventLoop {
             KeyCode::Char('d') | KeyCode::Char('D')
                 if app.current_screen == Screen::Main
                     && app.current_tab == Tab::Posts
+                    && !app.posts_state.show_approval_queue
                     && !app.composer_state.is_open()
                     && !app.posts_state.show_filter_modal
                     && app.user_profile_view.is_none() =>

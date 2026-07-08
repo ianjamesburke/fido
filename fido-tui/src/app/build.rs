@@ -72,6 +72,12 @@ impl App {
                 activity_error: None,
                 activity_pending_load: false,
                 feed_entries: Vec::new(),
+                pending_threads: Vec::new(),
+                pending_threads_list_state: ListState::default(),
+                show_approval_queue: false,
+                pending_threads_loading: false,
+                pending_threads_loaded: false,
+                pending_threads_error: None,
             },
             chat_state: ChatState {
                 channels: Vec::new(),

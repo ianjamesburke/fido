@@ -26,6 +26,19 @@ pub fn handle_posts_keys(app: &mut App, key: KeyEvent) -> Result<()> {
         return Ok(());
     }
 
+    if app.posts_state.show_approval_queue {
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
+                app.next_pending_thread();
+            }
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => {
+                app.previous_pending_thread();
+            }
+            _ => {}
+        }
+        return Ok(());
+    }
+
     match key.code {
         KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
             app.next_post();
@@ -38,9 +51,7 @@ pub fn handle_posts_keys(app: &mut App, key: KeyEvent) -> Result<()> {
         KeyCode::Char('n') | KeyCode::Char('N') => {
             app.open_composer_new_post();
         }
-        KeyCode::Char('f') | KeyCode::Char('F') => {
-            app.open_filter_modal();
-        }
+        KeyCode::Char('f') | KeyCode::Char('F') => {}
         KeyCode::Char('s') | KeyCode::Char('S') => {
             app.open_user_search_modal();
         }

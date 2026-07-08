@@ -40,6 +40,7 @@ impl App {
         self.posts_state.activity_error = None;
         self.posts_state.activity_loading = false;
         self.posts_state.activity_pending_load = false;
+        self.clear_approval_queue();
         self.posts_state.rebuild_feed();
     }
 }

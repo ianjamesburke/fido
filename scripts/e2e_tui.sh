@@ -160,6 +160,56 @@ pane | grep -qF "Your role" && fail "community modal should close on Esc"
 
 tmux kill-session -t "$SESSION"
 
+# --- Scenario 2b: admin approval queue ---------------------------------------
+echo "==> scenario 2b: pending thread approval queue"
+sqlite3 "$WORK/fido.db" \
+    "UPDATE communities SET require_thread_approval = 1
+     WHERE owner = 'testowner' AND name = 'testrepo';
+     UPDATE memberships
+        SET role = 'admin'
+      WHERE community_id = (SELECT id FROM communities WHERE owner = 'testowner' AND name = 'testrepo')
+        AND user_id = (SELECT id FROM users WHERE username = 'alice');
+     DELETE FROM post_rate_limits
+      WHERE user_id = (SELECT id FROM users WHERE username = 'alice');"
+
+launch_tui "$REPO"
+wait_for "testowner/testrepo" "repo community board with approval required"
+pane | grep -qF "admin" || fail "board title should show admin role after promotion"
+
+keys 'n'
+wait_for "New Post" "composer modal for pending thread" 25
+tmux send-keys -t "$SESSION" -l "pending approval from e2e"
+sleep 0.3
+keys Enter
+wait_for "Thread submitted for admin approval." "pending approval author feedback"
+
+PENDING_COUNT=$(sqlite3 "$WORK/fido.db" \
+    "SELECT count(*) FROM posts p
+     JOIN communities c ON p.community_id = c.id
+     WHERE c.owner = 'testowner' AND c.name = 'testrepo'
+       AND p.content = 'pending approval from e2e'
+       AND p.approved = 0;")
+[[ "$PENDING_COUNT" == "1" ]] || fail "pending thread not found before approval (count=$PENDING_COUNT)"
+
+keys 'a'
+wait_for "Pending Threads" "approval queue opens"
+wait_for "pending approval from e2e" "pending thread appears in approval queue"
+keys 'a'
+wait_for "No pending threads" "pending queue empty after approval"
+
+APPROVED_COUNT=$(sqlite3 "$WORK/fido.db" \
+    "SELECT count(*) FROM posts p
+     JOIN communities c ON p.community_id = c.id
+     WHERE c.owner = 'testowner' AND c.name = 'testrepo'
+       AND p.content = 'pending approval from e2e'
+       AND p.approved = 1;")
+[[ "$APPROVED_COUNT" == "1" ]] || fail "thread not approved from queue (count=$APPROVED_COUNT)"
+
+keys Escape
+wait_for "pending approval from e2e" "approved thread appears on board"
+
+tmux kill-session -t "$SESSION"
+
 # --- Scenario 3: Home mode — launch outside a repo ---------------------------
 echo "==> scenario 3: home mode lists joined communities"
 launch_tui "$NON_REPO"

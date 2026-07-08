@@ -333,6 +333,29 @@ impl ApiClient {
         self.handle_response(response).await
     }
 
+    /// Get pending top-level threads awaiting community admin approval.
+    pub async fn get_pending_posts(
+        &self,
+        community_id: Uuid,
+        limit: Option<i32>,
+    ) -> ApiResult<Vec<Post>> {
+        let mut params = Vec::new();
+        if let Some(limit) = limit {
+            params.push(("limit", limit.to_string()));
+        }
+        let params_ref: Vec<(&str, &str)> = params
+            .iter()
+            .map(|(key, value)| (*key, value.as_str()))
+            .collect();
+        let url = self.build_url_with_params(
+            &format!("/communities/{}/posts/pending", community_id),
+            &params_ref,
+        );
+        let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
     /// Recent GitHub issues/PRs for a community's repo
     pub async fn get_community_activity(
         &self,
@@ -403,6 +426,22 @@ impl ApiClient {
             content,
         };
         let req = self.add_auth_header(self.client.post(&url).json(&request));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
+    /// Approve a pending top-level thread.
+    pub async fn approve_post(&self, post_id: Uuid) -> ApiResult<Post> {
+        let url = self.build_url(&format!("/posts/{}/approve", post_id));
+        let req = self.add_auth_header(self.client.post(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
+    /// Reject a pending top-level thread.
+    pub async fn reject_post(&self, post_id: Uuid) -> ApiResult<Post> {
+        let url = self.build_url(&format!("/posts/{}/reject", post_id));
+        let req = self.add_auth_header(self.client.post(&url));
         let response = req.send().await?;
         self.handle_response(response).await
     }

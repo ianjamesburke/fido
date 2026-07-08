@@ -17,7 +17,9 @@ pub fn action_bar_text(app: &App) -> &'static str {
 
     match app.current_tab {
         crate::app::Tab::Posts => {
-            if app.show_community_modal {
+            if app.posts_state.show_approval_queue {
+                "↑/↓/j/k: Navigate | a: Approve | x: Reject | Esc: Board"
+            } else if app.show_community_modal {
                 if app.community.as_ref().map(|c| !c.claimed).unwrap_or(false) {
                     "c: Claim admin | Esc: Close"
                 } else {
@@ -32,8 +34,10 @@ pub fn action_bar_text(app: &App) -> &'static str {
                 Some(crate::app::FeedEntry::Activity(_))
             ) {
                 "↑/↓/j/k: Navigate | o: Open on GitHub"
+            } else if app.is_current_community_admin() {
+                "u/d: Vote | n: Post | a: Approvals | i: Community | b: Browse | Space: View"
             } else {
-                "u/d: Vote | n: Post | i: Community | b: Browse | f: Filter | Space: View"
+                "u/d: Vote | n: Post | i: Community | b: Browse | Space: View"
             }
         }
         crate::app::Tab::Chat => {

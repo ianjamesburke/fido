@@ -182,9 +182,16 @@ impl App {
                     .create_post(community_id, parsed_content)
                     .await
                 {
-                    Ok(_) => {
+                    Ok(post) => {
+                        let pending_approval = !post.approved;
                         self.close_composer();
                         self.load_posts().await?;
+                        if pending_approval {
+                            self.posts_state.message = Some((
+                                "Thread submitted for admin approval.".to_string(),
+                                std::time::Instant::now(),
+                            ));
+                        }
                     }
                     Err(e) => {
                         self.posts_state.error = Some(categorize_error(&e.to_string()));

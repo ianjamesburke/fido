@@ -528,6 +528,7 @@ pub struct UserProfileViewState {
 }
 
 /// Filter type for posts
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum PostFilter {
     All,
@@ -539,6 +540,7 @@ pub enum PostFilter {
     },
 }
 
+#[allow(dead_code)]
 impl PostFilter {
     /// Convert to UserPreferences format for saving
     pub fn to_preferences(&self) -> crate::config::UserPreferences {
@@ -627,6 +629,13 @@ pub struct PostsState {
     pub activity_pending_load: bool,
     /// Posts and activity merged descending by `created_at`
     pub feed_entries: Vec<FeedEntry>,
+    /// Admin queue for pending top-level community threads.
+    pub pending_threads: Vec<Post>,
+    pub pending_threads_list_state: ListState,
+    pub show_approval_queue: bool,
+    pub pending_threads_loading: bool,
+    pub pending_threads_loaded: bool,
+    pub pending_threads_error: Option<String>,
 }
 
 /// One row in the interleaved posts + repo-activity feed.

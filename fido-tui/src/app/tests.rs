@@ -80,6 +80,37 @@ fn test_escape_closes_community_browser_before_quit() {
 }
 
 #[test]
+fn test_approval_queue_navigation_and_escape_priority() {
+    let mut app = App::new();
+    app.current_screen = Screen::Main;
+    app.current_tab = Tab::Posts;
+    set_test_community(&mut app);
+    app.posts_state.show_approval_queue = true;
+    app.posts_state.pending_threads = vec![
+        test_post_created_at("2026-07-02T12:00:00Z"),
+        test_post_created_at("2026-07-02T12:01:00Z"),
+    ];
+    app.posts_state.pending_threads_list_state.select(Some(0));
+    app.running = true;
+
+    app.handle_key_event(key_event(KeyCode::Down)).unwrap();
+    assert_eq!(
+        app.posts_state.pending_threads_list_state.selected(),
+        Some(1)
+    );
+
+    app.handle_key_event(key_event(KeyCode::Up)).unwrap();
+    assert_eq!(
+        app.posts_state.pending_threads_list_state.selected(),
+        Some(0)
+    );
+
+    app.handle_key_event(key_event(KeyCode::Esc)).unwrap();
+    assert!(!app.posts_state.show_approval_queue);
+    assert!(app.running);
+}
+
+#[test]
 fn test_escape_closes_help_modal_first() {
     let mut app = App::new();
     app.show_help = true;
@@ -1254,6 +1285,12 @@ fn test_posts_state_with(
         activity_error: None,
         activity_pending_load: false,
         feed_entries: Vec::new(),
+        pending_threads: Vec::new(),
+        pending_threads_list_state: ListState::default(),
+        show_approval_queue: false,
+        pending_threads_loading: false,
+        pending_threads_loaded: false,
+        pending_threads_error: None,
     }
 }
 
