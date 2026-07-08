@@ -202,17 +202,35 @@ mod tests {
 
     #[test]
     fn activity_line_formats_issue_and_merged_pr() {
-        let issue = activity_item(ActivityKind::Issue, ActivityState::Open, 7, "Fix login", "alice");
+        let issue = activity_item(
+            ActivityKind::Issue,
+            ActivityState::Open,
+            7,
+            "Fix login",
+            "alice",
+        );
         let line = activity_line_text(&issue);
         assert_eq!(line, "⊙ #7 Fix login · issue opened by alice");
 
-        let pr = activity_item(ActivityKind::PullRequest, ActivityState::Merged, 9, "Dark mode", "bob");
+        let pr = activity_item(
+            ActivityKind::PullRequest,
+            ActivityState::Merged,
+            9,
+            "Dark mode",
+            "bob",
+        );
         assert_eq!(activity_line_text(&pr), "⇄ #9 Dark mode · merged · bob");
     }
 
     #[test]
     fn activity_line_appends_closed_for_issues() {
-        let issue = activity_item(ActivityKind::Issue, ActivityState::Closed, 3, "Old bug", "carol");
+        let issue = activity_item(
+            ActivityKind::Issue,
+            ActivityState::Closed,
+            3,
+            "Old bug",
+            "carol",
+        );
         assert_eq!(
             activity_line_text(&issue),
             "⊙ #3 Old bug · issue opened by carol · closed"

@@ -861,10 +861,13 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
                     let Some(activity) = app.posts_state.activity_items.get(*i) else {
                         return vec![];
                     };
-                    let is_selected =
-                        selected_feed_entry == Some(FeedEntry::Activity(*i));
+                    let is_selected = selected_feed_entry == Some(FeedEntry::Activity(*i));
 
-                    let rest_color = if is_selected { theme.text } else { theme.text_dim };
+                    let rest_color = if is_selected {
+                        theme.text
+                    } else {
+                        theme.text_dim
+                    };
                     let prefix = if is_selected { "▶ " } else { "  " };
                     let glyph_color = activity_glyph_color(activity, &theme);
 

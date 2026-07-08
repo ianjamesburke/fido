@@ -74,6 +74,17 @@ CREATE INDEX IF NOT EXISTS idx_posts_parent_post_id ON posts(parent_post_id);
 -- Create index on community_id for efficient community-scoped lookups
 CREATE INDEX IF NOT EXISTS idx_posts_community_id ON posts(community_id);
 
+-- Composite feed indexes match the release-critical board query:
+-- community + top-level + approval filter, then the selected sort key.
+CREATE INDEX IF NOT EXISTS idx_posts_feed_newest
+ON posts(community_id, parent_post_id, approved, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_posts_feed_popular
+ON posts(community_id, parent_post_id, approved, upvotes DESC, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_posts_feed_controversial
+ON posts(community_id, parent_post_id, approved, ABS(upvotes - downvotes), created_at DESC);
+
 -- Memberships table (community membership with role)
 CREATE TABLE IF NOT EXISTS memberships (
     community_id TEXT NOT NULL,

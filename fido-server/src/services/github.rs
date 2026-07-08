@@ -306,7 +306,10 @@ impl GithubService {
                 self.get_with_token::<Vec<GithubIssue>>(user_id, url, "repo_activity")
                     .await
             }
-            None => self.get_public::<Vec<GithubIssue>>(url, "repo_activity").await,
+            None => {
+                self.get_public::<Vec<GithubIssue>>(url, "repo_activity")
+                    .await
+            }
         }
         .map(|issues| issues.into_iter().map(map_issue_to_activity).collect());
 

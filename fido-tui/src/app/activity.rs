@@ -4,7 +4,11 @@ impl App {
     /// URL of the selected activity item, if the selection is an activity row.
     pub fn selected_activity_url(&self) -> Option<String> {
         match self.posts_state.selected_feed_entry()? {
-            FeedEntry::Activity(i) => self.posts_state.activity_items.get(i).map(|a| a.html_url.clone()),
+            FeedEntry::Activity(i) => self
+                .posts_state
+                .activity_items
+                .get(i)
+                .map(|a| a.html_url.clone()),
             FeedEntry::Post(_) => None,
         }
     }
@@ -24,8 +28,7 @@ impl App {
             }
             Err(e) => {
                 self.posts_state.activity_items.clear();
-                self.posts_state.activity_error =
-                    Some(format!("repo activity unavailable: {}", e));
+                self.posts_state.activity_error = Some(format!("repo activity unavailable: {}", e));
             }
         }
         self.posts_state.activity_loading = false;

@@ -74,7 +74,10 @@ impl ActivityService {
                 }
                 Err(error)
                     .with_context(|| {
-                        format!("Failed to fetch repo activity for community {}", community_id)
+                        format!(
+                            "Failed to fetch repo activity for community {}",
+                            community_id
+                        )
                     })
                     .map_err(ApiError::from)
             }
