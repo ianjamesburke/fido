@@ -36,7 +36,7 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    tracing::info!("Starting Fido server v1.0.1...");
+    tracing::info!("Starting Fido server v{}...", env!("CARGO_PKG_VERSION"));
 
     // Load and validate security configuration
     let security_config = match security::SecurityConfig::from_env() {
