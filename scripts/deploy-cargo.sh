@@ -33,7 +33,7 @@ crate_version_state() {
   local output
   output="$(mktemp)"
 
-  if cargo info "${crate}@${version}" >"$output" 2>&1; then
+  if (cd "${TMPDIR:-/tmp}" && cargo info "${crate}@${version}") >"$output" 2>&1; then
     rm -f "$output"
     echo "published"
     return 0
