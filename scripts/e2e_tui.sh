@@ -5,9 +5,9 @@
 # the SQLite database, and log files. GitHub is stubbed via GITHUB_API_BASE.
 #
 # Covers: test-user login, directory-scoped community join (repo mode),
-# board title with role, posting, community modal, Home mode outside a repo,
-# opening a community from the Home list, search -> profile -> DM, and the
-# repo activity feed (GitHub issues fetch + cache).
+# board title with role, posting, channel chat, community modal, Home mode
+# outside a repo, opening a community from the Home list, search -> profile ->
+# DM, and the repo activity feed (GitHub issues fetch + cache).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -126,6 +126,28 @@ POST_COUNT=$(sqlite3 "$WORK/fido.db" \
      WHERE c.owner = 'testowner' AND c.name = 'testrepo'
        AND p.content = 'hello from the e2e harness';")
 [[ "$POST_COUNT" == "1" ]] || fail "post not found in testowner/testrepo community (count=$POST_COUNT)"
+
+# --- Scenario 1b: repo-scoped channel chat -----------------------------------
+echo "==> scenario 1b: repo community chat"
+keys Tab
+wait_for "#general" "repo community chat channel"
+tmux send-keys -t "$SESSION" -l "hello from channel e2e"
+sleep 0.3
+keys Enter
+wait_for "hello from channel e2e" "sent channel message"
+
+CHAT_COUNT=$(sqlite3 "$WORK/fido.db" \
+    "SELECT count(*) FROM messages m
+     JOIN channels ch ON m.channel_id = ch.id
+     JOIN communities c ON ch.community_id = c.id
+     JOIN users u ON m.author_id = u.id
+     WHERE c.owner = 'testowner' AND c.name = 'testrepo'
+       AND ch.name = 'general'
+       AND u.username = 'alice'
+       AND m.content = 'hello from channel e2e';")
+[[ "$CHAT_COUNT" == "1" ]] || fail "channel message not found in testowner/testrepo #general (count=$CHAT_COUNT)"
+keys BTab
+wait_for "hello from the e2e harness" "returned from chat to board"
 
 # --- Scenario 2: community modal ---------------------------------------------
 echo "==> scenario 2: community settings modal"

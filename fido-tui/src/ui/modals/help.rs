@@ -160,6 +160,7 @@ pub fn add_main_screen_shortcuts(
     // Context-specific shortcuts based on current tab
     match app.current_tab {
         crate::app::Tab::Posts => add_posts_tab_shortcuts(app, shortcuts),
+        crate::app::Tab::Chat => add_chat_tab_shortcuts(shortcuts),
         crate::app::Tab::DMs => add_dms_tab_shortcuts(shortcuts),
         crate::app::Tab::Profile => add_profile_tab_shortcuts(app, shortcuts),
         crate::app::Tab::Settings => add_settings_tab_shortcuts(shortcuts),
@@ -299,6 +300,23 @@ pub fn add_posts_feed_shortcuts(
             ],
         ));
     }
+}
+
+/// Add Chat tab shortcuts
+pub fn add_chat_tab_shortcuts(
+    shortcuts: &mut Vec<(&'static str, Vec<(&'static str, &'static str)>)>,
+) {
+    shortcuts.push((
+        "Chat Tab",
+        vec![
+            ("↓/j", "Next message"),
+            ("↑/k", "Previous message / load older"),
+            ("Type", "Compose channel message"),
+            ("Enter", "Focus input / send message"),
+            ("Esc", "Clear message / stop typing"),
+            (":emoji:", "Use emoji shortcodes"),
+        ],
+    ));
 }
 
 /// Add DMs tab shortcuts

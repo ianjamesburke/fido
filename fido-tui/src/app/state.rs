@@ -1,5 +1,6 @@
 use fido_types::{
-    ActivityItem, ChannelMessageEvent, NotificationUnreadCount, Post, User, UserProfile,
+    ActivityItem, Channel, ChannelMessageEvent, Message, NotificationUnreadCount, Post, User,
+    UserProfile,
 };
 
 use ratatui::widgets::ListState;
@@ -147,6 +148,7 @@ pub struct App {
     pub auth_state: AuthState,
     pub current_tab: Tab,
     pub posts_state: PostsState,
+    pub chat_state: ChatState,
     pub profile_state: ProfileState,
     pub dms_state: DMsState,
     pub settings_state: SettingsState,
@@ -260,6 +262,27 @@ impl HomeState {
         self.list_state
             .selected()
             .and_then(|i| self.communities.get(i))
+    }
+}
+
+/// Community chat state for the selected repo's default channel.
+pub struct ChatState {
+    pub channels: Vec<Channel>,
+    pub selected_channel_index: usize,
+    pub messages: Vec<Message>,
+    pub list_state: ListState,
+    pub message_textarea: TextArea<'static>,
+    pub loading: bool,
+    pub loaded: bool,
+    pub loading_older: bool,
+    pub pending_older_load: bool,
+    pub at_history_start: bool,
+    pub error: Option<String>,
+}
+
+impl ChatState {
+    pub fn selected_channel(&self) -> Option<&Channel> {
+        self.channels.get(self.selected_channel_index)
     }
 }
 
@@ -869,6 +892,7 @@ pub enum Screen {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Tab {
     Posts,
+    Chat,
     DMs,
     Profile,
     Settings,
@@ -877,7 +901,8 @@ pub enum Tab {
 impl Tab {
     pub fn next(&self) -> Self {
         match self {
-            Tab::Posts => Tab::DMs,
+            Tab::Posts => Tab::Chat,
+            Tab::Chat => Tab::DMs,
             Tab::DMs => Tab::Profile,
             Tab::Profile => Tab::Settings,
             Tab::Settings => Tab::Posts,
@@ -887,7 +912,8 @@ impl Tab {
     pub fn previous(&self) -> Self {
         match self {
             Tab::Posts => Tab::Settings,
-            Tab::DMs => Tab::Posts,
+            Tab::Chat => Tab::Posts,
+            Tab::DMs => Tab::Chat,
             Tab::Profile => Tab::DMs,
             Tab::Settings => Tab::Profile,
         }

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use fido_types::{
-    DirectMessage, DmConversationState, Event, EventEnvelope, Notification,
+    ChannelMessageEvent, DirectMessage, DmConversationState, Event, EventEnvelope, Notification,
     NotificationUnreadCount, Post, SortOrder,
 };
 use uuid::Uuid;
@@ -18,15 +18,7 @@ impl App {
         self.realtime_state.last_event_at = Some(std::time::Instant::now());
         match envelope.event {
             Event::MessageCreated(payload) => {
-                if self
-                    .realtime_state
-                    .seen_channel_messages
-                    .insert(payload.message.id)
-                {
-                    self.realtime_state.channel_message_count =
-                        self.realtime_state.channel_message_count.saturating_add(1);
-                    self.realtime_state.last_channel_message = Some(payload);
-                }
+                self.apply_realtime_channel_message(payload);
             }
             Event::ThreadCreated(post) => self.apply_realtime_thread(post),
             Event::ThreadPendingApproval(post) => {
@@ -59,16 +51,52 @@ impl App {
                     self.load_conversation_messages().await?;
                 }
             }
+            Tab::Chat if self.community.is_some() => {
+                self.load_chat().await?;
+            }
             Tab::Profile => {
                 if self.profile_state.profile.is_some() {
                     self.load_profile().await?;
                 }
             }
             Tab::Settings => {}
+            Tab::Chat => {}
             Tab::Posts => {}
         }
 
         Ok(())
+    }
+
+    fn apply_realtime_channel_message(&mut self, payload: ChannelMessageEvent) {
+        let message_id = payload.message.id;
+        if !self.realtime_state.seen_channel_messages.insert(message_id) {
+            return;
+        }
+
+        self.realtime_state.channel_message_count =
+            self.realtime_state.channel_message_count.saturating_add(1);
+        self.realtime_state.last_channel_message = Some(payload.clone());
+
+        let chat_is_open = self.current_screen == Screen::Main
+            && self.current_tab == Tab::Chat
+            && self.community.as_ref().map(|community| community.id) == Some(payload.community_id)
+            && self.selected_chat_channel_id() == Some(payload.message.channel_id);
+        if !chat_is_open {
+            return;
+        }
+
+        if self
+            .chat_state
+            .messages
+            .iter()
+            .any(|existing| existing.id == message_id)
+        {
+            return;
+        }
+        self.chat_state.messages.push(payload.message);
+        self.chat_state
+            .list_state
+            .select(Some(self.chat_state.messages.len().saturating_sub(1)));
     }
 
     pub async fn refresh_notification_counts(&mut self) {

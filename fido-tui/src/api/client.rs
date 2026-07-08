@@ -344,6 +344,57 @@ impl ApiClient {
         self.handle_response(response).await
     }
 
+    /// List chat channels for a community.
+    pub async fn list_community_channels(&self, community_id: Uuid) -> ApiResult<Vec<Channel>> {
+        let url = self.build_url(&format!("/communities/{}/channels", community_id));
+        let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
+    /// Load channel message history. Results are oldest-to-newest.
+    pub async fn get_channel_messages(
+        &self,
+        channel_id: Uuid,
+        before: Option<Uuid>,
+        after: Option<Uuid>,
+        limit: i32,
+    ) -> ApiResult<Vec<Message>> {
+        let mut params = vec![("limit", limit.to_string())];
+        let before_string;
+        if let Some(before) = before {
+            before_string = before.to_string();
+            params.push(("before", before_string));
+        }
+        let after_string;
+        if let Some(after) = after {
+            after_string = after.to_string();
+            params.push(("after", after_string));
+        }
+        let params_ref: Vec<(&str, &str)> = params
+            .iter()
+            .map(|(key, value)| (*key, value.as_str()))
+            .collect();
+        let url =
+            self.build_url_with_params(&format!("/channels/{}/messages", channel_id), &params_ref);
+        let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
+    /// Send a message to a chat channel.
+    pub async fn send_channel_message(
+        &self,
+        channel_id: Uuid,
+        content: String,
+    ) -> ApiResult<Message> {
+        let url = self.build_url(&format!("/channels/{}/messages", channel_id));
+        let request = SendChannelMessageRequest { content };
+        let req = self.add_auth_header(self.client.post(&url).json(&request));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
     /// Create a new post
     pub async fn create_post(&self, community_id: Uuid, content: String) -> ApiResult<Post> {
         let url = format!("{}/posts", self.base_url);

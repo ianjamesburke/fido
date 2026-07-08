@@ -35,6 +35,7 @@ impl App {
         match self.api_client.join_community(owner, name).await {
             Ok(view) => {
                 self.clear_activity();
+                self.clear_chat();
                 self.apply_community_view(view);
             }
             Err(e) => {
@@ -88,6 +89,7 @@ impl App {
         match self.api_client.get_community(community_id).await {
             Ok(view) => {
                 self.clear_activity();
+                self.clear_chat();
                 self.apply_community_view(view);
                 self.load_posts().await?;
             }
@@ -107,6 +109,7 @@ impl App {
         self.posts_state.list_state.select(None);
         self.posts_state.error = None;
         self.clear_activity();
+        self.clear_chat();
     }
 
     /// Repo mode: retry after a failed join (server down, repo unresolvable).
@@ -237,6 +240,7 @@ impl App {
         match result {
             Ok(view) => {
                 self.clear_activity();
+                self.clear_chat();
                 self.apply_community_view(view);
                 self.current_tab = crate::app::Tab::Posts;
                 self.community_browser_state.show = false;

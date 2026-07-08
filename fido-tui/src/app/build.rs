@@ -73,6 +73,25 @@ impl App {
                 activity_pending_load: false,
                 feed_entries: Vec::new(),
             },
+            chat_state: ChatState {
+                channels: Vec::new(),
+                selected_channel_index: 0,
+                messages: Vec::new(),
+                list_state: ListState::default(),
+                message_textarea: {
+                    let mut textarea = TextArea::default();
+                    textarea.set_cursor_line_style(Style::default());
+                    textarea.set_style(Style::default());
+                    textarea.set_hard_tab_indent(true);
+                    textarea
+                },
+                loading: false,
+                loaded: false,
+                loading_older: false,
+                pending_older_load: false,
+                at_history_start: false,
+                error: None,
+            },
             profile_state: ProfileState {
                 profile: None,
                 user_posts: Vec::new(),
