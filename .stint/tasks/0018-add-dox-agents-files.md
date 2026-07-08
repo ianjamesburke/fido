@@ -4,7 +4,7 @@ title: "Add DOX AGENTS.md files: adopt root template and initialize child docs t
 status: todo
 priority: p2
 estimate: "1h"
-blocked_by: [17]
+blocked_by: []
 gh_issue: []
 area:
   - "docs/tooling"
@@ -12,6 +12,7 @@ tags:
   - "agents"
   - "docs"
 ---
+
 
 Adopt the DOX `AGENTS.md` framework in this repo so AI agents have a maintained instruction tree instead of a single root file.
 
