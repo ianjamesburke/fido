@@ -281,6 +281,14 @@ impl ApiClient {
         self.handle_response(response).await
     }
 
+    /// Browse the authenticated user's starred repos with community state.
+    pub async fn browse_communities(&self) -> ApiResult<Vec<BrowseCommunityResponse>> {
+        let url = self.build_url("/communities/browse");
+        let req = self.add_auth_header(self.client.get(&url));
+        let response = req.send().await?;
+        self.handle_response(response).await
+    }
+
     /// Join a repo community; the server resolves the repo via GitHub and
     /// lazily creates the community on first join.
     pub async fn join_community(
@@ -698,6 +706,16 @@ pub struct CommunityResponse {
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct MembershipResponse {
     pub role: fido_types::MembershipRole,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct BrowseCommunityResponse {
+    pub owner: String,
+    pub name: String,
+    pub full_name: String,
+    pub private: bool,
+    pub community: Option<CommunityResponse>,
+    pub membership: Option<MembershipResponse>,
 }
 
 /// Response body for `GET /communities/:id/activity`

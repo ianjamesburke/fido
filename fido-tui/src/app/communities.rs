@@ -5,6 +5,7 @@
 //! and let the user open one.
 
 use anyhow::Result;
+use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::api::CommunityViewResponse;
 
@@ -163,6 +164,121 @@ impl App {
     pub fn previous_home_community(&mut self) {
         move_home_selection(&mut self.home_state, -1);
     }
+
+    /// Open the starred-repo browser, loading it on first use.
+    pub async fn open_community_browser(&mut self) -> Result<()> {
+        self.community_browser_state.show = true;
+        self.community_browser_state.error = None;
+        if !self.community_browser_state.loaded {
+            self.load_community_browser().await;
+        }
+        Ok(())
+    }
+
+    pub fn close_community_browser(&mut self) {
+        self.community_browser_state.show = false;
+        self.community_browser_state.error = None;
+        self.community_browser_state.message = None;
+    }
+
+    pub async fn load_community_browser(&mut self) {
+        self.community_browser_state.loading = true;
+        self.community_browser_state.error = None;
+        self.community_browser_state.message = None;
+
+        match self.api_client.browse_communities().await {
+            Ok(repos) => {
+                self.community_browser_state.repos = repos;
+                self.community_browser_state.loaded = true;
+                if self.community_browser_state.repos.is_empty() {
+                    self.community_browser_state.list_state.select(None);
+                } else {
+                    self.community_browser_state.list_state.select(Some(0));
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to browse starred communities: {}", e);
+                self.community_browser_state.error = Some(categorize_error(&e.to_string()));
+            }
+        }
+
+        self.community_browser_state.loading = false;
+    }
+
+    pub async fn open_or_join_browser_selection(&mut self) -> Result<()> {
+        let Some(selected) = self.community_browser_state.selected() else {
+            return Ok(());
+        };
+
+        if selected.private {
+            self.community_browser_state.error =
+                Some("Private repositories cannot create Fido communities yet".to_string());
+            return Ok(());
+        }
+
+        let owner = selected.owner.clone();
+        let name = selected.name.clone();
+        let existing_community = selected
+            .community
+            .as_ref()
+            .filter(|_| selected.membership.is_some())
+            .map(|community| community.id);
+
+        self.community_browser_state.joining = true;
+        self.community_browser_state.error = None;
+        self.community_browser_state.message = None;
+
+        let result = if let Some(community_id) = existing_community {
+            self.api_client.get_community(community_id).await
+        } else {
+            self.api_client.join_community(&owner, &name).await
+        };
+
+        match result {
+            Ok(view) => {
+                self.clear_activity();
+                self.apply_community_view(view);
+                self.current_tab = crate::app::Tab::Posts;
+                self.community_browser_state.show = false;
+                self.community_browser_state.loaded = false;
+                self.load_home_communities().await;
+                self.load_posts().await?;
+            }
+            Err(e) => {
+                log::error!("Failed to open or join {}/{}: {}", owner, name, e);
+                self.community_browser_state.error = Some(categorize_error(&e.to_string()));
+            }
+        }
+
+        self.community_browser_state.joining = false;
+        Ok(())
+    }
+
+    pub fn next_browser_repo(&mut self) {
+        move_browser_selection(&mut self.community_browser_state, 1);
+    }
+
+    pub fn previous_browser_repo(&mut self) {
+        move_browser_selection(&mut self.community_browser_state, -1);
+    }
+
+    pub fn handle_community_browser_keys(&mut self, key: KeyEvent) -> Result<()> {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('b') | KeyCode::Char('B') => {
+                self.close_community_browser();
+            }
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => self.next_browser_repo(),
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => self.previous_browser_repo(),
+            KeyCode::Char('r') | KeyCode::Char('R') => {
+                self.community_browser_state.loaded = false;
+                self.community_browser_state.message =
+                    Some("Reloading starred repos...".to_string());
+            }
+            KeyCode::Enter => {}
+            _ => {}
+        }
+        Ok(())
+    }
 }
 
 fn move_home_selection(home: &mut crate::app::state::HomeState, delta: i64) {
@@ -174,4 +290,15 @@ fn move_home_selection(home: &mut crate::app::state::HomeState, delta: i64) {
     let current = home.list_state.selected().unwrap_or(0) as i64;
     let next = (current + delta).rem_euclid(len as i64) as usize;
     home.list_state.select(Some(next));
+}
+
+fn move_browser_selection(browser: &mut crate::app::state::CommunityBrowserState, delta: i64) {
+    let len = browser.repos.len();
+    if len == 0 {
+        browser.list_state.select(None);
+        return;
+    }
+    let current = browser.list_state.selected().unwrap_or(0) as i64;
+    let next = (current + delta).rem_euclid(len as i64) as usize;
+    browser.list_state.select(Some(next));
 }

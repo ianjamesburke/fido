@@ -172,6 +172,7 @@ impl App {
             community: None,
             community_error: None,
             home_state: HomeState::new(),
+            community_browser_state: CommunityBrowserState::new(),
             show_community_modal: false,
             community_members: Vec::new(),
             realtime_state: RealtimeState::new(),
