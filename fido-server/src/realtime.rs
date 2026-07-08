@@ -1,10 +1,10 @@
 //! Realtime WebSocket gateway: the in-process event bus backing `GET /ws`.
 //!
 //! API handlers publish [`ServerEvent`]s through the [`EventBus`] trait; the
-//! gateway resolves recipients at publish time (one DB lookup per event),
-//! serializes the wire envelope once, and fans the result out over a
-//! `tokio::sync::broadcast` channel. Each connection task only checks whether
-//! its own user id is in the recipient set.
+//! gateway resolves recipients at publish time, caches community recipient sets
+//! until membership changes, serializes the wire envelope once, and fans the
+//! result out over a `tokio::sync::broadcast` channel. Each connection task
+//! only checks whether its own user id is in the recipient set.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -71,11 +71,85 @@ impl ConnectionRegistry {
     }
 }
 
+#[derive(Debug, Default)]
+struct RecipientCache {
+    members: Mutex<HashMap<Uuid, Arc<HashSet<Uuid>>>>,
+    admins: Mutex<HashMap<Uuid, Arc<HashSet<Uuid>>>>,
+}
+
+impl RecipientCache {
+    fn members(&self, repos: &Repositories, community_id: &Uuid) -> Result<Arc<HashSet<Uuid>>> {
+        if let Some(cached) = self
+            .members
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(community_id)
+            .cloned()
+        {
+            return Ok(cached);
+        }
+
+        let loaded: Arc<HashSet<Uuid>> = Arc::new(
+            repos
+                .memberships
+                .list_members(community_id)
+                .context("Failed to resolve community members")?
+                .into_iter()
+                .map(|m| m.user_id)
+                .collect(),
+        );
+        let mut cache = self.members.lock().unwrap_or_else(|e| e.into_inner());
+        Ok(cache
+            .entry(*community_id)
+            .or_insert_with(|| loaded.clone())
+            .clone())
+    }
+
+    fn admins(&self, repos: &Repositories, community_id: &Uuid) -> Result<Arc<HashSet<Uuid>>> {
+        if let Some(cached) = self
+            .admins
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(community_id)
+            .cloned()
+        {
+            return Ok(cached);
+        }
+
+        let loaded: Arc<HashSet<Uuid>> = Arc::new(
+            repos
+                .memberships
+                .list_admins(community_id)
+                .context("Failed to resolve community admins")?
+                .into_iter()
+                .map(|m| m.user_id)
+                .collect(),
+        );
+        let mut cache = self.admins.lock().unwrap_or_else(|e| e.into_inner());
+        Ok(cache
+            .entry(*community_id)
+            .or_insert_with(|| loaded.clone())
+            .clone())
+    }
+
+    fn invalidate_community(&self, community_id: &Uuid) {
+        self.members
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(community_id);
+        self.admins
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(community_id);
+    }
+}
+
 /// The realtime gateway: publish-time recipient resolution + broadcast fan-out.
 pub struct RealtimeGateway {
     repos: Repositories,
     sender: broadcast::Sender<OutboundEvent>,
     registry: ConnectionRegistry,
+    recipient_cache: RecipientCache,
     shutdown: watch::Sender<bool>,
 }
 
@@ -87,6 +161,7 @@ impl RealtimeGateway {
             repos,
             sender,
             registry: ConnectionRegistry::default(),
+            recipient_cache: RecipientCache::default(),
             shutdown,
         }
     }
@@ -110,33 +185,30 @@ impl RealtimeGateway {
         &self.registry
     }
 
-    /// Resolve the recipient set for an event via a single repo lookup.
-    fn resolve_recipients(&self, event: &Event) -> Result<HashSet<Uuid>> {
+    /// Drop cached community recipients after membership or role changes.
+    pub fn invalidate_community_recipients(&self, community_id: &Uuid) {
+        self.recipient_cache.invalidate_community(community_id);
+    }
+
+    /// Resolve the recipient set for an event. Community-scoped events use a
+    /// cache that is explicitly invalidated by membership mutations.
+    fn resolve_recipients(&self, event: &Event) -> Result<Arc<HashSet<Uuid>>> {
         let recipients = match event {
             Event::MessageCreated(payload) => self
-                .repos
-                .memberships
-                .list_members(&payload.community_id)
+                .recipient_cache
+                .members(&self.repos, &payload.community_id)
                 .context("Failed to resolve MessageCreated recipients")?
-                .into_iter()
-                .map(|m| m.user_id)
-                .collect(),
+                .clone(),
             Event::ThreadCreated(post) => self
-                .repos
-                .memberships
-                .list_members(&post.community_id)
+                .recipient_cache
+                .members(&self.repos, &post.community_id)
                 .context("Failed to resolve ThreadCreated recipients")?
-                .into_iter()
-                .map(|m| m.user_id)
-                .collect(),
+                .clone(),
             Event::ThreadPendingApproval(post) => self
-                .repos
-                .memberships
-                .list_admins(&post.community_id)
+                .recipient_cache
+                .admins(&self.repos, &post.community_id)
                 .context("Failed to resolve ThreadPendingApproval recipients")?
-                .into_iter()
-                .map(|m| m.user_id)
-                .collect(),
+                .clone(),
             Event::DmRequestCreated(payload) => {
                 let conversation = &payload.conversation;
                 let recipient = if conversation.initiator_id == conversation.user_a {
@@ -144,12 +216,14 @@ impl RealtimeGateway {
                 } else {
                     conversation.user_a
                 };
-                HashSet::from([recipient])
+                Arc::new(HashSet::from([recipient]))
             }
             Event::DmMessageCreated(message) => {
-                HashSet::from([message.from_user_id, message.to_user_id])
+                Arc::new(HashSet::from([message.from_user_id, message.to_user_id]))
             }
-            Event::NotificationCreated(notification) => HashSet::from([notification.user_id]),
+            Event::NotificationCreated(notification) => {
+                Arc::new(HashSet::from([notification.user_id]))
+            }
         };
         Ok(recipients)
     }
@@ -201,7 +275,7 @@ impl EventBus for RealtimeGateway {
         // Err means no live subscribers, which is fine: events are also
         // observable via the REST endpoints (polling fallback contract).
         let _ = self.sender.send(OutboundEvent {
-            recipients: Arc::new(recipients),
+            recipients,
             json: Arc::from(json),
         });
         Ok(())
@@ -217,6 +291,8 @@ mod tests {
         Channel, Community, Membership, MembershipRole, Message, Notification, NotificationType,
         User,
     };
+    use std::time::Instant;
+    use tokio::sync::broadcast::error::TryRecvError;
 
     fn test_user(username: &str) -> User {
         User {
@@ -327,5 +403,104 @@ mod tests {
         assert_eq!(registry.disconnect(user), 1);
         assert_eq!(registry.disconnect(user), 0);
         assert_eq!(registry.disconnect(user), 0);
+    }
+
+    #[test]
+    fn community_recipient_cache_refreshes_after_invalidation() -> Result<()> {
+        let (_db, gateway, community, channel, member, outsider) = setup()?;
+        let mut rx = gateway.subscribe();
+
+        gateway.emit(ServerEvent::MessageCreated(Message {
+            id: Uuid::new_v4(),
+            channel_id: channel.id,
+            author_id: member.id,
+            content: "warm cache".to_string(),
+            created_at: Utc::now(),
+        }))?;
+        let warmed = rx.try_recv()?;
+        assert!(warmed.is_for(&member.id));
+        assert!(!warmed.is_for(&outsider.id));
+
+        gateway.repos.memberships.insert(&Membership {
+            community_id: community.id,
+            user_id: outsider.id,
+            role: MembershipRole::Member,
+            created_at: Utc::now(),
+        })?;
+
+        gateway.emit(ServerEvent::MessageCreated(Message {
+            id: Uuid::new_v4(),
+            channel_id: channel.id,
+            author_id: member.id,
+            content: "still cached".to_string(),
+            created_at: Utc::now(),
+        }))?;
+        let stale = rx.try_recv()?;
+        assert!(!stale.is_for(&outsider.id));
+
+        gateway.invalidate_community_recipients(&community.id);
+        gateway.emit(ServerEvent::MessageCreated(Message {
+            id: Uuid::new_v4(),
+            channel_id: channel.id,
+            author_id: member.id,
+            content: "refreshed".to_string(),
+            created_at: Utc::now(),
+        }))?;
+        let refreshed = rx.try_recv()?;
+        assert!(refreshed.is_for(&outsider.id));
+        Ok(())
+    }
+
+    #[test]
+    fn large_room_fanout_keeps_broadcast_lag_bounded() -> Result<()> {
+        let (_db, gateway, community, channel, member, _outsider) = setup()?;
+
+        for i in 0..1_000 {
+            let user = test_user(&format!("member-{i}"));
+            gateway.repos.users.create(&user)?;
+            gateway.repos.memberships.insert(&Membership {
+                community_id: community.id,
+                user_id: user.id,
+                role: MembershipRole::Member,
+                created_at: Utc::now(),
+            })?;
+        }
+        gateway.invalidate_community_recipients(&community.id);
+
+        let mut receivers = (0..128).map(|_| gateway.subscribe()).collect::<Vec<_>>();
+        let started = Instant::now();
+        for i in 0..64 {
+            gateway.emit(ServerEvent::MessageCreated(Message {
+                id: Uuid::new_v4(),
+                channel_id: channel.id,
+                author_id: member.id,
+                content: format!("stress {i}"),
+                created_at: Utc::now(),
+            }))?;
+        }
+        eprintln!(
+            "realtime fanout stress: 64 emits to 1001 members and 128 subscribers in {:?}",
+            started.elapsed()
+        );
+
+        let outbound = receivers[0].try_recv()?;
+        assert!(outbound.is_for(&member.id));
+
+        let mut lagging = gateway.subscribe();
+        for i in 0..(BROADCAST_CAPACITY + 5) {
+            gateway.emit(ServerEvent::MessageCreated(Message {
+                id: Uuid::new_v4(),
+                channel_id: channel.id,
+                author_id: member.id,
+                content: format!("lag {i}"),
+                created_at: Utc::now(),
+            }))?;
+        }
+        assert!(
+            matches!(lagging.try_recv(), Err(TryRecvError::Lagged(_))),
+            "lagging receivers must observe bounded broadcast overflow so /ws can close and refetch"
+        );
+
+        Ok(())
     }
 }

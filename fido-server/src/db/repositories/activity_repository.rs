@@ -39,7 +39,12 @@ impl ActivityRepository {
         }
     }
 
-    pub fn upsert(&self, community_id: Uuid, payload: &str, fetched_at: DateTime<Utc>) -> Result<()> {
+    pub fn upsert(
+        &self,
+        community_id: Uuid,
+        payload: &str,
+        fetched_at: DateTime<Utc>,
+    ) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(
             "INSERT INTO community_activity (community_id, payload, fetched_at)

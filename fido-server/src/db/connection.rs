@@ -164,11 +164,8 @@ impl Database {
             [],
         );
 
-        // Create index on parent_post_id for efficient reply queries
-        let _ = conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_posts_parent_id ON posts(parent_post_id)",
-            [],
-        );
+        // Remove a legacy duplicate; SCHEMA creates idx_posts_parent_post_id.
+        let _ = conn.execute("DROP INDEX IF EXISTS idx_posts_parent_id", []);
 
         // Add sessions table for authentication
         let _ = conn.execute_batch(

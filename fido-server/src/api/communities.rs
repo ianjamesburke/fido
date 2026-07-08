@@ -97,6 +97,9 @@ pub async fn join_community(
 
     let service = CommunityService::new(state.repos.clone(), state.github_service.clone());
     let view = service.join(user_id, &request.owner, &request.name).await?;
+    state
+        .realtime
+        .invalidate_community_recipients(&view.community.id);
 
     Ok(Json(map_community_view(view)))
 }
@@ -133,9 +136,11 @@ pub async fn claim_community(
     Path(community_id): Path<Uuid>,
 ) -> ApiResult<Json<CommunityViewResponse>> {
     let service = CommunityService::new(state.repos.clone(), state.github_service.clone());
-    Ok(Json(map_community_view(
-        service.claim(user_id, community_id).await?,
-    )))
+    let view = service.claim(user_id, community_id).await?;
+    state
+        .realtime
+        .invalidate_community_recipients(&view.community.id);
+    Ok(Json(map_community_view(view)))
 }
 
 /// GET /communities/:id/members - List a community's members, admins first
@@ -183,6 +188,9 @@ pub async fn leave_community(
 ) -> ApiResult<StatusCode> {
     let service = CommunityService::new(state.repos.clone(), state.github_service.clone());
     service.leave(user_id, community_id)?;
+    state
+        .realtime
+        .invalidate_community_recipients(&community_id);
     Ok(StatusCode::NO_CONTENT)
 }
 

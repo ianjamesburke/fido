@@ -595,7 +595,9 @@ impl PostsState {
     pub fn selected_feed_entry(&self) -> Option<FeedEntry> {
         let list_idx = self.list_state.selected()?;
         let offset = self.items_before_posts();
-        self.feed_entries.get(list_idx.checked_sub(offset)?).copied()
+        self.feed_entries
+            .get(list_idx.checked_sub(offset)?)
+            .copied()
     }
 
     /// Convert a post index to a list index by locating it in `feed_entries`.

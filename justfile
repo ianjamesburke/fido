@@ -56,6 +56,18 @@ web:
 test:
     cargo test --workspace
 
+# Release gate before bump/publish. `deploy-cargo-dry` fails if the fido
+# publish dry-run cannot run against an indexed fido-types version.
+prerelease-check:
+    cargo fmt --check
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
+    cargo test --workspace
+    cargo test -p fido-server --features sqlite-tests
+    cargo package -p fido-types
+    cargo package -p fido
+    chmod +x ./scripts/deploy-cargo.sh
+    ./scripts/deploy-cargo.sh --dry-run
+
 # End-to-end test: drive the real TUI in tmux against a real local server
 e2e-tui:
     chmod +x ./scripts/e2e_tui.sh

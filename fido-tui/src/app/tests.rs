@@ -1016,7 +1016,11 @@ fn feed_entries_interleave_by_created_at_desc() {
     let entries = rebuild_feed_entries(&posts, &activity);
     assert_eq!(
         entries,
-        vec![FeedEntry::Post(0), FeedEntry::Activity(0), FeedEntry::Post(1)]
+        vec![
+            FeedEntry::Post(0),
+            FeedEntry::Activity(0),
+            FeedEntry::Post(1)
+        ]
     );
 }
 

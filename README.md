@@ -166,6 +166,14 @@ Manual deploy:
 railway up
 ```
 
+Crates release preflight:
+
+```bash
+just prerelease-check
+```
+
+`just deploy-cargo-dry` runs the same publish preflight without publishing. It fails on a dirty worktree unless `FIDO_ALLOW_DIRTY_PUBLISH=1` is set, checks exact `fido-types@<version>` and `fido@<version>` registry state, and refuses to report success if the `fido` publish dry-run was skipped. `just deploy-cargo` publishes `fido-types` first, waits for crates.io indexing, then publishes `fido`. `fido-server` is deployed infrastructure and is not published to crates.io.
+
 Required Railway variables:
 
 - `GITHUB_CLIENT_ID`
