@@ -174,6 +174,8 @@ pub struct App {
     pub community_error: Option<String>,
     /// Joined-communities list shown when launched outside a repo
     pub home_state: HomeState,
+    /// Starred-repo browser for joining additional communities
+    pub community_browser_state: CommunityBrowserState,
     /// Community settings modal (role, member count, claim)
     pub show_community_modal: bool,
     /// Members of the current community, loaded when the community modal opens
@@ -258,6 +260,37 @@ impl HomeState {
         self.list_state
             .selected()
             .and_then(|i| self.communities.get(i))
+    }
+}
+
+/// Starred GitHub repos annotated with Fido community state.
+pub struct CommunityBrowserState {
+    pub show: bool,
+    pub repos: Vec<crate::api::BrowseCommunityResponse>,
+    pub list_state: ListState,
+    pub loading: bool,
+    pub loaded: bool,
+    pub joining: bool,
+    pub error: Option<String>,
+    pub message: Option<String>,
+}
+
+impl CommunityBrowserState {
+    pub fn new() -> Self {
+        Self {
+            show: false,
+            repos: Vec::new(),
+            list_state: ListState::default(),
+            loading: false,
+            loaded: false,
+            joining: false,
+            error: None,
+            message: None,
+        }
+    }
+
+    pub fn selected(&self) -> Option<&crate::api::BrowseCommunityResponse> {
+        self.list_state.selected().and_then(|i| self.repos.get(i))
     }
 }
 

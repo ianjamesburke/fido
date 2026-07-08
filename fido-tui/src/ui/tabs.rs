@@ -12,6 +12,7 @@ use super::components::empty_state::render_empty_state_block;
 use super::components::footer::render_footer_with_style;
 use super::components::layout::{auth_layout, banner_layout, main_layout};
 use super::components::list::styled_list;
+use super::components::modal::centered_rect;
 use super::components::panel::render_panel_lines;
 use super::formatting::*;
 use super::modals::*;
@@ -223,24 +224,28 @@ pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
     );
 }
 
-/// Render the main screen with tabs
+/// Render the main screen with a persistent Discord-style rail.
 pub fn render_main_screen(frame: &mut Frame, app: &mut App) {
     let layout = main_layout(frame, app);
     let area = frame.area();
 
-    // Render tab header
-    render_tab_header(frame, app, layout.header);
+    render_workspace_header(frame, app, layout.header);
 
-    // Render tab content
+    let content_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Length(30), Constraint::Min(0)])
+        .split(layout.content);
+
+    render_left_rail(frame, app, content_chunks[0]);
+
+    // Render selected rail content.
     match app.current_tab {
         crate::app::Tab::Posts => {
-            // Always render the feed
-            render_posts_tab_with_data(frame, app, layout.content);
-            // Modal is rendered later at the top level (after all tabs)
+            render_posts_tab_with_data(frame, app, content_chunks[1]);
         }
-        crate::app::Tab::DMs => render_dms_tab(frame, app, layout.content),
-        crate::app::Tab::Profile => render_profile_tab(frame, app, layout.content),
-        crate::app::Tab::Settings => render_settings_tab(frame, app, layout.content),
+        crate::app::Tab::DMs => render_dms_tab(frame, app, content_chunks[1]),
+        crate::app::Tab::Profile => render_profile_tab(frame, app, content_chunks[1]),
+        crate::app::Tab::Settings => render_settings_tab(frame, app, content_chunks[1]),
     }
 
     // Render page-specific actions bar (NEW)
@@ -390,13 +395,251 @@ pub fn render_main_screen(frame: &mut Frame, app: &mut App) {
         render_community_modal(frame, app, area);
     }
 
+    if app.community_browser_state.show {
+        render_community_browser(frame, app, area);
+    }
+
     // Render help modal (highest priority - render last)
     if app.show_help {
         render_help_modal(frame, app, area);
     }
 }
 
+fn render_workspace_header(frame: &mut Frame, app: &App, area: Rect) {
+    let theme = get_theme_colors(app);
+    let title = match &app.community {
+        Some(c) => format!(" Fido · {} ", c.full_name()),
+        None if app.launch_repo.is_none() => " Fido · Home ".to_string(),
+        None => " Fido · Repo community ".to_string(),
+    };
+    let status = format!(
+        "{} · {}",
+        app.auth_state
+            .current_user
+            .as_ref()
+            .map(|user| format!("@{}", user.username))
+            .unwrap_or_else(|| "signed out".to_string()),
+        app.realtime_state.status.label()
+    );
+    let header = Paragraph::new(Line::from(vec![
+        Span::styled(
+            title,
+            Style::default()
+                .fg(theme.success)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(status, Style::default().fg(theme.text_dim)),
+    ]))
+    .alignment(Alignment::Center)
+    .block(Block::default().borders(Borders::ALL));
+    frame.render_widget(header, area);
+}
+
+fn render_left_rail(frame: &mut Frame, app: &App, area: Rect) {
+    let theme = get_theme_colors(app);
+    let total_unread: usize = app.dms_state.unread_counts.values().sum();
+    let request_count = app.dms_state.pending_requests.len();
+
+    let mut lines = Vec::new();
+    lines.push(Line::from(Span::styled(
+        "COMMUNITIES",
+        Style::default()
+            .fg(theme.text_dim)
+            .add_modifier(Modifier::BOLD),
+    )));
+
+    let board_label = if let Some(community) = &app.community {
+        format!("# {}", community.full_name())
+    } else if app.is_home_list_active() {
+        "Home".to_string()
+    } else {
+        "Board".to_string()
+    };
+    lines.push(rail_line(
+        app.current_tab == crate::app::Tab::Posts,
+        &board_label,
+        theme.success,
+        &theme,
+    ));
+
+    for community in app.home_state.communities.iter().take(6) {
+        let label = format!(
+            "  {}/{}",
+            community.community.owner, community.community.name
+        );
+        lines.push(Line::from(Span::styled(
+            label,
+            Style::default().fg(theme.text_dim),
+        )));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "DIRECT MESSAGES",
+        Style::default()
+            .fg(theme.text_dim)
+            .add_modifier(Modifier::BOLD),
+    )));
+    let dm_label = if total_unread > 0 {
+        format!("DMs ({})", total_unread)
+    } else if request_count > 0 {
+        format!(
+            "DMs · {} request{}",
+            request_count,
+            if request_count == 1 { "" } else { "s" }
+        )
+    } else {
+        "DMs".to_string()
+    };
+    lines.push(rail_line(
+        app.current_tab == crate::app::Tab::DMs,
+        &dm_label,
+        theme.accent,
+        &theme,
+    ));
+    for conversation in app.dms_state.conversations.iter().take(5) {
+        let unread = app
+            .dms_state
+            .unread_counts
+            .get(&conversation.other_user_id)
+            .copied()
+            .unwrap_or(0);
+        let label = if unread > 0 {
+            format!("  @{} ({})", conversation.other_username, unread)
+        } else {
+            format!("  @{}", conversation.other_username)
+        };
+        lines.push(Line::from(Span::styled(
+            label,
+            Style::default().fg(theme.text_dim),
+        )));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "TOOLS",
+        Style::default()
+            .fg(theme.text_dim)
+            .add_modifier(Modifier::BOLD),
+    )));
+    lines.push(rail_line(
+        app.current_tab == crate::app::Tab::Profile,
+        "Profile",
+        theme.primary,
+        &theme,
+    ));
+    lines.push(rail_line(
+        app.current_tab == crate::app::Tab::Settings,
+        "Settings",
+        theme.primary,
+        &theme,
+    ));
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "b Browse starred repos",
+        Style::default().fg(theme.text_dim),
+    )));
+
+    let rail = Paragraph::new(lines)
+        .wrap(Wrap { trim: true })
+        .block(Block::default().borders(Borders::ALL).title(" Fido "));
+    frame.render_widget(rail, area);
+}
+
+fn rail_line(selected: bool, label: &str, accent: Color, theme: &ThemeColors) -> Line<'static> {
+    let prefix = if selected { ">" } else { " " };
+    let style = if selected {
+        Style::default()
+            .fg(accent)
+            .bg(theme.highlight_bg)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(theme.text)
+    };
+    Line::from(Span::styled(format!("{} {}", prefix, label), style))
+}
+
+fn render_community_browser(frame: &mut Frame, app: &mut App, area: Rect) {
+    let theme = get_theme_colors(app);
+    let popup_area = centered_rect(76, 76, area);
+    frame.render_widget(Clear, popup_area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(3)])
+        .split(popup_area);
+
+    let items: Vec<ListItem> = if app.community_browser_state.loading {
+        vec![ListItem::new(Line::from(Span::styled(
+            "Loading starred repositories...",
+            Style::default().fg(theme.text_dim),
+        )))]
+    } else if let Some(error) = &app.community_browser_state.error {
+        vec![ListItem::new(Line::from(Span::styled(
+            error.clone(),
+            Style::default().fg(theme.error),
+        )))]
+    } else if app.community_browser_state.repos.is_empty() {
+        vec![ListItem::new(Line::from(Span::styled(
+            "No starred repositories found.",
+            Style::default().fg(theme.text_dim),
+        )))]
+    } else {
+        app.community_browser_state
+            .repos
+            .iter()
+            .map(|repo| {
+                let status = if repo.private {
+                    "private"
+                } else if repo.membership.is_some() {
+                    "joined"
+                } else if repo.community.is_some() {
+                    "available"
+                } else {
+                    "new"
+                };
+                ListItem::new(Line::from(vec![
+                    Span::styled(
+                        format!("{:<38}", repo.full_name),
+                        Style::default().fg(theme.text),
+                    ),
+                    Span::styled(status, Style::default().fg(theme.text_dim)),
+                ]))
+            })
+            .collect()
+    };
+
+    let list = List::new(items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Browse starred repos "),
+        )
+        .highlight_style(
+            Style::default()
+                .fg(theme.success)
+                .bg(theme.highlight_bg)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("> ");
+    frame.render_stateful_widget(list, chunks[0], &mut app.community_browser_state.list_state);
+
+    let footer = if app.community_browser_state.joining {
+        "Joining..."
+    } else {
+        "Enter: Open/Join | r: Reload | b/Esc: Close"
+    };
+    render_footer_with_style(
+        frame,
+        chunks[1],
+        footer,
+        &theme,
+        Style::default().fg(theme.text_dim),
+    );
+}
+
 /// Render tab header
+#[allow(dead_code)]
 pub fn render_tab_header(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
 
@@ -474,7 +717,7 @@ pub fn render_global_footer(frame: &mut Frame, app: &mut App, area: Rect) {
     frame.render_widget(Clear, area);
 
     let footer_text = format!(
-        "RT: {} | Tab/Shift+Tab: Tabs | Shift+L: Logout | ?: Help | q/Esc: Quit | ↑/↓/j/k: Navigate",
+        "RT: {} | Tab/Shift+Tab: Rail | b: Browse repos | Shift+L: Logout | ?: Help | q/Esc: Quit",
         app.realtime_state.status.label()
     );
     render_footer_with_style(

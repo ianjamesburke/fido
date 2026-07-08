@@ -21,6 +21,62 @@ fn key_event(code: KeyCode) -> KeyEvent {
     event
 }
 
+fn test_browse_repo(name: &str) -> crate::api::BrowseCommunityResponse {
+    crate::api::BrowseCommunityResponse {
+        owner: "octocat".to_string(),
+        name: name.to_string(),
+        full_name: format!("octocat/{}", name),
+        private: false,
+        community: None,
+        membership: None,
+    }
+}
+
+#[test]
+fn test_rail_tab_order_matches_launch_shell() {
+    let mut app = App::new();
+    app.current_tab = Tab::Posts;
+
+    app.next_tab();
+    assert_eq!(app.current_tab, Tab::DMs);
+    app.next_tab();
+    assert_eq!(app.current_tab, Tab::Profile);
+    app.next_tab();
+    assert_eq!(app.current_tab, Tab::Settings);
+    app.next_tab();
+    assert_eq!(app.current_tab, Tab::Posts);
+
+    app.previous_tab();
+    assert_eq!(app.current_tab, Tab::Settings);
+}
+
+#[test]
+fn test_community_browser_selection_wraps() {
+    let mut app = App::new();
+    app.community_browser_state.repos = vec![test_browse_repo("alpha"), test_browse_repo("beta")];
+    app.community_browser_state.list_state.select(Some(0));
+
+    app.next_browser_repo();
+    assert_eq!(app.community_browser_state.list_state.selected(), Some(1));
+    app.next_browser_repo();
+    assert_eq!(app.community_browser_state.list_state.selected(), Some(0));
+    app.previous_browser_repo();
+    assert_eq!(app.community_browser_state.list_state.selected(), Some(1));
+}
+
+#[test]
+fn test_escape_closes_community_browser_before_quit() {
+    let mut app = App::new();
+    app.current_screen = Screen::Main;
+    app.community_browser_state.show = true;
+    app.running = true;
+
+    app.handle_key_event(key_event(KeyCode::Esc)).unwrap();
+
+    assert!(!app.community_browser_state.show);
+    assert!(app.running);
+}
+
 #[test]
 fn test_escape_closes_help_modal_first() {
     let mut app = App::new();

@@ -252,6 +252,7 @@ pub fn add_posts_feed_shortcuts(
                 ("↓/j", "Next community"),
                 ("↑/k", "Previous community"),
                 ("Enter", "Open community board"),
+                ("b", "Browse starred repos"),
             ],
         ));
         return;
@@ -267,6 +268,7 @@ pub fn add_posts_feed_shortcuts(
             ("d", "Downvote selected post"),
             ("n", "New post"),
             ("i", "Community info & settings"),
+            ("b", "Browse starred repos"),
             ("f", "Filter posts"),
             ("s", "Search users"),
             ("p", "View author profile"),

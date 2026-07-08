@@ -26,6 +26,11 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
         return handle_help_keys(app, key);
     }
 
+    // Priority 1.25: Community browser overlay
+    if app.community_browser_state.show {
+        return app.handle_community_browser_keys(key);
+    }
+
     // Priority 1.5: User profile view
     if app.user_profile_view.is_some() {
         return app.handle_user_profile_view_keys(key);

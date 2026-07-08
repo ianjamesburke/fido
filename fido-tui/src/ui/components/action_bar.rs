@@ -3,6 +3,10 @@ use crate::app::App;
 /// Action bar hints for the current view.
 pub fn action_bar_text(app: &App) -> &'static str {
     // Don't show page actions when modal is open (modal has its own footer)
+    if app.community_browser_state.show {
+        return "Enter: Open/Join | r: Reload | b/Esc: Close";
+    }
+
     if app.viewing_post_detail {
         if let Some(detail_state) = &app.post_detail_state {
             if detail_state.show_full_post_modal {
@@ -22,14 +26,14 @@ pub fn action_bar_text(app: &App) -> &'static str {
             } else if app.community_error.is_some() {
                 "r: Retry"
             } else if app.is_home_list_active() {
-                "↑/↓/j/k: Navigate | Enter: Open community"
+                "↑/↓/j/k: Navigate | Enter: Open community | b: Browse starred"
             } else if matches!(
                 app.posts_state.selected_feed_entry(),
                 Some(crate::app::FeedEntry::Activity(_))
             ) {
                 "↑/↓/j/k: Navigate | o: Open on GitHub"
             } else {
-                "u/d: Vote | n: Post | i: Community | f: Filter | s: Search | Space: View"
+                "u/d: Vote | n: Post | i: Community | b: Browse | f: Filter | Space: View"
             }
         }
         crate::app::Tab::DMs => {

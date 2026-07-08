@@ -567,6 +567,33 @@ impl EventLoop {
             KeyCode::Enter if app.posts_state.show_filter_modal => {
                 self.handle_filter_modal_enter(app).await?;
             }
+            KeyCode::Char('b') | KeyCode::Char('B')
+                if app.current_screen == Screen::Main
+                    && app.input_mode == InputMode::Navigation
+                    && !app.community_browser_state.show
+                    && !app.composer_state.is_open()
+                    && !app.viewing_post_detail
+                    && app.user_profile_view.is_none() =>
+            {
+                app.open_community_browser().await?;
+            }
+            KeyCode::Enter
+                if app.current_screen == Screen::Main
+                    && app.community_browser_state.show
+                    && !app.community_browser_state.loading
+                    && !app.community_browser_state.joining =>
+            {
+                app.open_or_join_browser_selection().await?;
+            }
+            KeyCode::Char('r') | KeyCode::Char('R')
+                if app.current_screen == Screen::Main
+                    && app.community_browser_state.show
+                    && !app.community_browser_state.loading
+                    && !app.community_browser_state.joining =>
+            {
+                app.community_browser_state.loaded = false;
+                app.load_community_browser().await;
+            }
             KeyCode::Enter | KeyCode::Char(' ')
                 if app.current_tab == Tab::Posts
                     && !app.posts_state.show_new_post_modal
