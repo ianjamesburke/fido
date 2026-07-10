@@ -16,13 +16,6 @@ impl App {
     }
 
     fn build(api_client: ApiClient, show_github_option: bool) -> Self {
-        let config_manager =
-            crate::config::ConfigManager::new().expect("Failed to initialize config manager");
-        let instance_id = crate::config::ConfigManager::generate_instance_id();
-
-        // Clean up old sessions on startup
-        let _ = config_manager.cleanup_old_sessions();
-
         Self {
             running: true,
             current_screen: Screen::Auth,
@@ -153,8 +146,6 @@ impl App {
             },
             post_detail_state: None,
             viewing_post_detail: false,
-            config_manager,
-            instance_id,
             show_help: false,
             input_mode: InputMode::Navigation,
             composer_state: ComposerState::new(),

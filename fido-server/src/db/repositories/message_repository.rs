@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn test_create_and_list_default() -> Result<()> {
         let (db, channel_id, user_id) = setup()?;
-        let repo = MessageRepository::new(db.pool.clone());
+        let repo = MessageRepository::new(db.pool);
 
         // ids intentionally do not match chronological order
         let a = Uuid::parse_str("00000000-0000-0000-0000-000000000003").unwrap();
@@ -217,7 +217,7 @@ mod tests {
     #[test]
     fn test_cursor_pagination() -> Result<()> {
         let (db, channel_id, user_id) = setup()?;
-        let repo = MessageRepository::new(db.pool.clone());
+        let repo = MessageRepository::new(db.pool);
 
         let a = Uuid::parse_str("00000000-0000-0000-0000-000000000003").unwrap();
         let b = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();

@@ -155,8 +155,6 @@ pub struct App {
     pub notifications_state: NotificationsState,
     pub post_detail_state: Option<PostDetailState>,
     pub viewing_post_detail: bool,
-    pub config_manager: crate::config::ConfigManager,
-    pub instance_id: String,
     pub show_help: bool,
     pub input_mode: InputMode,
     pub composer_state: ComposerState,
@@ -535,78 +533,13 @@ pub struct UserProfileViewState {
 }
 
 /// Filter type for posts
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum PostFilter {
     All,
-    Hashtag(String),
-    User(String),
     Multi {
         hashtags: Vec<String>,
         users: Vec<String>,
     },
-}
-
-#[allow(dead_code)]
-impl PostFilter {
-    /// Convert to UserPreferences format for saving
-    pub fn to_preferences(&self) -> crate::config::UserPreferences {
-        match self {
-            PostFilter::All => crate::config::UserPreferences {
-                filter_type: "all".to_string(),
-                filter_hashtag: None,
-                filter_user: None,
-                filter_hashtags: Vec::new(),
-                filter_users: Vec::new(),
-            },
-            PostFilter::Hashtag(tag) => crate::config::UserPreferences {
-                filter_type: "hashtag".to_string(),
-                filter_hashtag: Some(tag.clone()),
-                filter_user: None,
-                filter_hashtags: Vec::new(),
-                filter_users: Vec::new(),
-            },
-            PostFilter::User(user) => crate::config::UserPreferences {
-                filter_type: "user".to_string(),
-                filter_hashtag: None,
-                filter_user: Some(user.clone()),
-                filter_hashtags: Vec::new(),
-                filter_users: Vec::new(),
-            },
-            PostFilter::Multi { hashtags, users } => crate::config::UserPreferences {
-                filter_type: "multi".to_string(),
-                filter_hashtag: None,
-                filter_user: None,
-                filter_hashtags: hashtags.clone(),
-                filter_users: users.clone(),
-            },
-        }
-    }
-
-    /// Create from UserPreferences
-    pub fn from_preferences(prefs: &crate::config::UserPreferences) -> Self {
-        match prefs.filter_type.as_str() {
-            "hashtag" => {
-                if let Some(tag) = &prefs.filter_hashtag {
-                    PostFilter::Hashtag(tag.clone())
-                } else {
-                    PostFilter::All
-                }
-            }
-            "user" => {
-                if let Some(user) = &prefs.filter_user {
-                    PostFilter::User(user.clone())
-                } else {
-                    PostFilter::All
-                }
-            }
-            "multi" => PostFilter::Multi {
-                hashtags: prefs.filter_hashtags.clone(),
-                users: prefs.filter_users.clone(),
-            },
-            _ => PostFilter::All,
-        }
-    }
 }
 
 /// Posts tab state

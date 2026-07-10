@@ -296,13 +296,13 @@ pub async fn create_reply(
         // This is a nested reply (replying to a reply), add mention
         let mention = format!("@{} ", target_post.author_username);
         if payload.content.starts_with(&mention) {
-            payload.content.clone()
+            payload.content
         } else {
             format!("{}{}", mention, payload.content)
         }
     } else {
         // This is a direct reply to the main post, no mention needed
-        payload.content.clone()
+        payload.content
     };
 
     // Create reply (attached to actual parent for nested replies)

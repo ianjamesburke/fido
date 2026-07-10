@@ -112,7 +112,7 @@ mod tests {
     #[test]
     fn test_create_get_list() -> Result<()> {
         let (db, community_id) = setup()?;
-        let repo = ChannelRepository::new(db.pool.clone());
+        let repo = ChannelRepository::new(db.pool);
 
         let general = sample_channel(community_id, "general");
         let random = sample_channel(community_id, "random");
@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn test_unique_name_per_community() -> Result<()> {
         let (db, community_id) = setup()?;
-        let repo = ChannelRepository::new(db.pool.clone());
+        let repo = ChannelRepository::new(db.pool);
         repo.create(&sample_channel(community_id, "general"))?;
         let dup = repo.create(&sample_channel(community_id, "general"));
         assert!(dup.is_err(), "duplicate channel name should be rejected");

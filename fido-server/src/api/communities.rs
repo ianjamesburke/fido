@@ -77,7 +77,7 @@ pub async fn browse_communities(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<BrowseCommunityResponse>>> {
-    let service = CommunityService::new(state.repos.clone(), state.github_service.clone());
+    let service = CommunityService::new(state.repos.clone(), state.github_service);
     let communities = service.browse_starred(user_id).await?;
 
     Ok(Json(
@@ -94,7 +94,7 @@ pub async fn join_community(
     validate_repo_name(&request.owner, "owner")?;
     validate_repo_name(&request.name, "name")?;
 
-    let service = CommunityService::new(state.repos.clone(), state.github_service.clone());
+    let service = CommunityService::new(state.repos.clone(), state.github_service);
     let view = service.join(user_id, &request.owner, &request.name).await?;
     state
         .realtime
@@ -108,7 +108,7 @@ pub async fn list_communities(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<CommunityViewResponse>>> {
-    let service = CommunityService::new(state.repos.clone(), state.github_service.clone());
+    let service = CommunityService::new(state.repos.clone(), state.github_service);
     let communities = service.list_joined(user_id)?;
 
     Ok(Json(
@@ -122,7 +122,7 @@ pub async fn get_community(
     AuthenticatedUser(user_id): AuthenticatedUser,
     Path(community_id): Path<Uuid>,
 ) -> ApiResult<Json<CommunityViewResponse>> {
-    let service = CommunityService::new(state.repos.clone(), state.github_service.clone());
+    let service = CommunityService::new(state.repos.clone(), state.github_service);
     Ok(Json(map_community_view(
         service.get_view(user_id, community_id)?,
     )))
@@ -148,7 +148,7 @@ pub async fn list_members(
     AuthenticatedUser(_user_id): AuthenticatedUser,
     Path(community_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<CommunityMemberResponse>>> {
-    let service = CommunityService::new(state.repos.clone(), state.github_service.clone());
+    let service = CommunityService::new(state.repos.clone(), state.github_service);
     let members = service.list_members_with_usernames(&community_id)?;
 
     Ok(Json(

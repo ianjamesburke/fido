@@ -71,18 +71,6 @@ impl VoteRepository {
         Ok(vote)
     }
 
-    /// Delete a vote
-    #[allow(dead_code)]
-    pub fn delete_vote(&self, user_id: &Uuid, post_id: &Uuid) -> Result<()> {
-        let conn = self.pool.get()?;
-        conn.execute(
-            "DELETE FROM votes WHERE user_id = ? AND post_id = ?",
-            (user_id.to_string(), post_id.to_string()),
-        )
-        .context("Failed to delete vote")?;
-        Ok(())
-    }
-
     /// Calculate karma for a user (sum of upvotes on their posts)
     pub fn calculate_karma(&self, user_id: &Uuid) -> Result<i32> {
         let conn = self.pool.get()?;

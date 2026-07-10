@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(user_id, validated_user_id);
 
         // Get the user from database (this is what middleware does)
-        let user_repo = crate::db::repositories::UserRepository::new(state.db.pool.clone());
+        let user_repo = crate::db::repositories::UserRepository::new(state.db.pool);
         let user = user_repo
             .get_by_id(&validated_user_id)
             .expect("Failed to get user")

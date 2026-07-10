@@ -662,57 +662,6 @@ fn render_community_browser(frame: &mut Frame, app: &mut App, area: Rect) {
     );
 }
 
-/// Render tab header
-#[allow(dead_code)]
-pub fn render_tab_header(frame: &mut Frame, app: &mut App, area: Rect) {
-    let theme = get_theme_colors(app);
-
-    // Calculate total unread count for DMs
-    let total_unread: usize = app.dms_state.unread_counts.values().sum();
-
-    let board_label = if app.is_home_list_active() {
-        "Home"
-    } else {
-        "Board"
-    };
-    let tabs = [board_label, "Chat", "DMs", "Profile", "Settings"];
-    let current_index = match app.current_tab {
-        crate::app::Tab::Posts => 0,
-        crate::app::Tab::Chat => 1,
-        crate::app::Tab::DMs => 2,
-        crate::app::Tab::Profile => 3,
-        crate::app::Tab::Settings => 4,
-    };
-
-    let mut tab_spans = vec![];
-    for (i, tab) in tabs.iter().enumerate() {
-        let style = if i == current_index {
-            Style::default()
-                .fg(theme.success)
-                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
-        } else {
-            Style::default().fg(theme.text_dim)
-        };
-
-        // Add unread badge for DMs tab
-        let tab_text = if i == 2 && total_unread > 0 {
-            format!(" {} ({}) ", tab, total_unread)
-        } else {
-            format!(" {} ", tab)
-        };
-
-        tab_spans.push(Span::styled(tab_text, style));
-        if i < tabs.len() - 1 {
-            tab_spans.push(Span::raw(" | "));
-        }
-    }
-
-    let header = Paragraph::new(Line::from(tab_spans))
-        .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL));
-    frame.render_widget(header, area);
-}
-
 /// Get context-appropriate action text for the current view
 /// Render page-specific actions bar (centered, with wrapping support)
 pub fn render_page_actions(frame: &mut Frame, app: &mut App, area: Rect) {

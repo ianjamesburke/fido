@@ -62,7 +62,7 @@ mod tests {
     )> {
         let db = Database::in_memory()?;
         db.initialize()?;
-        let repos = Repositories::new(db.pool.clone());
+        let repos = Repositories::new(db.pool);
         let admin = test_user("admin");
         let author = test_user("author");
         let mentioned = test_user("mentioned");

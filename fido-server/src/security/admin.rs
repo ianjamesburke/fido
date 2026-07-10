@@ -252,7 +252,7 @@ mod tests {
         let admin_id = create_test_user(&db, "admin_user", true);
 
         // Verify the user has is_admin = true
-        let user_repo = UserRepository::new(db.pool.clone());
+        let user_repo = UserRepository::new(db.pool);
         let user = user_repo
             .get_by_id(&admin_id)
             .expect("Failed to get user")
@@ -269,7 +269,7 @@ mod tests {
         let user_id = create_test_user(&db, "regular_user", false);
 
         // Verify the user has is_admin = false
-        let user_repo = UserRepository::new(db.pool.clone());
+        let user_repo = UserRepository::new(db.pool);
         let user = user_repo
             .get_by_id(&user_id)
             .expect("Failed to get user")
@@ -334,7 +334,7 @@ mod tests {
             .session_manager
             .validate_session(&token)
             .expect("Failed to validate session");
-        let user_repo = UserRepository::new(state.db.pool.clone());
+        let user_repo = UserRepository::new(state.db.pool);
         let user = user_repo
             .get_by_id(&user_id)
             .expect("Failed to get user")
@@ -363,7 +363,7 @@ mod tests {
             .session_manager
             .validate_session(&token)
             .expect("Failed to validate session");
-        let user_repo = UserRepository::new(state.db.pool.clone());
+        let user_repo = UserRepository::new(state.db.pool);
         let user = user_repo
             .get_by_id(&validated_user_id)
             .expect("Failed to get user")

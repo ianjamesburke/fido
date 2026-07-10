@@ -97,10 +97,9 @@ impl App {
             return Ok(());
         }
 
-        let repo = self
-            .launch_repo
-            .clone()
-            .expect("launch repo exists when away from launch community");
+        let Some(repo) = self.launch_repo.clone() else {
+            return Ok(());
+        };
         self.enter_repo_community(&repo.owner, &repo.name).await;
 
         if self.is_away_from_launch_community() {

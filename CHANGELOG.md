@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - GitHub activity is synced into real posts instead of a separate read-only overlay; `GET /communities/:id/activity` was removed.
+- Updated Reqwest to 0.13 so the client and Axum server share the Hyper 1 stack.
 
 ### Fixed
 
@@ -22,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Removed the unused instance-scoped TUI session store; authentication now has one server-scoped local source of truth.
+- Removed zero-caller preference, rendering, service, and repository APIs.
 
 
 ## [0.5.4] - 2026-07-08

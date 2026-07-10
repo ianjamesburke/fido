@@ -72,14 +72,4 @@ impl ConfigRepository {
 
         Ok(())
     }
-
-    /// Create default configuration for a user
-    #[allow(dead_code)]
-    pub fn create_default(&self, user_id: &Uuid) -> Result<()> {
-        let config = UserConfig {
-            user_id: *user_id,
-            ..Default::default()
-        };
-        self.update(&config)
-    }
 }

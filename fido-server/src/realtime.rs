@@ -197,18 +197,15 @@ impl RealtimeGateway {
             Event::MessageCreated(payload) => self
                 .recipient_cache
                 .members(&self.repos, &payload.community_id)
-                .context("Failed to resolve MessageCreated recipients")?
-                .clone(),
+                .context("Failed to resolve MessageCreated recipients")?,
             Event::ThreadCreated(post) => self
                 .recipient_cache
                 .members(&self.repos, &post.community_id)
-                .context("Failed to resolve ThreadCreated recipients")?
-                .clone(),
+                .context("Failed to resolve ThreadCreated recipients")?,
             Event::ThreadPendingApproval(post) => self
                 .recipient_cache
                 .admins(&self.repos, &post.community_id)
-                .context("Failed to resolve ThreadPendingApproval recipients")?
-                .clone(),
+                .context("Failed to resolve ThreadPendingApproval recipients")?,
             Event::DmRequestCreated(payload) => {
                 let conversation = &payload.conversation;
                 let recipient = if conversation.initiator_id == conversation.user_a {

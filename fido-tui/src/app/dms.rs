@@ -365,7 +365,7 @@ impl App {
         self.dms_state.error = None;
 
         // Store the username for the pending conversation
-        self.dms_state.pending_conversation_username = Some(to_username.clone());
+        self.dms_state.pending_conversation_username = Some(to_username);
 
         // Close modal and clear messages (show empty conversation)
         self.close_new_conversation_modal();
