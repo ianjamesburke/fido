@@ -3,7 +3,7 @@ use ratatui::{
     text::{Line, Span},
 };
 
-use fido_types::{ActivityItem, ActivityKind, ActivityState};
+use fido_types::{ActivityKind, ActivityState, Post};
 
 use super::theme::ThemeColors;
 
@@ -116,38 +116,41 @@ pub fn format_post_content_for_input(content: &str) -> Vec<Line<'static>> {
 /// Text for one row of the repo-activity feed, e.g.
 /// `⊙ #7 Fix login · issue opened by alice` or
 /// `⇄ #9 Dark mode · merged · bob`.
-pub fn activity_line_text(item: &ActivityItem) -> String {
-    match item.kind {
+pub fn activity_line_text(post: &Post) -> String {
+    let Some(kind) = post.github_kind else {
+        return post.content.clone();
+    };
+    match kind {
         ActivityKind::Issue => {
-            let mut line = format!(
-                "⊙ #{} {} · issue opened by {}",
-                item.number, item.title, item.author_login
-            );
-            if item.state == ActivityState::Closed {
+            let mut line = format!("⊙ #{} {}", post.github_id.unwrap_or_default(), post.content);
+            if post.github_state == Some(ActivityState::Closed) {
                 line.push_str(" · closed");
             }
             line
         }
         ActivityKind::PullRequest => {
-            let status = match item.state {
-                ActivityState::Merged => "merged",
-                ActivityState::Open => "open",
-                ActivityState::Closed => "closed",
+            let status = match post.github_state {
+                Some(ActivityState::Merged) => "merged",
+                Some(ActivityState::Closed) => "closed",
+                _ => "open",
             };
             format!(
-                "⇄ #{} {} · {} · {}",
-                item.number, item.title, status, item.author_login
+                "⇄ #{} {} · {}",
+                post.github_id.unwrap_or_default(),
+                post.content,
+                status
             )
         }
     }
 }
 
 /// Color for the activity row's leading glyph, based on its state.
-pub fn activity_glyph_color(item: &ActivityItem, theme: &ThemeColors) -> Color {
-    match item.state {
-        ActivityState::Open => theme.success,
-        ActivityState::Closed => theme.error,
-        ActivityState::Merged => Color::Magenta,
+pub fn activity_glyph_color(post: &Post, theme: &ThemeColors) -> Color {
+    match post.github_state {
+        Some(ActivityState::Open) => theme.success,
+        Some(ActivityState::Closed) => theme.error,
+        Some(ActivityState::Merged) => Color::Magenta,
+        None => theme.text_dim,
     }
 }
 
@@ -181,28 +184,39 @@ pub fn format_bio_content_with_width(
 mod tests {
     use super::*;
 
-    fn activity_item(
+    fn github_post(
         kind: ActivityKind,
         state: ActivityState,
         number: i64,
         title: &str,
-        author_login: &str,
-    ) -> ActivityItem {
-        ActivityItem {
-            github_id: 1,
-            kind,
-            number,
-            title: title.to_string(),
-            author_login: author_login.to_string(),
-            state,
+        _author_login: &str,
+    ) -> Post {
+        Post {
+            id: uuid::Uuid::new_v4(),
+            author_id: uuid::Uuid::new_v4(),
+            author_username: "github".to_string(),
+            community_id: uuid::Uuid::new_v4(),
+            content: title.to_string(),
             created_at: chrono::Utc::now(),
-            html_url: "https://github.com/owner/repo/issues/1".to_string(),
+            upvotes: 0,
+            downvotes: 0,
+            approved: true,
+            hashtags: Vec::new(),
+            user_vote: None,
+            parent_post_id: None,
+            reply_count: 0,
+            reply_to_user_id: None,
+            reply_to_username: None,
+            github_id: Some(number),
+            github_kind: Some(kind),
+            github_state: Some(state),
+            github_html_url: None,
         }
     }
 
     #[test]
     fn activity_line_formats_issue_and_merged_pr() {
-        let issue = activity_item(
+        let issue = github_post(
             ActivityKind::Issue,
             ActivityState::Open,
             7,
@@ -210,30 +224,27 @@ mod tests {
             "alice",
         );
         let line = activity_line_text(&issue);
-        assert_eq!(line, "⊙ #7 Fix login · issue opened by alice");
+        assert_eq!(line, "⊙ #7 Fix login");
 
-        let pr = activity_item(
+        let pr = github_post(
             ActivityKind::PullRequest,
             ActivityState::Merged,
             9,
             "Dark mode",
             "bob",
         );
-        assert_eq!(activity_line_text(&pr), "⇄ #9 Dark mode · merged · bob");
+        assert_eq!(activity_line_text(&pr), "⇄ #9 Dark mode · merged");
     }
 
     #[test]
     fn activity_line_appends_closed_for_issues() {
-        let issue = activity_item(
+        let issue = github_post(
             ActivityKind::Issue,
             ActivityState::Closed,
             3,
             "Old bug",
             "carol",
         );
-        assert_eq!(
-            activity_line_text(&issue),
-            "⊙ #3 Old bug · issue opened by carol · closed"
-        );
+        assert_eq!(activity_line_text(&issue), "⊙ #3 Old bug · closed");
     }
 }

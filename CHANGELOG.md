@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Repo-activity posts (issues and PRs) can now be upvoted and replied to directly in Fido.
+
 ### Changed
+
+- GitHub activity is synced into real posts instead of a separate read-only overlay; `GET /communities/:id/activity` was removed.
 
 ### Fixed
 

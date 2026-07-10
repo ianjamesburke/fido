@@ -34,7 +34,6 @@ impl App {
     async fn enter_repo_community(&mut self, owner: &str, name: &str) {
         match self.api_client.join_community(owner, name).await {
             Ok(view) => {
-                self.clear_activity();
                 self.clear_chat();
                 self.apply_community_view(view);
             }
@@ -79,6 +78,43 @@ impl App {
         self.launch_repo.is_none() && self.community.is_none()
     }
 
+    /// Whether the current board was reached by browsing away from the repo
+    /// that selected the initial community at launch.
+    pub fn is_away_from_launch_community(&self) -> bool {
+        let Some(repo) = &self.launch_repo else {
+            return false;
+        };
+        let Some(community) = &self.community else {
+            return false;
+        };
+
+        community.owner != repo.owner || community.name != repo.name
+    }
+
+    /// Return a repo-launched session to its initial board after browsing.
+    pub async fn return_to_launch_community(&mut self) -> Result<()> {
+        if !self.is_away_from_launch_community() {
+            return Ok(());
+        }
+
+        let repo = self
+            .launch_repo
+            .clone()
+            .expect("launch repo exists when away from launch community");
+        self.enter_repo_community(&repo.owner, &repo.name).await;
+
+        if self.is_away_from_launch_community() {
+            return Ok(());
+        }
+
+        self.load_posts().await?;
+        self.posts_state.message = Some((
+            format!("Returned to {}/{}", repo.owner, repo.name),
+            std::time::Instant::now(),
+        ));
+        Ok(())
+    }
+
     /// Home mode: open the selected community's board.
     pub async fn open_home_selection(&mut self) -> Result<()> {
         let Some(selected) = self.home_state.selected() else {
@@ -88,7 +124,6 @@ impl App {
 
         match self.api_client.get_community(community_id).await {
             Ok(view) => {
-                self.clear_activity();
                 self.clear_chat();
                 self.apply_community_view(view);
                 self.load_posts().await?;
@@ -108,7 +143,6 @@ impl App {
         self.posts_state.posts.clear();
         self.posts_state.list_state.select(None);
         self.posts_state.error = None;
-        self.clear_activity();
         self.clear_chat();
     }
 
@@ -239,7 +273,6 @@ impl App {
 
         match result {
             Ok(view) => {
-                self.clear_activity();
                 self.clear_chat();
                 self.apply_community_view(view);
                 self.current_tab = crate::app::Tab::Posts;

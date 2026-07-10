@@ -29,13 +29,27 @@ pub fn action_bar_text(app: &App) -> &'static str {
                 "r: Retry"
             } else if app.is_home_list_active() {
                 "↑/↓/j/k: Navigate | Enter: Open community | b: Browse starred"
-            } else if matches!(
-                app.posts_state.selected_feed_entry(),
-                Some(crate::app::FeedEntry::Activity(_))
-            ) {
-                "↑/↓/j/k: Navigate | o: Open on GitHub"
+            } else if app
+                .posts_state
+                .list_state
+                .selected()
+                .and_then(|index| app.posts_state.posts.get(index))
+                .map(|post| post.github_kind.is_some())
+                .unwrap_or(false)
+            {
+                if app.is_away_from_launch_community() {
+                    "u/d: Vote | Space: View | o: Open on GitHub | b: Browse | Esc: Launch repo"
+                } else {
+                    "u/d: Vote | Space: View | o: Open on GitHub | i: Community | b: Browse"
+                }
             } else if app.is_current_community_admin() {
-                "u/d: Vote | n: Post | a: Approvals | i: Community | b: Browse | Space: View"
+                if app.is_away_from_launch_community() {
+                    "u/d: Vote | n: Post | a: Approvals | b: Browse | Esc: Launch repo | Space: View"
+                } else {
+                    "u/d: Vote | n: Post | a: Approvals | i: Community | b: Browse | Space: View"
+                }
+            } else if app.is_away_from_launch_community() {
+                "u/d: Vote | n: Post | b: Browse | Esc: Launch repo | Space: View"
             } else {
                 "u/d: Vote | n: Post | i: Community | b: Browse | Space: View"
             }

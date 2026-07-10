@@ -67,6 +67,23 @@ fn test_community_browser_selection_wraps() {
 }
 
 #[test]
+fn repo_launch_tracks_when_the_user_browses_to_another_community() {
+    let mut app = App::new();
+    app.launch_repo = Some(crate::repo_context::RepoRef {
+        owner: "ianjamesburke".to_string(),
+        name: "fido".to_string(),
+    });
+    set_test_community(&mut app);
+
+    assert!(app.is_away_from_launch_community());
+
+    app.community.as_mut().unwrap().owner = "ianjamesburke".to_string();
+    app.community.as_mut().unwrap().name = "fido".to_string();
+
+    assert!(!app.is_away_from_launch_community());
+}
+
+#[test]
 fn test_escape_closes_community_browser_before_quit() {
     let mut app = App::new();
     app.current_screen = Screen::Main;
@@ -654,6 +671,10 @@ fn test_typing_mode_prevents_navigation_shortcuts() {
         reply_count: 0,
         reply_to_user_id: None,
         reply_to_username: None,
+        github_id: None,
+        github_kind: None,
+        github_state: None,
+        github_html_url: None,
     }];
     app.posts_state.list_state.select(Some(0));
 
@@ -699,6 +720,10 @@ fn test_navigation_mode_allows_shortcuts() {
         reply_count: 0,
         reply_to_user_id: None,
         reply_to_username: None,
+        github_id: None,
+        github_kind: None,
+        github_state: None,
+        github_html_url: None,
     }];
     app.posts_state.list_state.select(Some(0));
 
@@ -1057,7 +1082,7 @@ fn realtime_thread_created_upserts_once_for_current_board() {
     app.apply_realtime_envelope(test_envelope(Event::ThreadCreated(post)));
 
     assert_eq!(app.posts_state.posts.len(), 1);
-    assert_eq!(app.posts_state.feed_entries.len(), 1);
+    assert_eq!(app.posts_state.posts.len(), 1);
 }
 
 #[test]
@@ -1235,6 +1260,10 @@ fn test_post_created_at(created_at: &str) -> Post {
         reply_count: 0,
         reply_to_user_id: None,
         reply_to_username: None,
+        github_id: None,
+        github_kind: None,
+        github_state: None,
+        github_html_url: None,
     }
 }
 
@@ -1256,157 +1285,17 @@ fn test_envelope(event: Event) -> EventEnvelope {
     }
 }
 
-fn test_activity_created_at(created_at: &str) -> fido_types::ActivityItem {
-    fido_types::ActivityItem {
-        github_id: 1,
-        kind: fido_types::ActivityKind::Issue,
-        number: 42,
-        title: "test issue".to_string(),
-        author_login: "octocat".to_string(),
-        state: fido_types::ActivityState::Open,
-        created_at: created_at.parse().unwrap(),
-        html_url: "https://github.com/owner/repo/issues/42".to_string(),
-    }
-}
-
-fn test_posts_state_with(
-    posts: Vec<Post>,
-    activity: Vec<fido_types::ActivityItem>,
-    loading: bool,
-) -> PostsState {
-    use ratatui::widgets::ListState;
-
-    PostsState {
-        posts,
-        list_state: ListState::default(),
-        loading,
-        error: None,
-        message: None,
-        show_new_post_modal: false,
-        new_post_content: String::new(),
-        pending_load: false,
-        current_filter: PostFilter::All,
-        show_filter_modal: false,
-        filter_modal_state: FilterModalState {
-            selected_tab: FilterTab::All,
-            hashtag_list: Vec::new(),
-            user_list: Vec::new(),
-            selected_index: 0,
-            search_input: String::new(),
-            search_mode: false,
-            search_results: Vec::new(),
-            checked_hashtags: Vec::new(),
-            checked_users: Vec::new(),
-            show_add_hashtag_input: false,
-            add_hashtag_input: String::new(),
-        },
-        at_end_of_feed: false,
-        activity_items: activity,
-        activity_loading: false,
-        activity_error: None,
-        activity_pending_load: false,
-        feed_entries: Vec::new(),
-        pending_threads: Vec::new(),
-        pending_threads_list_state: ListState::default(),
-        show_approval_queue: false,
-        pending_threads_loading: false,
-        pending_threads_loaded: false,
-        pending_threads_error: None,
-    }
-}
-
 #[test]
-fn feed_entries_interleave_by_created_at_desc() {
-    let posts = vec![
-        test_post_created_at("2026-07-02T12:00:00Z"),
-        test_post_created_at("2026-06-30T12:00:00Z"),
-    ];
-    let activity = vec![test_activity_created_at("2026-07-01T12:00:00Z")];
-    let entries = rebuild_feed_entries(&posts, &activity);
-    assert_eq!(
-        entries,
-        vec![
-            FeedEntry::Post(0),
-            FeedEntry::Activity(0),
-            FeedEntry::Post(1)
-        ]
-    );
-}
-
-#[test]
-fn selected_feed_entry_accounts_for_loading_offset() {
-    let posts = vec![test_post_created_at("2026-07-02T12:00:00Z")];
-    let activity = vec![test_activity_created_at("2026-07-01T12:00:00Z")];
-    let mut state = test_posts_state_with(posts, activity, true);
-    state.rebuild_feed();
-    state.list_state.select(Some(1)); // 0 is the loading spinner row
-    assert_eq!(state.selected_feed_entry(), Some(FeedEntry::Post(0)));
-}
-
-#[test]
-fn selected_feed_entry_accounts_for_activity_error_offset() {
-    let posts = vec![test_post_created_at("2026-07-02T12:00:00Z")];
-    let mut state = test_posts_state_with(posts, Vec::new(), false);
-    state.activity_error = Some("repo activity unavailable: timed out".to_string());
-    state.rebuild_feed();
-    state.list_state.select(Some(1)); // 0 is the activity-error row
-    assert_eq!(state.selected_feed_entry(), Some(FeedEntry::Post(0)));
-}
-
-#[test]
-fn open_selected_activity_noops_when_selection_is_a_post() {
-    let posts = vec![test_post_created_at("2026-07-02T12:00:00Z")];
-    let activity = vec![test_activity_created_at("2026-07-01T12:00:00Z")];
+fn github_post_is_selected_from_the_normal_posts_list() {
     let mut app = App::new();
-    app.posts_state = test_posts_state_with(posts, activity, false);
-    app.posts_state.rebuild_feed();
-    app.posts_state.list_state.select(Some(0)); // the post row
-
-    assert_eq!(app.selected_activity_url(), None);
-}
-
-#[test]
-fn logout_shaped_posts_clear_leaves_feed_entries_empty() {
-    let posts = vec![test_post_created_at("2026-07-02T12:00:00Z")];
-    let activity = vec![test_activity_created_at("2026-07-01T12:00:00Z")];
-    let mut app = App::new();
-    app.posts_state = test_posts_state_with(posts, activity, false);
-    app.posts_state.rebuild_feed();
+    let mut post = test_post_created_at("2026-07-01T12:00:00Z");
+    post.github_id = Some(19);
+    post.github_kind = Some(fido_types::ActivityKind::PullRequest);
+    post.github_state = Some(fido_types::ActivityState::Merged);
+    post.github_html_url = Some("https://github.com/o/r/pull/19".to_string());
+    app.posts_state.posts = vec![post];
     app.posts_state.list_state.select(Some(0));
-    assert!(!app.posts_state.feed_entries.is_empty());
 
-    // Mirror the logout path: clear posts, then clear_activity() (which
-    // also rebuilds the feed).
-    app.posts_state.posts.clear();
-    app.clear_activity();
-
-    assert!(
-        app.posts_state.feed_entries.is_empty(),
-        "feed_entries must be rebuilt empty after posts are cleared"
-    );
-    assert_eq!(
-        app.posts_state.selected_feed_entry(),
-        None,
-        "selection helpers must not resolve to a stale index into an emptied posts vec"
-    );
-    assert_eq!(
-        app.posts_state.list_index_to_post_index(0),
-        None,
-        "list_index_to_post_index must not resolve to a stale post index"
-    );
-}
-
-#[test]
-fn open_selected_activity_returns_url_when_selection_is_activity() {
-    let posts = vec![test_post_created_at("2026-06-30T12:00:00Z")];
-    let activity = vec![test_activity_created_at("2026-07-01T12:00:00Z")];
-    let mut app = App::new();
-    app.posts_state = test_posts_state_with(posts, activity, false);
-    app.posts_state.rebuild_feed();
-    app.posts_state.list_state.select(Some(0)); // the activity row (newer)
-
-    assert_eq!(
-        app.selected_activity_url(),
-        Some("https://github.com/owner/repo/issues/42".to_string())
-    );
+    assert_eq!(app.posts_state.list_state.selected(), Some(0));
+    assert!(app.posts_state.posts[0].github_kind.is_some());
 }

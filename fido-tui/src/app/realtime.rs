@@ -5,7 +5,7 @@ use fido_types::{
 };
 use uuid::Uuid;
 
-use super::{App, Conversation, DMSelection, DmRequest, FeedEntry, PostFilter, Screen, Tab};
+use super::{App, Conversation, DMSelection, DmRequest, PostFilter, Screen, Tab};
 use crate::api::RealtimeStatusUpdate;
 
 impl App {
@@ -136,7 +136,6 @@ impl App {
         let selected_post = self.selected_post_id();
         self.posts_state.posts.push(post);
         self.sort_and_limit_posts();
-        self.posts_state.rebuild_feed();
         self.restore_selected_post(selected_post);
     }
 
@@ -163,11 +162,11 @@ impl App {
     }
 
     fn selected_post_id(&self) -> Option<Uuid> {
-        let selected = self.posts_state.selected_feed_entry()?;
-        match selected {
-            FeedEntry::Post(index) => self.posts_state.posts.get(index).map(|post| post.id),
-            FeedEntry::Activity(_) => None,
-        }
+        self.posts_state
+            .list_state
+            .selected()
+            .and_then(|index| self.posts_state.posts.get(index))
+            .map(|post| post.id)
     }
 
     fn restore_selected_post(&mut self, selected_post: Option<Uuid>) {
@@ -178,8 +177,7 @@ impl App {
                 .iter()
                 .position(|post| post.id == post_id)
             {
-                let list_index = self.posts_state.post_index_to_list_index(index);
-                self.posts_state.list_state.select(Some(list_index));
+                self.posts_state.list_state.select(Some(index));
                 return;
             }
         }
@@ -187,9 +185,7 @@ impl App {
         if self.posts_state.posts.is_empty() {
             self.posts_state.list_state.select(None);
         } else if self.posts_state.list_state.selected().is_none() {
-            self.posts_state
-                .list_state
-                .select(Some(self.posts_state.items_before_posts()));
+            self.posts_state.list_state.select(Some(0));
         }
     }
 

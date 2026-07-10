@@ -77,7 +77,6 @@ impl UserRepository {
     }
 
     /// Create a new user (for future non-test users)
-    #[allow(dead_code)]
     pub fn create(&self, user: &User) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(
@@ -94,6 +93,24 @@ impl UserRepository {
         )
         .context("Failed to create user")?;
         Ok(())
+    }
+
+    /// Get a system user by name, creating it on first use.
+    pub fn get_or_create_system_user(&self, username: &str) -> Result<User> {
+        if let Some(user) = self.get_by_username(username)? {
+            return Ok(user);
+        }
+
+        let user = User {
+            id: Uuid::new_v4(),
+            username: username.to_string(),
+            bio: None,
+            join_date: Utc::now(),
+            is_test_user: false,
+            is_admin: false,
+        };
+        self.create(&user)?;
+        Ok(user)
     }
 
     /// Get all users (for search)

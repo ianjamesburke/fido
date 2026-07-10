@@ -66,7 +66,6 @@ impl App {
             self.posts_state.posts.clear();
             self.posts_state.list_state.select(None);
             self.posts_state.loading = false;
-            self.posts_state.rebuild_feed();
             return Ok(());
         };
 
@@ -90,7 +89,6 @@ impl App {
                 self.realtime_state
                     .seen_posts
                     .extend(self.posts_state.posts.iter().map(|post| post.id));
-                self.posts_state.rebuild_feed();
                 // Server now includes user_vote in each post
                 if has_posts {
                     self.posts_state.list_state.select(Some(0));
@@ -98,8 +96,6 @@ impl App {
                     self.posts_state.list_state.select(None);
                 }
                 self.posts_state.loading = false;
-                self.posts_state.activity_loading = true;
-                self.posts_state.activity_pending_load = true;
             }
             Err(e) => {
                 let error_msg = categorize_error(&e.to_string());
@@ -114,15 +110,6 @@ impl App {
     pub fn is_current_community_admin(&self) -> bool {
         self.community.as_ref().and_then(|community| community.role)
             == Some(fido_types::MembershipRole::Admin)
-    }
-
-    pub fn clear_approval_queue(&mut self) {
-        self.posts_state.pending_threads.clear();
-        self.posts_state.pending_threads_list_state.select(None);
-        self.posts_state.show_approval_queue = false;
-        self.posts_state.pending_threads_loading = false;
-        self.posts_state.pending_threads_loaded = false;
-        self.posts_state.pending_threads_error = None;
     }
 
     pub async fn open_approval_queue(&mut self) -> Result<()> {
@@ -277,12 +264,7 @@ impl App {
 
     /// Vote on the currently selected post
     pub async fn vote_on_selected_post(&mut self, direction: &str) -> Result<()> {
-        if let Some(list_index) = self.posts_state.list_state.selected() {
-            let Some(post_index) = self.posts_state.list_index_to_post_index(list_index) else {
-                // Selection is an activity row, not a post - nothing to vote on
-                return Ok(());
-            };
-
+        if let Some(post_index) = self.posts_state.list_state.selected() {
             // Clear any previous errors
             self.posts_state.error = None;
 
@@ -504,12 +486,11 @@ impl App {
     }
 
     pub fn next_post(&mut self) {
-        if self.posts_state.feed_entries.is_empty() {
+        if self.posts_state.posts.is_empty() {
             return;
         }
 
-        let offset = self.posts_state.items_before_posts();
-        let total_items = offset + self.posts_state.feed_entries.len();
+        let total_items = self.posts_state.posts.len();
         let current = self.posts_state.list_state.selected();
 
         let next = match current {
@@ -526,7 +507,7 @@ impl App {
             }
             None => {
                 self.posts_state.at_end_of_feed = false;
-                offset
+                0
             }
         };
 
@@ -534,23 +515,22 @@ impl App {
     }
 
     pub fn previous_post(&mut self) {
-        if self.posts_state.feed_entries.is_empty() {
+        if self.posts_state.posts.is_empty() {
             return;
         }
 
         // Clear end-of-feed indicator when scrolling up
         self.posts_state.at_end_of_feed = false;
 
-        let offset = self.posts_state.items_before_posts();
         let current = self.posts_state.list_state.selected();
 
         match current {
-            Some(i) if i > offset => {
+            Some(i) if i > 0 => {
                 self.posts_state.list_state.select(Some(i - 1));
             }
             _ => {
                 // Already at top or no selection
-                self.posts_state.list_state.select(Some(offset));
+                self.posts_state.list_state.select(Some(0));
             }
         }
     }

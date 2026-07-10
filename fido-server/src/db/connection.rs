@@ -9,8 +9,8 @@ use super::schema::{SCHEMA, TEST_DATA};
 const MEMORY_DB_PATH: &str = ":memory:";
 
 /// Current schema generation, stamped into `PRAGMA user_version`.
-/// v2 is the community rewrite (communities/channels/messages/notifications).
-const SCHEMA_VERSION: i32 = 2;
+/// v3 adds GitHub-backed posts to the community schema.
+const SCHEMA_VERSION: i32 = 3;
 
 pub type DbPool = Pool<SqliteConnectionManager>;
 pub type DbConnection = PooledConnection<SqliteConnectionManager>;
@@ -163,6 +163,14 @@ impl Database {
             "ALTER TABLE posts ADD COLUMN reply_count INTEGER NOT NULL DEFAULT 0",
             [],
         );
+        let _ = conn.execute("ALTER TABLE posts ADD COLUMN github_id INTEGER", []);
+        let _ = conn.execute("ALTER TABLE posts ADD COLUMN github_kind TEXT", []);
+        let _ = conn.execute("ALTER TABLE posts ADD COLUMN github_state TEXT", []);
+        let _ = conn.execute("ALTER TABLE posts ADD COLUMN github_html_url TEXT", []);
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_community_github_id ON posts(community_id, github_id)",
+            [],
+        )?;
 
         // Remove a legacy duplicate; SCHEMA creates idx_posts_parent_post_id.
         let _ = conn.execute("DROP INDEX IF EXISTS idx_posts_parent_id", []);

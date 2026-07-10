@@ -966,40 +966,6 @@ async fn notifications_fanout_and_read_e2e() -> Result<()> {
 }
 
 // ---------------------------------------------------------------------------
-// Stint 0011: community activity feed
-// ---------------------------------------------------------------------------
-
-#[tokio::test]
-async fn community_activity_requires_auth_and_rejects_unknown_community() -> Result<()> {
-    let server = spawn_server(None).await?;
-    let repos = &server.state.repos;
-
-    let alice = create_user(repos, "e2e-activity-alice")?;
-    let alice_client = login(&server, &alice)?;
-
-    // Unauthenticated requests are rejected.
-    let anon = reqwest::Client::new()
-        .get(format!(
-            "http://{}/communities/{}/activity",
-            server.addr,
-            Uuid::new_v4()
-        ))
-        .send()
-        .await?;
-    assert_eq!(anon.status(), StatusCode::UNAUTHORIZED);
-
-    // An authenticated request for a community that doesn't exist 404s,
-    // same as GET /communities/:id, before any GitHub call is made (no
-    // fixture server is running here).
-    let response = alice_client
-        .get(&format!("/communities/{}/activity", Uuid::new_v4()))
-        .await?;
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
-
-    Ok(())
-}
-
-// ---------------------------------------------------------------------------
 // Community badge SVG endpoint
 // ---------------------------------------------------------------------------
 

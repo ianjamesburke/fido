@@ -14,6 +14,7 @@ use fido_types::{MembershipRole, NotificationType, Post, SortOrder, User, VoteDi
 pub struct PostService {
     repos: Repositories,
     event_bus: SharedEventBus,
+    activity: Option<crate::services::activity::ActivityService>,
 }
 
 #[cfg(all(test, feature = "sqlite-tests"))]
@@ -118,6 +119,10 @@ mod tests {
             reply_count: 0,
             reply_to_user_id: None,
             reply_to_username: None,
+            github_id: None,
+            github_kind: None,
+            github_state: None,
+            github_html_url: None,
         }
     }
 
@@ -145,6 +150,10 @@ mod tests {
             reply_count: 0,
             reply_to_user_id: Some(root.author_id),
             reply_to_username: Some(root.author_username),
+            github_id: None,
+            github_kind: None,
+            github_state: None,
+            github_html_url: None,
         };
         service.create_post(&reply).expect("reply creates");
 
@@ -216,10 +225,19 @@ mod tests {
 
 impl PostService {
     pub fn new(repos: Repositories, event_bus: SharedEventBus) -> Self {
-        Self { repos, event_bus }
+        Self {
+            repos,
+            event_bus,
+            activity: None,
+        }
     }
 
-    pub fn get_posts(
+    pub fn with_activity(mut self, activity: crate::services::activity::ActivityService) -> Self {
+        self.activity = Some(activity);
+        self
+    }
+
+    pub async fn get_posts(
         &self,
         community_id: Uuid,
         sort_order: SortOrder,
@@ -228,6 +246,9 @@ impl PostService {
         user_id: Uuid,
     ) -> ApiResult<Vec<Post>> {
         self.require_membership(user_id, community_id)?;
+        if let Some(activity) = &self.activity {
+            activity.sync_activity(community_id).await?;
+        }
         let mut posts = match username {
             Some(user) => {
                 self.repos

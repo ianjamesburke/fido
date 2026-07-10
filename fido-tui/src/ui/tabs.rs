@@ -17,7 +17,7 @@ use super::components::panel::render_panel_lines;
 use super::formatting::*;
 use super::modals::*;
 use super::theme::{get_theme_colors, ThemeColors};
-use crate::app::{App, Conversation, DMSelection, FeedEntry};
+use crate::app::{App, Conversation, DMSelection};
 use crate::{log_modal_state, log_rendering};
 
 pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
@@ -1061,10 +1061,7 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
         return;
     }
 
-    if app.posts_state.feed_entries.is_empty()
-        && !app.posts_state.loading
-        && !app.posts_state.activity_loading
-    {
+    if app.posts_state.posts.is_empty() && !app.posts_state.loading {
         let theme = get_theme_colors(app);
         let empty = Paragraph::new(vec![
             Line::from(""),
@@ -1107,160 +1104,87 @@ pub fn render_posts_tab_with_data(frame: &mut Frame, app: &mut App, area: Rect) 
         items.push(ListItem::new(loading_item));
     }
 
-    // Activity loading row (rendered right after the posts spinner, if any -
-    // items_before_posts() counts this in exactly this position)
-    if app.posts_state.activity_loading {
-        let style = Style::default().fg(theme.text_dim);
-        items.push(ListItem::new(create_centered_indicator(
-            "⊙ loading repo activity...",
-            style,
-            available_width,
-        )));
-    }
-
-    // Repo activity error - ambient dim line, not a banner
-    if let Some(activity_error) = &app.posts_state.activity_error {
-        let style = Style::default().fg(theme.text_dim);
-        items.push(ListItem::new(vec![
-            Line::from(Span::styled(format!("⊙ {}", activity_error), style)),
-            Line::from(""),
-        ]));
-    }
-
     // Calculate available width for post content
     let post_width = (posts_area.width as usize).saturating_sub(4);
 
-    // Get the currently selected feed entry (post or activity item)
-    let selected_feed_entry = app.posts_state.selected_feed_entry();
-    let selected_post_index = app
-        .posts_state
-        .list_state
-        .selected()
-        .and_then(|list_idx| app.posts_state.list_index_to_post_index(list_idx));
+    let selected_post_index = app.posts_state.list_state.selected();
+    let post_count = app.posts_state.posts.len();
 
-    let entry_count = app.posts_state.feed_entries.len();
-
-    // Add posts and repo activity, interleaved as merged in feed_entries
     let feed_items: Vec<ListItem> = app
         .posts_state
-        .feed_entries
+        .posts
         .iter()
         .enumerate()
-        .flat_map(|(entry_idx, entry)| {
-            let is_last_entry = entry_idx == entry_count - 1;
-
-            match entry {
-                FeedEntry::Post(i) => {
-                    let post = &app.posts_state.posts[*i];
-                    // Check if THIS post is the selected one
-                    let is_selected = selected_post_index == Some(*i);
-
-                    let mut post_lines: Vec<Line> = Vec::new();
-
-                    // Post header with username and timestamp
-                    let header_style = if is_selected {
-                        Style::default()
-                            .fg(theme.success)
-                            .add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default().fg(theme.primary)
-                    };
-
-                    let prefix = if is_selected { "▶ " } else { "  " };
-                    let timestamp = format_timestamp(&post.created_at);
-
-                    post_lines.push(Line::from(vec![
-                        Span::styled(prefix, header_style),
-                        Span::styled(format!("@{}", post.author_username), header_style),
-                        Span::raw(" • "),
-                        Span::styled(timestamp, Style::default().fg(theme.text_dim)),
-                    ]));
-
-                    // Post content with hashtag highlighting and wrapping
-                    let content_lines = format_post_content_with_width(
-                        &post.content,
-                        is_selected,
-                        &theme,
-                        post_width,
-                    );
-                    post_lines.extend(content_lines);
-
-                    // Vote counts with highlighting for user's vote
-                    let user_voted_up = post.user_vote.as_deref() == Some("up");
-                    let user_voted_down = post.user_vote.as_deref() == Some("down");
-
-                    let upvote_style = if user_voted_up {
-                        Style::default()
-                            .fg(theme.success)
-                            .add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default().fg(theme.text_dim)
-                    };
-
-                    let downvote_style = if user_voted_down {
-                        Style::default()
-                            .fg(theme.error)
-                            .add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default().fg(theme.text_dim)
-                    };
-
-                    post_lines.push(Line::from(vec![
-                        Span::raw("  "),
-                        Span::styled(format!("↑ {} ", post.upvotes), upvote_style),
-                        Span::styled(format!("↓ {} ", post.downvotes), downvote_style),
-                        Span::styled(
-                            format!("💬 {}", post.reply_count),
-                            Style::default().fg(theme.text_dim),
-                        ),
-                    ]));
-
-                    // Separator
-                    if !is_last_entry {
-                        post_lines.push(Line::from(""));
-                    }
-
-                    vec![ListItem::new(post_lines)]
-                }
-                FeedEntry::Activity(i) => {
-                    let Some(activity) = app.posts_state.activity_items.get(*i) else {
-                        return vec![];
-                    };
-                    let is_selected = selected_feed_entry == Some(FeedEntry::Activity(*i));
-
-                    let rest_color = if is_selected {
-                        theme.text
-                    } else {
-                        theme.text_dim
-                    };
-                    let prefix = if is_selected { "▶ " } else { "  " };
-                    let glyph_color = activity_glyph_color(activity, &theme);
-
-                    let text = truncated_activity_line(activity, available_width);
-                    let mut chars = text.chars();
-                    let glyph = chars.next().unwrap_or(' ');
-                    let rest: String = chars.collect();
-
-                    let mut lines = vec![Line::from(vec![
-                        Span::styled(prefix, Style::default().fg(rest_color)),
-                        Span::styled(glyph.to_string(), Style::default().fg(glyph_color)),
-                        Span::styled(rest, Style::default().fg(rest_color)),
-                    ])];
-
-                    if !is_last_entry {
-                        lines.push(Line::from(""));
-                    }
-
-                    vec![ListItem::new(lines)]
-                }
+        .map(|(index, post)| {
+            let is_selected = selected_post_index == Some(index);
+            let is_github_post = post.github_kind.is_some();
+            let is_last = index + 1 == post_count;
+            let header_style = if is_selected {
+                Style::default()
+                    .fg(theme.success)
+                    .add_modifier(Modifier::BOLD)
+            } else if is_github_post {
+                Style::default().fg(activity_glyph_color(post, &theme))
+            } else {
+                Style::default().fg(theme.primary)
+            };
+            let prefix = if is_selected { "▶ " } else { "  " };
+            let header = if is_github_post {
+                activity_line_text(post)
+            } else {
+                format!("@{}", post.author_username)
+            };
+            let mut lines = vec![Line::from(vec![
+                Span::styled(prefix, header_style),
+                Span::styled(header, header_style),
+                Span::raw(" • "),
+                Span::styled(
+                    format_timestamp(&post.created_at),
+                    Style::default().fg(theme.text_dim),
+                ),
+            ])];
+            if !is_github_post {
+                lines.extend(format_post_content_with_width(
+                    &post.content,
+                    is_selected,
+                    &theme,
+                    post_width,
+                ));
             }
+            let upvote_style = if post.user_vote.as_deref() == Some("up") {
+                Style::default()
+                    .fg(theme.success)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.text_dim)
+            };
+            let downvote_style = if post.user_vote.as_deref() == Some("down") {
+                Style::default()
+                    .fg(theme.error)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.text_dim)
+            };
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(format!("↑ {} ", post.upvotes), upvote_style),
+                Span::styled(format!("↓ {} ", post.downvotes), downvote_style),
+                Span::styled(
+                    format!("💬 {}", post.reply_count),
+                    Style::default().fg(theme.text_dim),
+                ),
+            ]));
+            if !is_last {
+                lines.push(Line::from(""));
+            }
+            ListItem::new(lines)
         })
         .collect();
 
     items.extend(feed_items);
 
     // Add end-of-feed message
-    if !app.posts_state.feed_entries.is_empty() {
+    if !app.posts_state.posts.is_empty() {
         let end_of_feed = vec![
             Line::from(""),
             Line::from(""),
@@ -1358,26 +1282,6 @@ fn create_centered_indicator(
         )),
         Line::from(""),
     ]
-}
-
-/// `activity_line_text`, with the item's title truncated (with an ellipsis)
-/// so the full line fits `available_width`.
-fn truncated_activity_line(item: &fido_types::ActivityItem, available_width: usize) -> String {
-    let full = activity_line_text(item);
-    if full.chars().count() <= available_width {
-        return full;
-    }
-
-    let mut untitled = item.clone();
-    untitled.title = String::new();
-    let fixed_len = activity_line_text(&untitled).chars().count();
-
-    let max_title_chars = available_width.saturating_sub(fixed_len).saturating_sub(1);
-    let truncated_title: String = item.title.chars().take(max_title_chars).collect();
-
-    let mut truncated = item.clone();
-    truncated.title = format!("{}…", truncated_title);
-    activity_line_text(&truncated)
 }
 
 /// Format timestamp for display

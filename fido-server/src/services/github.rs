@@ -7,7 +7,7 @@ use aes_gcm_siv::{
 use anyhow::{anyhow, bail, Context, Result};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use chrono::{Duration, Utc};
-use fido_types::{ActivityItem, ActivityKind, ActivityState};
+use fido_types::{ActivityKind, ActivityState};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -18,6 +18,17 @@ const GITHUB_API_ACCEPT: &str = "application/vnd.github+json";
 const GITHUB_API_BASE: &str = "https://api.github.com";
 const GITHUB_USER_AGENT: &str = "Fido-Social";
 const NONCE_SIZE: usize = 12;
+
+/// Internal GitHub fetch shape used to build synced posts.
+#[derive(Debug, Clone)]
+pub struct ActivityItem {
+    pub github_id: i64,
+    pub kind: ActivityKind,
+    pub title: String,
+    pub state: ActivityState,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub html_url: String,
+}
 
 #[derive(Clone)]
 pub struct GithubService {
@@ -70,18 +81,11 @@ struct RevokeGrantRequest<'a> {
 #[derive(Debug, Deserialize)]
 pub(crate) struct GithubIssue {
     id: i64,
-    number: i64,
     title: String,
     state: String,
     html_url: String,
     created_at: chrono::DateTime<Utc>,
-    user: GithubIssueUser,
     pull_request: Option<GithubIssuePullRequest>,
-}
-
-#[derive(Debug, Deserialize)]
-struct GithubIssueUser {
-    login: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -112,9 +116,7 @@ pub(crate) fn map_issue_to_activity(issue: GithubIssue) -> ActivityItem {
     ActivityItem {
         github_id: issue.id,
         kind,
-        number: issue.number,
         title: issue.title,
-        author_login: issue.user.login,
         state,
         created_at: issue.created_at,
         html_url: issue.html_url,
@@ -497,26 +499,23 @@ mod tests {
             .iter()
             .find(|i| i.kind == ActivityKind::Issue)
             .expect("has an issue");
-        assert_eq!(issue.number, 10);
+        assert!(issue.github_id > 0);
         assert_eq!(issue.title, "Give the website a makeover");
         assert_eq!(issue.state, ActivityState::Open);
-        assert_eq!(issue.author_login, "ianjamesburke");
 
         let merged = items
             .iter()
             .find(|i| i.state == ActivityState::Merged)
             .expect("has a merged PR");
         assert_eq!(merged.kind, ActivityKind::PullRequest);
-        assert_eq!(merged.number, 19);
+        assert!(merged.github_id > 0);
         assert!(merged.html_url.starts_with("https://"));
-        assert!(!merged.author_login.is_empty());
 
         let open_pr = items
             .iter()
             .find(|i| i.kind == ActivityKind::PullRequest && i.state == ActivityState::Open)
             .expect("has an open PR");
-        assert_eq!(open_pr.number, 158719);
-        assert_eq!(open_pr.author_login, "jieyouxu");
+        assert!(open_pr.github_id > 0);
     }
 
     #[test]

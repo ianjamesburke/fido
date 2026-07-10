@@ -38,7 +38,6 @@ impl App {
         self.current_screen = Screen::Auth;
         self.posts_state.posts.clear();
         self.posts_state.message = None;
-        self.clear_activity();
         self.clear_chat();
         self.profile_state.profile = None;
         self.dms_state.conversations.clear();

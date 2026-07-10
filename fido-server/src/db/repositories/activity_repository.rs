@@ -5,12 +5,7 @@ use uuid::Uuid;
 
 use crate::db::DbPool;
 
-#[derive(Debug, Clone)]
-pub struct ActivityCacheRecord {
-    pub payload: String,
-    pub fetched_at: DateTime<Utc>,
-}
-
+/// Gates GitHub activity fetches. Synced items live in `posts`.
 #[derive(Clone)]
 pub struct ActivityRepository {
     pool: DbPool,
@@ -21,90 +16,28 @@ impl ActivityRepository {
         Self { pool }
     }
 
-    pub fn get(&self, community_id: Uuid) -> Result<Option<ActivityCacheRecord>> {
+    pub fn get_last_synced_at(&self, community_id: Uuid) -> Result<Option<DateTime<Utc>>> {
         let conn = self.pool.get()?;
-        let row: Option<(String, String)> = conn
+        let value: Option<String> = conn
             .query_row(
-                "SELECT payload, fetched_at FROM community_activity WHERE community_id = ?1",
-                rusqlite::params![community_id.to_string()],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                "SELECT last_synced_at FROM community_activity_sync WHERE community_id = ?1",
+                [community_id.to_string()],
+                |row| row.get(0),
             )
             .optional()?;
-        match row {
-            Some((payload, fetched_at)) => Ok(Some(ActivityCacheRecord {
-                payload,
-                fetched_at: DateTime::parse_from_rfc3339(&fetched_at)?.with_timezone(&Utc),
-            })),
-            None => Ok(None),
-        }
+        value
+            .map(|value| Ok(DateTime::parse_from_rfc3339(&value)?.with_timezone(&Utc)))
+            .transpose()
     }
 
-    pub fn upsert(
-        &self,
-        community_id: Uuid,
-        payload: &str,
-        fetched_at: DateTime<Utc>,
-    ) -> Result<()> {
+    pub fn mark_synced(&self, community_id: Uuid, at: DateTime<Utc>) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(
-            "INSERT INTO community_activity (community_id, payload, fetched_at)
-             VALUES (?1, ?2, ?3)
-             ON CONFLICT(community_id) DO UPDATE SET
-                payload = excluded.payload,
-                fetched_at = excluded.fetched_at",
-            rusqlite::params![community_id.to_string(), payload, fetched_at.to_rfc3339()],
+            "INSERT INTO community_activity_sync (community_id, last_synced_at)
+             VALUES (?1, ?2)
+             ON CONFLICT(community_id) DO UPDATE SET last_synced_at = excluded.last_synced_at",
+            (community_id.to_string(), at.to_rfc3339()),
         )?;
         Ok(())
-    }
-}
-
-#[cfg(all(test, feature = "sqlite-tests"))]
-mod tests {
-    use super::*;
-    use crate::db::Database;
-
-    fn setup_db() -> Database {
-        let db = Database::in_memory().expect("Failed to create test database");
-        db.initialize().expect("Failed to initialize test database");
-
-        let conn = db.connection().expect("Failed to get test connection");
-        conn.execute(
-            "INSERT INTO communities (id, github_repo_id, owner, name, claimed_by, require_thread_approval, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            rusqlite::params![
-                "650e8400-e29b-41d4-a716-446655440001",
-                1i64,
-                "octocat",
-                "hello",
-                Option::<String>::None,
-                0,
-                Utc::now().to_rfc3339(),
-            ],
-        )
-        .expect("Failed to insert test community");
-
-        db
-    }
-
-    #[test]
-    fn upsert_and_get_activity_cache() {
-        let db = setup_db();
-        let repo = ActivityRepository::new(db.pool.clone());
-        let community_id = Uuid::parse_str("650e8400-e29b-41d4-a716-446655440001").unwrap();
-        let now = Utc::now();
-
-        assert!(repo.get(community_id).unwrap().is_none());
-
-        repo.upsert(community_id, r#"[{"fake":"payload"}]"#, now)
-            .unwrap();
-        let rec = repo.get(community_id).unwrap().unwrap();
-        assert_eq!(rec.payload, r#"[{"fake":"payload"}]"#);
-        assert_eq!(rec.fetched_at, now);
-
-        let later = now + chrono::Duration::minutes(11);
-        repo.upsert(community_id, "[]", later).unwrap();
-        let rec = repo.get(community_id).unwrap().unwrap();
-        assert_eq!(rec.payload, "[]");
-        assert_eq!(rec.fetched_at, later);
     }
 }

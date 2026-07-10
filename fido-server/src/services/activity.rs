@@ -1,22 +1,16 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Duration, Utc};
-use fido_types::ActivityItem;
+use fido_types::{Membership, MembershipRole, Post};
 use uuid::Uuid;
 
-use crate::api::{ApiError, ApiResult};
 use crate::db::repositories::Repositories;
 use crate::services::github::GithubService;
 
-pub const ACTIVITY_CACHE_TTL_MINUTES: i64 = 10;
+pub const ACTIVITY_SYNC_TTL_MINUTES: i64 = 10;
+const GITHUB_SYSTEM_USERNAME: &str = "github";
 
-#[derive(Debug, Clone)]
-pub struct CommunityActivity {
-    pub items: Vec<ActivityItem>,
-    pub fetched_at: DateTime<Utc>,
-}
-
-pub(crate) fn cache_is_fresh(fetched_at: DateTime<Utc>, now: DateTime<Utc>) -> bool {
-    now - fetched_at < Duration::minutes(ACTIVITY_CACHE_TTL_MINUTES)
+pub(crate) fn sync_is_fresh(last_synced_at: DateTime<Utc>, now: DateTime<Utc>) -> bool {
+    now - last_synced_at < Duration::minutes(ACTIVITY_SYNC_TTL_MINUTES)
 }
 
 pub struct ActivityService {
@@ -29,78 +23,88 @@ impl ActivityService {
         Self { repos, github }
     }
 
-    /// Cached repo activity for a community. Fresh cache: served as-is.
-    /// Stale/missing: refetch from GitHub and upsert. GitHub failure with a
-    /// stale cache present: serve stale with a warning. Failure with no
-    /// cache: propagate.
-    pub async fn get_activity(
-        &self,
-        user_id: Uuid,
-        community_id: Uuid,
-    ) -> ApiResult<CommunityActivity> {
+    /// Best-effort sync: failure is logged so existing posts remain readable.
+    pub async fn sync_activity(&self, community_id: Uuid) -> Result<()> {
         let now = Utc::now();
-        let cached = self.repos.activity.get(community_id)?;
-
-        if let Some(record) = &cached {
-            if cache_is_fresh(record.fetched_at, now) {
-                return Ok(decode(record.payload.as_str(), record.fetched_at)?);
+        if let Some(last_synced_at) = self.repos.activity.get_last_synced_at(community_id)? {
+            if sync_is_fresh(last_synced_at, now) {
+                return Ok(());
             }
         }
 
+        if let Err(error) = self.try_sync(community_id, now).await {
+            tracing::warn!(%community_id, %error, "GitHub activity sync failed; serving existing posts");
+        }
+        Ok(())
+    }
+
+    async fn try_sync(&self, community_id: Uuid, now: DateTime<Utc>) -> Result<()> {
         let community = self
             .repos
             .communities
             .get_by_id(&community_id)?
-            .ok_or_else(|| ApiError::NotFound("Community not found".to_string()))?;
-
-        match self
+            .ok_or_else(|| anyhow!("Community {} not found", community_id))?;
+        let system_user = self
+            .repos
+            .users
+            .get_or_create_system_user(GITHUB_SYSTEM_USERNAME)
+            .context("Failed to get or create github system user")?;
+        let items = self
             .github
-            .repo_activity(user_id, &community.owner, &community.name)
+            .repo_activity(system_user.id, &community.owner, &community.name)
             .await
-        {
-            Ok(items) => {
-                let payload = serde_json::to_string(&items)
-                    .context("Failed to serialize activity payload")?;
-                self.repos.activity.upsert(community_id, &payload, now)?;
-                Ok(CommunityActivity {
-                    items,
-                    fetched_at: now,
-                })
-            }
-            Err(error) => {
-                if let Some(record) = cached {
-                    tracing::warn!(%community_id, %error, "Serving stale activity cache after GitHub fetch failure");
-                    return Ok(decode(record.payload.as_str(), record.fetched_at)?);
-                }
-                Err(error)
-                    .with_context(|| {
-                        format!(
-                            "Failed to fetch repo activity for community {}",
-                            community_id
-                        )
-                    })
-                    .map_err(ApiError::from)
-            }
-        }
-    }
-}
+            .context("Failed to fetch repo activity from GitHub")?;
 
-fn decode(payload: &str, fetched_at: DateTime<Utc>) -> Result<CommunityActivity> {
-    let items: Vec<ActivityItem> =
-        serde_json::from_str(payload).context("Failed to decode cached activity payload")?;
-    Ok(CommunityActivity { items, fetched_at })
+        if !items.is_empty() {
+            self.repos.memberships.insert_if_missing(&Membership {
+                community_id,
+                user_id: system_user.id,
+                role: MembershipRole::Member,
+                created_at: now,
+            })?;
+        }
+
+        for item in items {
+            let mut content = item.title;
+            content.truncate(280);
+            // On a conflict the repository deliberately preserves the existing
+            // post id, retaining all native votes and replies.
+            self.repos.posts.upsert_github_post(&Post {
+                id: Uuid::new_v4(),
+                author_id: system_user.id,
+                author_username: system_user.username.clone(),
+                community_id,
+                content,
+                created_at: item.created_at,
+                upvotes: 0,
+                downvotes: 0,
+                approved: true,
+                hashtags: Vec::new(),
+                user_vote: None,
+                parent_post_id: None,
+                reply_count: 0,
+                reply_to_user_id: None,
+                reply_to_username: None,
+                github_id: Some(item.github_id),
+                github_kind: Some(item.kind),
+                github_state: Some(item.state),
+                github_html_url: Some(item.html_url),
+            })?;
+        }
+
+        self.repos.activity.mark_synced(community_id, now)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{Duration, Utc};
 
     #[test]
-    fn cache_is_fresh_within_ttl_and_stale_after() {
+    fn sync_is_fresh_within_ttl_and_stale_after() {
         let now = Utc::now();
-        assert!(cache_is_fresh(now - Duration::minutes(9), now));
-        assert!(!cache_is_fresh(now - Duration::minutes(10), now));
-        assert!(!cache_is_fresh(now - Duration::hours(2), now));
+        assert!(sync_is_fresh(now - Duration::minutes(9), now));
+        assert!(!sync_is_fresh(now - Duration::minutes(10), now));
     }
 }

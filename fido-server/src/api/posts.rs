@@ -76,13 +76,22 @@ fn default_limit() -> i32 {
     25
 }
 
+fn post_service(state: &AppState) -> PostService {
+    PostService::new(state.repos.clone(), state.event_bus.clone()).with_activity(
+        crate::services::activity::ActivityService::new(
+            state.repos.clone(),
+            state.github_service.clone(),
+        ),
+    )
+}
+
 /// GET /posts - Get posts with sorting and limit (optionally filtered by username)
 pub async fn get_posts(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
     Query(query): Query<GetPostsQuery>,
 ) -> ApiResult<Json<Vec<Post>>> {
-    let service = PostService::new(state.repos.clone(), state.event_bus.clone());
+    let service = post_service(&state);
 
     // Parse and validate sort order - reject invalid values
     let sort_order = if let Some(sort_str) = query.sort.as_deref() {
@@ -100,13 +109,15 @@ pub async fn get_posts(
     // SQL LIMIT (LIMIT -1 means "no limit" in SQLite).
     let limit = query.limit.clamp(1, 100);
 
-    let posts = service.get_posts(
-        query.community_id,
-        sort_order,
-        limit,
-        query.username.as_deref(),
-        user_id,
-    )?;
+    let posts = service
+        .get_posts(
+            query.community_id,
+            sort_order,
+            limit,
+            query.username.as_deref(),
+            user_id,
+        )
+        .await?;
 
     Ok(Json(posts))
 }
@@ -178,6 +189,10 @@ pub async fn create_post(
         reply_count: 0,         // Will be calculated dynamically
         reply_to_user_id: None, // Top-level posts don't reply to anyone
         reply_to_username: None,
+        github_id: None,
+        github_kind: None,
+        github_state: None,
+        github_html_url: None,
     };
 
     // Store post
@@ -307,6 +322,10 @@ pub async fn create_reply(
         reply_count: 0, // Will be calculated dynamically
         reply_to_user_id,
         reply_to_username,
+        github_id: None,
+        github_kind: None,
+        github_state: None,
+        github_html_url: None,
     };
 
     // Store reply
@@ -660,6 +679,10 @@ mod tests {
             reply_count: 0,
             reply_to_user_id: None,
             reply_to_username: None,
+            github_id: None,
+            github_kind: None,
+            github_state: None,
+            github_html_url: None,
         };
         let other_post = Post {
             id: Uuid::new_v4(),

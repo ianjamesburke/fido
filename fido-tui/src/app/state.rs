@@ -1,6 +1,6 @@
 use fido_types::{
-    ActivityItem, Channel, ChannelMessageEvent, Message, Notification, NotificationUnreadCount,
-    Post, User, UserProfile,
+    Channel, ChannelMessageEvent, Message, Notification, NotificationUnreadCount, Post, User,
+    UserProfile,
 };
 
 use ratatui::widgets::ListState;
@@ -628,14 +628,6 @@ pub struct PostsState {
     pub filter_modal_state: FilterModalState,
     /// Track if at end of feed (for "End of Feed" indicator)
     pub at_end_of_feed: bool,
-    /// Recent GitHub issues/PRs for the community's repo
-    pub activity_items: Vec<ActivityItem>,
-    pub activity_loading: bool,
-    pub activity_error: Option<String>,
-    /// Flag to trigger the activity fetch after the board has rendered
-    pub activity_pending_load: bool,
-    /// Posts and activity merged descending by `created_at`
-    pub feed_entries: Vec<FeedEntry>,
     /// Admin queue for pending top-level community threads.
     pub pending_threads: Vec<Post>,
     pub pending_threads_list_state: ListState,
@@ -643,94 +635,6 @@ pub struct PostsState {
     pub pending_threads_loading: bool,
     pub pending_threads_loaded: bool,
     pub pending_threads_error: Option<String>,
-}
-
-/// One row in the interleaved posts + repo-activity feed.
-/// The `usize` indexes into `PostsState::posts` or `PostsState::activity_items`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FeedEntry {
-    Post(usize),
-    Activity(usize),
-}
-
-/// Merge posts and activity items descending by `created_at`. Ties render the
-/// post first (stable sort preserves the posts-then-activity chain order).
-pub fn rebuild_feed_entries(posts: &[Post], activity: &[ActivityItem]) -> Vec<FeedEntry> {
-    let mut entries: Vec<(chrono::DateTime<chrono::Utc>, FeedEntry)> = posts
-        .iter()
-        .enumerate()
-        .map(|(i, p)| (p.created_at, FeedEntry::Post(i)))
-        .chain(
-            activity
-                .iter()
-                .enumerate()
-                .map(|(i, a)| (a.created_at, FeedEntry::Activity(i))),
-        )
-        .collect();
-    entries.sort_by(|a, b| b.0.cmp(&a.0));
-    entries.into_iter().map(|(_, e)| e).collect()
-}
-
-impl PostsState {
-    /// Calculate how many items appear before the feed entries in the
-    /// rendered list. Used to convert between feed/post indices and list
-    /// indices.
-    pub fn items_before_posts(&self) -> usize {
-        let mut count = 0;
-
-        // Loading spinner
-        if self.loading && !self.posts.is_empty() {
-            count += 1;
-        }
-
-        // Activity loading row (rendered starting Task 6)
-        if self.activity_loading {
-            count += 1;
-        }
-
-        // Repo activity error row (rendered starting Task 6, ambient - not
-        // itself a feed entry)
-        if self.activity_error.is_some() {
-            count += 1;
-        }
-
-        count
-    }
-
-    /// Rebuild `feed_entries` from the current posts and activity items.
-    /// Call after either list changes.
-    pub fn rebuild_feed(&mut self) {
-        self.feed_entries = rebuild_feed_entries(&self.posts, &self.activity_items);
-    }
-
-    /// The feed entry at the current list selection, if any.
-    pub fn selected_feed_entry(&self) -> Option<FeedEntry> {
-        let list_idx = self.list_state.selected()?;
-        let offset = self.items_before_posts();
-        self.feed_entries
-            .get(list_idx.checked_sub(offset)?)
-            .copied()
-    }
-
-    /// Convert a post index to a list index by locating it in `feed_entries`.
-    pub fn post_index_to_list_index(&self, post_index: usize) -> usize {
-        let offset = self.items_before_posts();
-        self.feed_entries
-            .iter()
-            .position(|e| matches!(e, FeedEntry::Post(i) if *i == post_index))
-            .map(|pos| pos + offset)
-            .unwrap_or(offset)
-    }
-
-    /// Convert a list index to a post index (returns None if the list index
-    /// points to a non-post item, e.g. an activity row).
-    pub fn list_index_to_post_index(&self, list_index: usize) -> Option<usize> {
-        let offset = self.items_before_posts();
-        match self.feed_entries.get(list_index.checked_sub(offset)?)? {
-            FeedEntry::Post(i) => Some(*i),
-            FeedEntry::Activity(_) => None,
-        }
-    }
 }
 
 /// Filter modal state

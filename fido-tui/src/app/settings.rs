@@ -58,7 +58,6 @@ impl App {
             self.auth_state.current_user = None;
             self.current_screen = super::Screen::Auth;
             self.posts_state.posts.clear();
-            self.clear_activity();
             self.profile_state.profile = None;
             self.dms_state.conversations.clear();
             self.dms_state.conversations_loaded = false;

@@ -70,6 +70,16 @@ pub struct Post {
     /// Username being replied to (for display purposes)
     #[serde(default)]
     pub reply_to_username: Option<String>,
+    /// GitHub issue/PR id this post syncs from. None for a normal user post.
+    #[serde(default)]
+    pub github_id: Option<i64>,
+    #[serde(default)]
+    pub github_kind: Option<ActivityKind>,
+    #[serde(default)]
+    pub github_state: Option<ActivityState>,
+    /// Link opened by the `o` key. None for a normal user post.
+    #[serde(default)]
+    pub github_html_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -231,21 +241,6 @@ pub struct DmConversation {
     pub created_at: DateTime<Utc>,
 }
 
-/// A GitHub issue or PR surfaced in a community feed. Read-only ambient
-/// content — never a post: no votes, no replies, no post id.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActivityItem {
-    pub github_id: i64,
-    pub kind: ActivityKind,
-    pub number: i64,
-    pub title: String,
-    pub author_login: String,
-    pub state: ActivityState,
-    #[serde(with = "datetime_format")]
-    pub created_at: DateTime<Utc>,
-    pub html_url: String,
-}
-
 // Request/Response types for API
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreatePostRequest {
@@ -310,28 +305,37 @@ pub struct ErrorResponse {
 }
 
 #[cfg(test)]
-mod activity_tests {
+mod github_post_tests {
     use super::*;
     use crate::enums::{ActivityKind, ActivityState};
 
     #[test]
-    fn activity_item_serde_round_trip() {
-        let item = ActivityItem {
-            github_id: 123456,
-            kind: ActivityKind::PullRequest,
-            number: 42,
-            title: "Add dark mode".to_string(),
-            author_login: "alice".to_string(),
-            state: ActivityState::Merged,
-            created_at: "2026-07-01T12:00:00Z".parse().unwrap(),
-            html_url: "https://github.com/o/r/pull/42".to_string(),
-        };
-        let json = serde_json::to_string(&item).unwrap();
-        assert!(json.contains("\"pull_request\""));
-        assert!(json.contains("\"merged\""));
-        let back: ActivityItem = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.github_id, 123456);
-        assert_eq!(back.kind, ActivityKind::PullRequest);
-        assert_eq!(back.state, ActivityState::Merged);
+    fn post_github_fields_default_to_none_and_round_trip() {
+        let json = r#"{
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "author_id": "550e8400-e29b-41d4-a716-446655440001",
+            "author_username": "alice",
+            "community_id": "550e8400-e29b-41d4-a716-446655440002",
+            "content": "hello",
+            "created_at": "2026-07-04T00:00:00Z",
+            "upvotes": 0,
+            "downvotes": 0,
+            "approved": true,
+            "hashtags": []
+        }"#;
+        let post: Post = serde_json::from_str(json).expect("deserialize");
+        assert_eq!(post.github_id, None);
+        assert_eq!(post.github_kind, None);
+
+        let mut github_post = post;
+        github_post.github_id = Some(19);
+        github_post.github_kind = Some(ActivityKind::PullRequest);
+        github_post.github_state = Some(ActivityState::Merged);
+        github_post.github_html_url = Some("https://github.com/o/r/pull/19".to_string());
+
+        let round = serde_json::to_string(&github_post).expect("serialize");
+        let back: Post = serde_json::from_str(&round).expect("deserialize round trip");
+        assert_eq!(back.github_id, Some(19));
+        assert_eq!(back.github_state, Some(ActivityState::Merged));
     }
 }

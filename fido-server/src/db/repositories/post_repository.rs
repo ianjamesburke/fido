@@ -2,20 +2,22 @@ use anyhow::{Context, Result};
 use rusqlite::{params, OptionalExtension};
 use uuid::Uuid;
 
-use fido_types::{Post, SortOrder};
+use fido_types::{ActivityKind, ActivityState, Post, SortOrder};
 
 use crate::db::{row, DbPool};
 
 const POST_SELECT_WITH_REPLY_COUNT: &str = "SELECT p.id, p.author_id, u.username, p.content, p.created_at, p.upvotes, p.downvotes, p.parent_post_id,
                     (SELECT COUNT(*) FROM posts WHERE parent_post_id = p.id) as reply_count,
-                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved
+                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved,
+                    p.github_id, p.github_kind, p.github_state, p.github_html_url
              FROM posts p
              JOIN users u ON p.author_id = u.id
              LEFT JOIN users u2 ON p.reply_to_user_id = u2.id";
 
 const PENDING_POSTS_QUERY: &str = "SELECT p.id, p.author_id, u.username, p.content, p.created_at, p.upvotes, p.downvotes, p.parent_post_id,
                     (SELECT COUNT(*) FROM posts WHERE parent_post_id = p.id) as reply_count,
-                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved
+                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved,
+                    p.github_id, p.github_kind, p.github_state, p.github_html_url
              FROM posts p
              JOIN users u ON p.author_id = u.id
              LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
@@ -52,6 +54,37 @@ impl PostRepository {
                 post.reply_to_user_id.map(|id| id.to_string()),
             ),
         ).context("Failed to create post")?;
+        Ok(())
+    }
+
+    /// Insert a synced GitHub post or update its mutable GitHub fields while
+    /// preserving its id, votes, and replies.
+    pub fn upsert_github_post(&self, post: &Post) -> Result<()> {
+        let conn = self.pool.get()?;
+        conn.execute(
+            "INSERT INTO posts (id, author_id, community_id, content, created_at, upvotes, downvotes, approved, parent_post_id, reply_to_user_id, github_id, github_kind, github_state, github_html_url)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, NULL, ?9, ?10, ?11, ?12)
+             ON CONFLICT(community_id, github_id) DO UPDATE SET
+                content = excluded.content,
+                github_kind = excluded.github_kind,
+                github_state = excluded.github_state,
+                github_html_url = excluded.github_html_url",
+            (
+                post.id.to_string(),
+                post.author_id.to_string(),
+                post.community_id.to_string(),
+                &post.content,
+                post.created_at.to_rfc3339(),
+                post.upvotes,
+                post.downvotes,
+                i32::from(post.approved),
+                post.github_id,
+                post.github_kind.map(activity_kind_to_str),
+                post.github_state.map(activity_state_to_str),
+                &post.github_html_url,
+            ),
+        )
+        .context("Failed to upsert GitHub post")?;
         Ok(())
     }
 
@@ -121,7 +154,8 @@ impl PostRepository {
         let mut stmt = conn.prepare(
             "SELECT p.id, p.author_id, u.username, p.content, p.created_at, p.upvotes, p.downvotes, p.parent_post_id,
                     (SELECT COUNT(*) FROM posts WHERE parent_post_id = p.id) as reply_count,
-                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved
+                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved,
+                    p.github_id, p.github_kind, p.github_state, p.github_html_url
              FROM posts p
              JOIN users u ON p.author_id = u.id
              LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
@@ -142,7 +176,8 @@ impl PostRepository {
         let mut stmt = conn.prepare(
             "SELECT p.id, p.author_id, u.username, p.content, p.created_at, p.upvotes, p.downvotes, p.parent_post_id,
                     (SELECT COUNT(*) FROM posts WHERE parent_post_id = p.id) as reply_count,
-                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved
+                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved,
+                    p.github_id, p.github_kind, p.github_state, p.github_html_url
              FROM posts p
              JOIN users u ON p.author_id = u.id
              LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
@@ -208,7 +243,8 @@ impl PostRepository {
             "WITH RECURSIVE reply_tree AS (
                 -- Base case: direct replies to the parent post
                 SELECT p.id, p.author_id, p.content, p.created_at, p.upvotes, p.downvotes,
-                       p.parent_post_id, p.reply_to_user_id, p.community_id, p.approved, 0 as depth
+                       p.parent_post_id, p.reply_to_user_id, p.community_id, p.approved,
+                       p.github_id, p.github_kind, p.github_state, p.github_html_url, 0 as depth
                 FROM posts p
                 WHERE p.parent_post_id = ?
 
@@ -216,14 +252,16 @@ impl PostRepository {
 
                 -- Recursive case: replies to replies
                 SELECT p.id, p.author_id, p.content, p.created_at, p.upvotes, p.downvotes,
-                       p.parent_post_id, p.reply_to_user_id, p.community_id, p.approved, rt.depth + 1
+                       p.parent_post_id, p.reply_to_user_id, p.community_id, p.approved,
+                       p.github_id, p.github_kind, p.github_state, p.github_html_url, rt.depth + 1
                 FROM posts p
                 INNER JOIN reply_tree rt ON p.parent_post_id = rt.id
             )
             SELECT rt.id, rt.author_id, u.username, rt.content, rt.created_at,
                    rt.upvotes, rt.downvotes, rt.parent_post_id,
                    (SELECT COUNT(*) FROM posts WHERE parent_post_id = rt.id) as reply_count,
-                   rt.reply_to_user_id, u2.username as reply_to_username, rt.community_id, rt.approved, rt.depth
+                   rt.reply_to_user_id, u2.username as reply_to_username, rt.community_id, rt.approved,
+                   rt.github_id, rt.github_kind, rt.github_state, rt.github_html_url, rt.depth
             FROM reply_tree rt
             JOIN users u ON rt.author_id = u.id
             LEFT JOIN users u2 ON rt.reply_to_user_id = u2.id
@@ -279,7 +317,8 @@ impl PostRepository {
         let query = format!(
             "SELECT p.id, p.author_id, u.username, p.content, p.created_at, p.upvotes, p.downvotes, p.parent_post_id,
                     (SELECT COUNT(*) FROM posts WHERE parent_post_id = p.id) as reply_count,
-                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved
+                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved,
+                    p.github_id, p.github_kind, p.github_state, p.github_html_url
              FROM posts p
              JOIN users u ON p.author_id = u.id
              LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
@@ -325,6 +364,8 @@ fn map_post_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Post> {
     let parent_post_id_str: Option<String> = row.get(7)?;
     let reply_to_user_id_str: Option<String> = row.get(9)?;
     let community_id_str: String = row.get(11)?;
+    let github_kind: Option<String> = row.get(14)?;
+    let github_state: Option<String> = row.get(15)?;
 
     Ok(Post {
         id: row::parse_uuid(&id_str, 0)?,
@@ -342,7 +383,43 @@ fn map_post_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Post> {
         reply_count: row.get(8)?,
         reply_to_user_id: row::parse_optional_uuid(reply_to_user_id_str.as_deref(), 9)?,
         reply_to_username: row.get(10)?,
+        github_id: row.get(13)?,
+        github_kind: github_kind.and_then(|kind| str_to_activity_kind(&kind)),
+        github_state: github_state.and_then(|state| str_to_activity_state(&state)),
+        github_html_url: row.get(16)?,
     })
+}
+
+fn activity_kind_to_str(kind: ActivityKind) -> &'static str {
+    match kind {
+        ActivityKind::Issue => "issue",
+        ActivityKind::PullRequest => "pull_request",
+    }
+}
+
+fn activity_state_to_str(state: ActivityState) -> &'static str {
+    match state {
+        ActivityState::Open => "open",
+        ActivityState::Closed => "closed",
+        ActivityState::Merged => "merged",
+    }
+}
+
+fn str_to_activity_kind(kind: &str) -> Option<ActivityKind> {
+    match kind {
+        "issue" => Some(ActivityKind::Issue),
+        "pull_request" => Some(ActivityKind::PullRequest),
+        _ => None,
+    }
+}
+
+fn str_to_activity_state(state: &str) -> Option<ActivityState> {
+    match state {
+        "open" => Some(ActivityState::Open),
+        "closed" => Some(ActivityState::Closed),
+        "merged" => Some(ActivityState::Merged),
+        _ => None,
+    }
 }
 
 #[cfg(all(test, feature = "sqlite-tests"))]

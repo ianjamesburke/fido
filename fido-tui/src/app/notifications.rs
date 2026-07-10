@@ -127,7 +127,6 @@ impl App {
             .map_err(|e| anyhow::anyhow!("Invalid notification community id: {}", e))?;
         match self.api_client.get_community(community_id).await {
             Ok(view) => {
-                self.clear_activity();
                 self.clear_chat();
                 self.apply_community_view(view);
                 self.current_screen = Screen::Main;

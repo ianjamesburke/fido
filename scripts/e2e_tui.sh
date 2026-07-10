@@ -7,7 +7,7 @@
 # Covers: test-user login, directory-scoped community join (repo mode),
 # board title with role, posting, channel chat, community modal, Home mode
 # outside a repo, opening a community from the Home list, search -> profile ->
-# DM, and the repo activity feed (GitHub issues fetch + cache).
+# DM, and GitHub issues synced as interactive posts.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -356,14 +356,14 @@ tmux kill-session -t "$AARON_SESSION"
 # --- Scenario 5: repo activity feed --------------------------------------
 # Opening the board triggers a background fetch of GitHub issues for the
 # repo; the stub returns one open issue that should interleave into the
-# posts feed and get cached in community_activity.
-echo "==> scenario 5: repo activity feed loads and caches"
+# posts feed as a real native post.
+echo "==> scenario 5: repo activity syncs into posts"
 launch_tui "$REPO"
 wait_for "testowner/testrepo" "repo community board (session restored, scenario 5)"
 wait_for "Stub issue for e2e" "stub issue interleaved into posts feed"
 
-count=$(sqlite3 "$WORK/fido.db" "SELECT COUNT(*) FROM community_activity;")
-[ "$count" -ge 1 ] || fail "expected community_activity cache row"
+count=$(sqlite3 "$WORK/fido.db" "SELECT COUNT(*) FROM posts WHERE github_id IS NOT NULL;")
+[ "$count" -ge 1 ] || fail "expected synced GitHub post"
 
 tmux kill-session -t "$SESSION"
 

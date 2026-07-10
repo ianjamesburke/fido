@@ -59,6 +59,10 @@ CREATE TABLE IF NOT EXISTS posts (
     approved INTEGER NOT NULL DEFAULT 1,
     parent_post_id TEXT,
     reply_to_user_id TEXT,
+    github_id INTEGER,
+    github_kind TEXT,
+    github_state TEXT,
+    github_html_url TEXT,
     FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (community_id) REFERENCES communities(id),
     FOREIGN KEY (parent_post_id) REFERENCES posts(id) ON DELETE CASCADE,
@@ -199,6 +203,13 @@ CREATE TABLE IF NOT EXISTS community_activity (
     community_id TEXT PRIMARY KEY,
     payload TEXT NOT NULL,
     fetched_at TEXT NOT NULL,
+    FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE
+);
+
+-- Gates GitHub issue/PR refreshes; synced items themselves live in posts.
+CREATE TABLE IF NOT EXISTS community_activity_sync (
+    community_id TEXT PRIMARY KEY,
+    last_synced_at TEXT NOT NULL,
     FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE
 );
 

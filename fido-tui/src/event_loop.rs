@@ -465,13 +465,6 @@ impl EventLoop {
             app.load_posts().await?;
         }
 
-        // Activity load runs after the posts load so the board is already
-        // populated when it lands (load_posts sets this flag on success).
-        if app.posts_state.activity_pending_load {
-            app.posts_state.activity_pending_load = false;
-            app.load_activity().await;
-        }
-
         // Load hashtags when modal is opened and hashtags list is empty
         if app.hashtags_state.show_hashtags_modal
             && app.hashtags_state.hashtags.is_empty()
@@ -796,14 +789,14 @@ impl EventLoop {
                     .posts_state
                     .list_state
                     .selected()
-                    .and_then(|i| app.posts_state.list_index_to_post_index(i))
-                    .and_then(|post_index| app.posts_state.posts.get(post_index))
+                    .and_then(|i| app.posts_state.posts.get(i))
+                    .filter(|post| post.github_kind.is_none())
                     .map(|post| (post.author_id, post.author_username.clone()));
                 if let Some((id, username)) = target {
                     app.open_user_profile(id, username).await?;
                 }
             }
-            // o: open the selected repo-activity item on GitHub
+            // o: open the selected GitHub post in a browser
             KeyCode::Char('o')
                 if app.current_screen == Screen::Main
                     && app.current_tab == Tab::Posts
@@ -812,13 +805,41 @@ impl EventLoop {
                     && !app.posts_state.show_filter_modal
                     && app.input_mode == InputMode::Navigation
                     && app.user_profile_view.is_none()
-                    && app.selected_activity_url().is_some() =>
+                    && app
+                        .posts_state
+                        .list_state
+                        .selected()
+                        .and_then(|i| app.posts_state.posts.get(i))
+                        .and_then(|post| post.github_html_url.as_ref())
+                        .is_some() =>
             {
-                if let Some(url) = app.selected_activity_url() {
+                if let Some(url) = app
+                    .posts_state
+                    .list_state
+                    .selected()
+                    .and_then(|i| app.posts_state.posts.get(i))
+                    .and_then(|post| post.github_html_url.clone())
+                {
                     if let Err(e) = webbrowser::open(&url) {
                         app.posts_state.error = Some(format!("Could not open browser: {}", e));
                     }
                 }
+            }
+            // Esc returns a repo-launched session to its initial board after
+            // the user opened another community from the browser.
+            KeyCode::Esc
+                if app.current_screen == Screen::Main
+                    && app.current_tab == Tab::Posts
+                    && app.input_mode == InputMode::Navigation
+                    && app.is_away_from_launch_community()
+                    && !app.community_browser_state.show
+                    && !app.composer_state.is_open()
+                    && !app.viewing_post_detail
+                    && !app.posts_state.show_filter_modal
+                    && !app.show_community_modal
+                    && app.user_profile_view.is_none() =>
+            {
+                app.return_to_launch_community().await?;
             }
             // p: profile from DM conversation list (navigation mode only)
             KeyCode::Char('p') | KeyCode::Char('P')
@@ -984,8 +1005,8 @@ impl EventLoop {
 
     async fn handle_post_selection(&self, app: &mut App) -> Result<()> {
         if let Some(list_index) = app.posts_state.list_state.selected() {
-            if let Some(post_index) = app.posts_state.list_index_to_post_index(list_index) {
-                let post_id = app.posts_state.posts[post_index].id;
+            if let Some(post) = app.posts_state.posts.get(list_index) {
+                let post_id = post.id;
                 app.open_post_detail(post_id).await?;
             }
         }

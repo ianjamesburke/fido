@@ -180,10 +180,6 @@ pub fn create_router_with_security_config(
             get(api::communities::list_members),
         )
         .route(
-            "/communities/:id/activity",
-            get(api::communities::get_activity),
-        )
-        .route(
             "/communities/:id/membership",
             delete(api::communities::leave_community),
         )
