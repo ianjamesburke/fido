@@ -12,14 +12,21 @@ use crate::security::errors::SecureError;
 
 pub type ApiResult<T> = Result<T, ApiError>;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ApiError {
+    #[error("{0}")]
     NotFound(String),
+    #[error("{0}")]
     BadRequest(String),
+    #[error("{0}")]
     Unauthorized(String),
+    #[error("{0}")]
     Forbidden(String),
+    #[error("{0}")]
     TooManyRequests(String),
     /// Internal errors - details are logged but never exposed to clients
+    #[error("{0}")]
     InternalError(String),
 }
 

@@ -18,7 +18,7 @@ pub struct EventLoop {
     last_device_poll: Instant,
     startup_started: bool,
     startup_data_load_pending: bool,
-    session_restore_task: Option<JoinHandle<Result<Option<RestoredSession>, String>>>,
+    session_restore_task: Option<JoinHandle<anyhow::Result<Option<RestoredSession>>>>,
     update_check_task: Option<JoinHandle<Option<String>>>,
     realtime_task: Option<JoinHandle<()>>,
     realtime_rx: Option<mpsc::Receiver<crate::api::RealtimeClientEvent>>,
@@ -201,9 +201,7 @@ impl EventLoop {
 
             let api_client = app.api_client.clone();
             self.session_restore_task = Some(tokio::spawn(async move {
-                auth::restore_existing_session(api_client)
-                    .await
-                    .map_err(|e| e.to_string())
+                auth::restore_existing_session(api_client).await
             }));
 
             if !self.is_web_mode {
