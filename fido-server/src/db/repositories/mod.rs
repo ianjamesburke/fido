@@ -1,4 +1,3 @@
-#![allow(dead_code)] // v2 repository bundle is exported by the library before every API surface uses it.
 
 mod activity_repository;
 mod audit_repository;

@@ -1,4 +1,3 @@
-#![allow(dead_code)] // v2 repository is covered by sqlite-tests before its API surface is wired.
 
 use anyhow::{Context, Result};
 use rusqlite::params;
