@@ -157,7 +157,20 @@ just e2e-tui
 
 ## Deploy
 
-Fido deploys on Railway from `main`. The web deployment runs nginx, ttyd, the TUI, and the API server. SQLite lives on a persistent Railway volume.
+Fido deploys on Railway from `main` as **two separate services** built from the
+same image, selected by `FIDO_DEPLOY_MODE`:
+
+- **demo** (`FIDO_DEPLOY_MODE=demo`, the default): the public web terminal —
+  nginx, ttyd, the TUI, and fido-server against an **ephemeral** SQLite DB that
+  is reset on every boot. No real user data ever lives here.
+- **api** (`FIDO_DEPLOY_MODE=api`): the persistent API service — fido-server
+  behind an API-only nginx, backed by a persistent volume at `/data`, with **no
+  ttyd and no anonymous terminal**. The installed TUI's default server URL
+  points here.
+
+Keeping them separate means a demo redeploy never wipes real accounts, and
+anonymous demo visitors can never reach the persistent DB. See
+[docs/DEPLOY.md](docs/DEPLOY.md) for the full topology and per-service variables.
 
 Manual deploy:
 

@@ -118,6 +118,62 @@ check_local_deps() {
 # Create log directory
 mkdir -p "$LOG_DIR"
 
+# Deployment mode selects which service this container runs:
+#   demo (default) - public web terminal: ttyd + nginx + ephemeral DB, no real data.
+#   api            - persistent API service: fido-server behind an API-only nginx,
+#                    persistent volume, NO ttyd, NO anonymous terminal, NO DB wipe.
+# The two must be separate Railway services; see docs/DEPLOY.md.
+FIDO_DEPLOY_MODE=${FIDO_DEPLOY_MODE:-demo}
+
+if [ "$FIDO_DEPLOY_MODE" = "api" ]; then
+    # Persistent API service. Never wipe the DB; default to the mounted volume.
+    API_DATABASE_PATH=${DATABASE_PATH:-/data/fido.db}
+    echo -e "${BLUE}Starting Fido API service (persistent DB at $API_DATABASE_PATH)...${NC}"
+
+    if [ "$ENV_MODE" = "docker" ] && [ -f /etc/nginx/nginx-api.conf.template ]; then
+        export NGINX_PORT
+        envsubst '${NGINX_PORT}' < /etc/nginx/nginx-api.conf.template > /etc/nginx/nginx.conf
+        echo -e "${GREEN}  ✓ API nginx.conf rendered (listen on port $NGINX_PORT)${NC}"
+    fi
+
+    # fido-server stays on the internal loopback port; nginx is the only external
+    # listener, so client-IP resolution and edge rate limiting apply.
+    export HOST=127.0.0.1
+    export PORT=$FIDO_SERVER_PORT
+    export DATABASE_PATH=$API_DATABASE_PATH
+    export RUST_LOG=${RUST_LOG:-info}
+
+    $FIDO_SERVER_BIN > "$LOG_DIR/fido-server.log" 2>&1 &
+    FIDO_SERVER_PID=$!
+    echo -e "${GREEN}  ✓ fido-server started (PID: $FIDO_SERVER_PID)${NC}"
+
+    if [ "$ENV_MODE" = "docker" ]; then
+        tail -n +1 -F "$LOG_DIR/fido-server.log" &
+        FIDO_LOG_TAIL_PID=$!
+    fi
+
+    sleep 2
+    if ! kill -0 "$FIDO_SERVER_PID" 2>/dev/null; then
+        echo -e "${RED}Error: fido-server exited during startup${NC}"
+        tail -n 200 "$LOG_DIR/fido-server.log" || true
+        exit 1
+    fi
+    if ! curl -fsS "http://127.0.0.1:${FIDO_SERVER_PORT}/health" >/dev/null 2>&1; then
+        echo -e "${RED}Error: fido-server health endpoint failed during startup${NC}"
+        tail -n 200 "$LOG_DIR/fido-server.log" || true
+        exit 1
+    fi
+
+    echo -e "${YELLOW}Starting nginx on port $NGINX_PORT...${NC}"
+    nginx -g "daemon off;" &
+    NGINX_PID=$!
+    echo -e "${GREEN}  ✓ nginx started (PID: $NGINX_PID)${NC}"
+
+    echo -e "${GREEN}🐕 Fido API service is running (mode=api).${NC}"
+    wait
+    exit 0
+fi
+
 # The hosted web terminal is a public demo. Keep it detached from any persisted
 # deployment volume and reset it on every boot so visitors only see fixture data.
 export FIDO_WEB_MODE=true

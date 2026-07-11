@@ -67,7 +67,11 @@ pub struct ApiClient {
     session_token: Option<String>,
 }
 
-const DEFAULT_PUBLIC_SERVER_URL: &str = "https://fido-web-production.up.railway.app";
+/// Default server for the installed TUI: the persistent **API** service, NOT the
+/// public web-terminal demo (fido-web-production), whose DB is ephemeral and is
+/// shared with anonymous ttyd visitors. These must be two separate Railway
+/// services; see docs/DEPLOY.md. Override with FIDO_SERVER_URL or ~/.fido/server_url.
+const DEFAULT_PUBLIC_SERVER_URL: &str = "https://fido-api-production.up.railway.app";
 
 fn read_server_url_from_config() -> Option<String> {
     let config_path = dirs::home_dir()?.join(".fido").join("server_url");

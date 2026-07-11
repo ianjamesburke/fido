@@ -42,6 +42,7 @@ COPY --from=builder /app/target/release/fido /usr/local/bin/fido
 
 # Copy configuration files
 COPY nginx.conf /etc/nginx/nginx.conf.template
+COPY nginx-api.conf /etc/nginx/nginx-api.conf.template
 COPY start.sh /usr/local/bin/start.sh
 
 # Copy web assets
@@ -70,6 +71,10 @@ ENV PORT=8080
 # Internal API listener (fido-server) behind nginx.
 ENV FIDO_SERVER_PORT=3000
 ENV TTYD_PORT=7681
+# Deployment mode: `demo` (default) runs the public web terminal; the persistent
+# API service overrides this to `api` (and mounts a volume at /data). One image,
+# two Railway services — see docs/DEPLOY.md.
+ENV FIDO_DEPLOY_MODE=demo
 ENV DATABASE_PATH=/tmp/fido-web-demo.db
 ENV LOG_DIR=/var/log/fido
 ENV RUST_LOG=info
