@@ -14,6 +14,7 @@ Environment-aware security configuration, CORS, cookies, headers, admin access, 
 - Do not weaken secure-cookie, CORS, admin, header, or token requirements to make a local test pass.
 - Make policy changes explicit in tests for development and production behavior.
 - Keep secrets out of logs and error messages.
+- `validation::contains_dangerous_patterns` is a non-authoritative input denylist (defense-in-depth), NOT the XSS boundary. XSS safety comes from contextual output encoding at each render sink. Do NOT add a server- or client-side path that renders stored user content into HTML/SVG while trusting this filter; encode at the sink instead.
 
 ## Verification
 
