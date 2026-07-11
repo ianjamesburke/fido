@@ -1,9 +1,10 @@
 ---
 id: "0018"
 title: "Add DOX AGENTS.md files: adopt root template and initialize child docs tree"
-status: todo
+status: in-progress
 priority: p2
 estimate: "1h"
+started_at: "2026-07-11T00:36:10Z"
 blocked_by: []
 gh_issue: []
 area:
