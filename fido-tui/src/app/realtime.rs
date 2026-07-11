@@ -196,7 +196,7 @@ impl App {
             SortOrder::Newest => self
                 .posts_state
                 .posts
-                .sort_by(|a, b| b.created_at.cmp(&a.created_at)),
+                .sort_by_key(|a| std::cmp::Reverse(a.created_at)),
             SortOrder::Popular => self.posts_state.posts.sort_by(|a, b| {
                 b.upvotes
                     .cmp(&a.upvotes)

@@ -84,8 +84,7 @@ async fn main() {
         // skipping revocation in production.
         if std::env::var("GITHUB_CLIENT_SECRET")
             .ok()
-            .filter(|v| !v.trim().is_empty())
-            .is_none()
+            .is_none_or(|v| v.trim().is_empty())
         {
             tracing::error!("GITHUB_CLIENT_SECRET is required in production");
             eprintln!("FATAL: GITHUB_CLIENT_SECRET is required in production");
@@ -228,7 +227,7 @@ async fn main() {
     // Start background task for periodic session cleanup
     let cleanup_state = state.clone();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(3600)); // Run every hour
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_hours(1));
         loop {
             interval.tick().await;
             tracing::debug!("Running periodic session cleanup...");

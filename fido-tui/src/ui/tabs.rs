@@ -18,7 +18,6 @@ use super::formatting::*;
 use super::modals::*;
 use super::theme::{get_theme_colors, ThemeColors};
 use crate::app::{App, Conversation, DMSelection};
-use crate::{log_modal_state, log_rendering};
 
 pub fn render_auth_screen(frame: &mut Frame, app: &mut App) {
     let theme = get_theme_colors(app);

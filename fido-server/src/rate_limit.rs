@@ -79,7 +79,9 @@ impl RateLimiter {
                 // Check if we're still in the same window
                 if now.duration_since(*window_start) < self.window_duration {
                     if *count >= self.max_requests {
-                        let remaining = self.window_duration - now.duration_since(*window_start);
+                        let remaining = self
+                            .window_duration
+                            .saturating_sub(now.duration_since(*window_start));
                         return RateLimitInfo {
                             exceeded: true,
                             request_count: *count,
