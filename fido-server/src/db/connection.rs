@@ -2,8 +2,25 @@ use anyhow::{Context, Result};
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::SqliteConnectionManager;
 use std::path::Path;
+use uuid::Uuid;
 
 use super::schema::{SCHEMA, TEST_DATA};
+
+/// Run an idempotent `ALTER TABLE ... ADD COLUMN` migration, ignoring only a
+/// "duplicate column name" error (the column already exists from a prior run)
+/// and propagating every other failure (disk full, locked DB, malformed
+/// schema) instead of masking it.
+fn run_add_column(conn: &rusqlite::Connection, sql: &str) -> Result<()> {
+    match conn.execute(sql, []) {
+        Ok(_) => Ok(()),
+        Err(rusqlite::Error::SqliteFailure(_, Some(msg)))
+            if msg.contains("duplicate column name") =>
+        {
+            Ok(())
+        }
+        Err(e) => Err(e).with_context(|| format!("Migration failed: {sql}")),
+    }
+}
 
 /// SQLite in-memory database identifier
 const MEMORY_DB_PATH: &str = ":memory:";
@@ -128,7 +145,16 @@ impl Database {
         };
 
         if trimmed_path.eq_ignore_ascii_case(MEMORY_DB_PATH) {
-            Ok(SqliteConnectionManager::memory().with_init(init))
+            // `SqliteConnectionManager::memory()` opens an INDEPENDENT `:memory:`
+            // database per pooled connection, so schema created on one is
+            // invisible to the next (tests only pass because a single-threaded
+            // pool reuses one idle connection). A named shared-cache memory DB
+            // makes every connection in this pool see the same database. The
+            // name is unique per pool so parallel `Database::in_memory()`
+            // instances stay isolated from each other. rusqlite's default open
+            // flags include `SQLITE_OPEN_URI`, so the `file:` URI is honored.
+            let uri = format!("file:fido_mem_{}?mode=memory&cache=shared", Uuid::new_v4());
+            Ok(SqliteConnectionManager::file(uri).with_init(init))
         } else {
             Ok(SqliteConnectionManager::file(path).with_init(init))
         }
@@ -146,37 +172,40 @@ impl Database {
         conn.execute_batch(SCHEMA)
             .context("Failed to initialize database schema")?;
 
-        // Migrate existing tables - add new columns if they don't exist
-        // This is safe to run multiple times (will fail silently if columns exist)
-        let _ = conn.execute(
+        // Migrate existing tables: add new columns if they don't exist. Each
+        // ADD COLUMN ignores only "duplicate column name" (column already
+        // present) and propagates any other error. Everything else below uses
+        // IF NOT EXISTS / IF EXISTS and is a hard `?` so real failures surface.
+        run_add_column(
+            &conn,
             "ALTER TABLE direct_messages ADD COLUMN deleted_by_from_user INTEGER NOT NULL DEFAULT 0",
-            [],
-        );
-        let _ = conn.execute(
+        )?;
+        run_add_column(
+            &conn,
             "ALTER TABLE direct_messages ADD COLUMN deleted_by_to_user INTEGER NOT NULL DEFAULT 0",
-            [],
-        );
+        )?;
 
         // Add threaded conversation support to posts table
-        let _ = conn.execute("ALTER TABLE posts ADD COLUMN parent_post_id TEXT NULL", []);
-        let _ = conn.execute(
+        run_add_column(&conn, "ALTER TABLE posts ADD COLUMN parent_post_id TEXT NULL")?;
+        run_add_column(
+            &conn,
             "ALTER TABLE posts ADD COLUMN reply_count INTEGER NOT NULL DEFAULT 0",
-            [],
-        );
-        let _ = conn.execute("ALTER TABLE posts ADD COLUMN github_id INTEGER", []);
-        let _ = conn.execute("ALTER TABLE posts ADD COLUMN github_kind TEXT", []);
-        let _ = conn.execute("ALTER TABLE posts ADD COLUMN github_state TEXT", []);
-        let _ = conn.execute("ALTER TABLE posts ADD COLUMN github_html_url TEXT", []);
+        )?;
+        run_add_column(&conn, "ALTER TABLE posts ADD COLUMN github_id INTEGER")?;
+        run_add_column(&conn, "ALTER TABLE posts ADD COLUMN github_kind TEXT")?;
+        run_add_column(&conn, "ALTER TABLE posts ADD COLUMN github_state TEXT")?;
+        run_add_column(&conn, "ALTER TABLE posts ADD COLUMN github_html_url TEXT")?;
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_community_github_id ON posts(community_id, github_id)",
             [],
         )?;
 
         // Remove a legacy duplicate; SCHEMA creates idx_posts_parent_post_id.
-        let _ = conn.execute("DROP INDEX IF EXISTS idx_posts_parent_id", []);
+        conn.execute("DROP INDEX IF EXISTS idx_posts_parent_id", [])
+            .context("Failed to drop legacy index")?;
 
         // Add sessions table for authentication
-        let _ = conn.execute_batch(
+        conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -187,26 +216,29 @@ impl Database {
             );
             CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
             CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);",
-        );
+        )
+        .context("Failed to create sessions table")?;
 
-        // Migration: Add last_activity column to sessions table if it doesn't exist
-        // Default value is set to created_at for existing sessions
-        let _ = conn.execute("ALTER TABLE sessions ADD COLUMN last_activity TEXT", []);
+        // Migration: Add last_activity column to sessions table if it doesn't
+        // exist (the CREATE above already includes it, so this is a duplicate
+        // column on a fresh DB and a no-op on an older one).
+        run_add_column(&conn, "ALTER TABLE sessions ADD COLUMN last_activity TEXT")?;
         // Update existing sessions to set last_activity = created_at where NULL
-        let _ = conn.execute(
+        conn.execute(
             "UPDATE sessions SET last_activity = created_at WHERE last_activity IS NULL",
             [],
-        );
+        )
+        .context("Failed to backfill session last_activity")?;
 
         // Add GitHub authentication fields to users table
-        let _ = conn.execute("ALTER TABLE users ADD COLUMN github_id INTEGER", []);
-        let _ = conn.execute("ALTER TABLE users ADD COLUMN github_login TEXT", []);
-        let _ = conn.execute(
+        run_add_column(&conn, "ALTER TABLE users ADD COLUMN github_id INTEGER")?;
+        run_add_column(&conn, "ALTER TABLE users ADD COLUMN github_login TEXT")?;
+        conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id)",
             [],
-        );
+        )?;
 
-        let _ = conn.execute_batch(
+        conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS github_tokens (
                 user_id TEXT PRIMARY KEY,
                 encrypted_token TEXT NOT NULL,
@@ -215,7 +247,8 @@ impl Database {
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_github_tokens_updated_at ON github_tokens(updated_at);",
-        );
+        )
+        .context("Failed to create github_tokens table")?;
 
         conn.pragma_update(None, "user_version", SCHEMA_VERSION)
             .context("Failed to stamp schema version")?;
@@ -242,6 +275,35 @@ impl Database {
 #[cfg(all(test, feature = "sqlite-tests"))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn in_memory_pool_is_shared_across_connections() {
+        let db = Database::in_memory().expect("Failed to create database");
+        db.initialize().expect("Failed to initialize schema");
+
+        // Write through one pooled connection.
+        let writer = db.connection().expect("first connection");
+        writer
+            .execute(
+                "INSERT INTO users (id, username, bio, join_date, is_test_user, is_admin)
+                 VALUES (?, 'shared-user', NULL, ?, 1, 0)",
+                (Uuid::new_v4().to_string(), chrono::Utc::now().to_rfc3339()),
+            )
+            .expect("insert on writer");
+
+        // Hold `writer` checked out so the pool must hand back a DISTINCT second
+        // connection. It must observe the same database; with the old
+        // per-connection `:memory:` manager this read saw an empty schema.
+        let reader = db.connection().expect("second connection");
+        let count: i64 = reader
+            .query_row(
+                "SELECT COUNT(*) FROM users WHERE username = 'shared-user'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read on reader");
+        assert_eq!(count, 1, "connections in the pool must share one database");
+    }
 
     #[test]
     fn test_database_creation() {
