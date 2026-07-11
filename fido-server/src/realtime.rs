@@ -39,6 +39,11 @@ impl OutboundEvent {
     }
 }
 
+/// Maximum simultaneous WebSocket connections a single user may hold. Each
+/// connection costs a task and a 256-slot broadcast receiver, so an
+/// unauthenticated-per-user cap bounds memory/FD exhaustion by one account.
+pub const MAX_CONNECTIONS_PER_USER: usize = 8;
+
 /// Tracks how many live WebSocket connections each user holds.
 #[derive(Debug, Default)]
 pub struct ConnectionRegistry {
@@ -46,12 +51,29 @@ pub struct ConnectionRegistry {
 }
 
 impl ConnectionRegistry {
-    /// Record a new connection; returns the user's connection count after it.
-    pub fn connect(&self, user_id: Uuid) -> usize {
+    /// Record a new connection if the user is under [`MAX_CONNECTIONS_PER_USER`].
+    ///
+    /// Returns `Some(count)` (the count after incrementing) when accepted, or
+    /// `None` when the user is already at the cap — in which case nothing is
+    /// incremented and the caller must reject the upgrade.
+    pub fn try_connect(&self, user_id: Uuid) -> Option<usize> {
         let mut connections = self.connections.lock().unwrap_or_else(|e| e.into_inner());
         let count = connections.entry(user_id).or_insert(0);
+        if *count >= MAX_CONNECTIONS_PER_USER {
+            return None;
+        }
         *count += 1;
-        *count
+        Some(*count)
+    }
+
+    /// Current live connection count for a user (0 if none).
+    pub fn count(&self, user_id: &Uuid) -> usize {
+        self.connections
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(user_id)
+            .copied()
+            .unwrap_or(0)
     }
 
     /// Record a closed connection; returns the user's remaining count.
@@ -395,11 +417,27 @@ mod tests {
     fn registry_tracks_multiple_connections_per_user() {
         let registry = ConnectionRegistry::default();
         let user = Uuid::new_v4();
-        assert_eq!(registry.connect(user), 1);
-        assert_eq!(registry.connect(user), 2);
+        assert_eq!(registry.try_connect(user), Some(1));
+        assert_eq!(registry.try_connect(user), Some(2));
         assert_eq!(registry.disconnect(user), 1);
         assert_eq!(registry.disconnect(user), 0);
         assert_eq!(registry.disconnect(user), 0);
+    }
+
+    #[test]
+    fn registry_rejects_connections_over_per_user_cap() {
+        let registry = ConnectionRegistry::default();
+        let user = Uuid::new_v4();
+        for expected in 1..=MAX_CONNECTIONS_PER_USER {
+            assert_eq!(registry.try_connect(user), Some(expected));
+        }
+        // At the cap: further connections are refused without incrementing.
+        assert_eq!(registry.try_connect(user), None);
+        assert_eq!(registry.try_connect(user), None);
+        // Freeing one slot lets exactly one more in.
+        assert_eq!(registry.disconnect(user), MAX_CONNECTIONS_PER_USER - 1);
+        assert_eq!(registry.try_connect(user), Some(MAX_CONNECTIONS_PER_USER));
+        assert_eq!(registry.try_connect(user), None);
     }
 
     #[test]

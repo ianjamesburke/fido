@@ -6,7 +6,7 @@
 //! query string, which would leak it into logs, proxies, and browser history.
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
@@ -25,6 +25,19 @@ const PING_INTERVAL: Duration = Duration::from_secs(30);
 const MAX_MISSED_PONGS: u8 = 2;
 /// WebSocket close code for "going away" (RFC 6455 section 7.4.1).
 const CLOSE_GOING_AWAY: u16 = 1001;
+/// WebSocket close code for a policy violation (RFC 6455 section 7.4.1).
+const CLOSE_POLICY_VIOLATION: u16 = 1008;
+/// Upper bound on a single inbound message. The gateway is send-only, so no
+/// legitimate client frame approaches this; it caps decode/buffer work.
+const MAX_MESSAGE_SIZE: usize = 64 * 1024;
+/// Upper bound on a single inbound frame before reassembly.
+const MAX_FRAME_SIZE: usize = 16 * 1024;
+/// Sliding window over which inbound frames are counted.
+const INBOUND_WINDOW: Duration = Duration::from_secs(10);
+/// Max inbound frames per [`INBOUND_WINDOW`] before the socket is closed. A
+/// well-behaved client sends only the occasional pong/close, so this is
+/// generous while still bounding a flood.
+const MAX_INBOUND_FRAMES_PER_WINDOW: u32 = 60;
 
 pub async fn ws_handler(
     State(state): State<AppState>,
@@ -39,6 +52,9 @@ pub async fn ws_handler(
         .ok_or_else(|| ApiError::Unauthorized("Invalid session token".to_string()))?;
 
     let gateway = state.realtime;
+    let ws = ws
+        .max_message_size(MAX_MESSAGE_SIZE)
+        .max_frame_size(MAX_FRAME_SIZE);
     Ok(ws.on_upgrade(move |socket| handle_connection(socket, user_id, gateway)))
 }
 
@@ -58,7 +74,19 @@ fn extract_token(headers: &HeaderMap) -> Option<String> {
 }
 
 async fn handle_connection(mut socket: WebSocket, user_id: Uuid, gateway: Arc<RealtimeGateway>) {
-    let connections = gateway.registry().connect(user_id);
+    let connections = match gateway.registry().try_connect(user_id) {
+        Some(count) => count,
+        None => {
+            tracing::warn!(%user_id, "WebSocket per-user connection cap reached; rejecting");
+            send_close_with_code(
+                &mut socket,
+                CLOSE_POLICY_VIOLATION,
+                "connection limit reached",
+            )
+            .await;
+            return;
+        }
+    };
     tracing::info!(%user_id, connections, "WebSocket connected");
 
     let mut events = gateway.subscribe();
@@ -66,6 +94,8 @@ async fn handle_connection(mut socket: WebSocket, user_id: Uuid, gateway: Arc<Re
     let mut ping_interval =
         tokio::time::interval_at(tokio::time::Instant::now() + PING_INTERVAL, PING_INTERVAL);
     let mut missed_pongs: u8 = 0;
+    let mut inbound_count: u32 = 0;
+    let mut inbound_window_start = Instant::now();
 
     loop {
         tokio::select! {
@@ -91,20 +121,41 @@ async fn handle_connection(mut socket: WebSocket, user_id: Uuid, gateway: Arc<Re
                     break;
                 }
             },
-            frame = socket.recv() => match frame {
-                Some(Ok(Message::Pong(_))) => {
-                    missed_pongs = 0;
+            frame = socket.recv() => {
+                // Throttle inbound frames. The gateway is send-only, so a client
+                // streaming frames is buggy or hostile; bound the decode/buffer
+                // work by closing once the per-window budget is exhausted.
+                if inbound_window_start.elapsed() >= INBOUND_WINDOW {
+                    inbound_count = 0;
+                    inbound_window_start = Instant::now();
                 }
-                Some(Ok(Message::Close(_))) | None => {
+                inbound_count += 1;
+                if inbound_count > MAX_INBOUND_FRAMES_PER_WINDOW {
+                    tracing::warn!(%user_id, "WebSocket inbound frame flood; closing");
+                    send_close_with_code(
+                        &mut socket,
+                        CLOSE_POLICY_VIOLATION,
+                        "inbound rate exceeded",
+                    )
+                    .await;
                     break;
                 }
-                Some(Ok(_)) => {
-                    // Server -> client only in MVP; ignore other client frames.
-                    // Pings are answered automatically by the protocol layer.
-                }
-                Some(Err(e)) => {
-                    tracing::debug!(%user_id, error = %e, "WebSocket receive error");
-                    break;
+
+                match frame {
+                    Some(Ok(Message::Pong(_))) => {
+                        missed_pongs = 0;
+                    }
+                    Some(Ok(Message::Close(_))) | None => {
+                        break;
+                    }
+                    Some(Ok(_)) => {
+                        // Server -> client only in MVP; ignore other client frames.
+                        // Pings are answered automatically by the protocol layer.
+                    }
+                    Some(Err(e)) => {
+                        tracing::debug!(%user_id, error = %e, "WebSocket receive error");
+                        break;
+                    }
                 }
             },
             _ = ping_interval.tick() => {
@@ -132,9 +183,13 @@ async fn handle_connection(mut socket: WebSocket, user_id: Uuid, gateway: Arc<Re
 }
 
 async fn send_close(socket: &mut WebSocket, reason: &'static str) {
+    send_close_with_code(socket, CLOSE_GOING_AWAY, reason).await;
+}
+
+async fn send_close_with_code(socket: &mut WebSocket, code: u16, reason: &'static str) {
     let _ = socket
         .send(Message::Close(Some(CloseFrame {
-            code: CLOSE_GOING_AWAY,
+            code,
             reason: reason.into(),
         })))
         .await;
