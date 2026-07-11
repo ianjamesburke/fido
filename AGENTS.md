@@ -1,5 +1,19 @@
 # AGENTS.md
 
+## DOX Framework
+
+`AGENTS.md` files are binding work contracts for their subtrees. Before editing, read this root file and every `AGENTS.md` on the route from the repository root to each target. The nearest file controls local details; parent files still apply. A child may add local rules but may not weaken this contract.
+
+### Read Before Editing
+
+1. Identify every file or folder the change will touch.
+2. Walk from the repository root to each target and read every `AGENTS.md` on that route.
+3. Use the nearest file for local rules and its parents for repository-wide rules.
+
+### Update After Editing
+
+For every meaningful change, update the closest owning `AGENTS.md` when it changes purpose, structure, contracts, workflow, constraints, or verification. Update parent files when a child index changes. Remove stale or contradictory guidance in the same pass.
+
 This file provides guidance to AI coding assistants when working with code in this repository.
 
 ## Project Overview
@@ -436,3 +450,9 @@ Implementation plan:
 2. Wrap existing `ApiClient`
 3. Add cache invalidation logic
 4. Store cache in `.fido/cache/`
+
+## Child DOX Index
+
+- [`fido-server/AGENTS.md`](fido-server/AGENTS.md): API server crate, tests, and server-specific contracts.
+- [`fido-tui/AGENTS.md`](fido-tui/AGENTS.md): terminal client crate, startup, and interaction contracts.
+- [`fido-types/AGENTS.md`](fido-types/AGENTS.md): shared public models, events, and enums.
