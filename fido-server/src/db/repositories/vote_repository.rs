@@ -45,6 +45,52 @@ impl VoteRepository {
         Ok(())
     }
 
+    /// Upsert a vote and recompute the post's cached vote counts atomically.
+    ///
+    /// The two statements previously ran on separate pooled connections, so a
+    /// crash between them left `posts.upvotes/downvotes` permanently stale with
+    /// nothing to reconcile. Running both in one transaction makes the write
+    /// all-or-nothing.
+    pub fn upsert_vote_with_recount(
+        &self,
+        user_id: &Uuid,
+        post_id: &Uuid,
+        direction: VoteDirection,
+    ) -> Result<()> {
+        let mut conn = self.pool.get()?;
+        let tx = conn.transaction().context("Failed to begin vote transaction")?;
+
+        tx.execute(
+            "INSERT INTO votes (user_id, post_id, direction, created_at)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT(user_id, post_id)
+             DO UPDATE SET direction = excluded.direction, created_at = excluded.created_at",
+            (
+                user_id.to_string(),
+                post_id.to_string(),
+                direction.as_str(),
+                Utc::now().to_rfc3339(),
+            ),
+        )
+        .context("Failed to upsert vote")?;
+
+        tx.execute(
+            "UPDATE posts
+             SET upvotes = (SELECT COUNT(*) FROM votes WHERE post_id = ? AND direction = 'up'),
+                 downvotes = (SELECT COUNT(*) FROM votes WHERE post_id = ? AND direction = 'down')
+             WHERE id = ?",
+            (
+                post_id.to_string(),
+                post_id.to_string(),
+                post_id.to_string(),
+            ),
+        )
+        .context("Failed to update vote counts")?;
+
+        tx.commit().context("Failed to commit vote transaction")?;
+        Ok(())
+    }
+
     /// Get a user's vote on a post
     pub fn get_vote(&self, user_id: &Uuid, post_id: &Uuid) -> Result<Option<Vote>> {
         let conn = self.pool.get()?;
@@ -206,6 +252,52 @@ mod tests {
         let repo = VoteRepository::new(db.pool.clone());
         let votes = repo.get_votes_for_posts(&Uuid::new_v4(), &[])?;
         assert!(votes.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn upsert_vote_with_recount_is_atomic() -> Result<()> {
+        let db = Database::in_memory()?;
+        db.initialize()?;
+        let (user_id, posts) = seed(&db, 1)?;
+        let repo = VoteRepository::new(db.pool.clone());
+        let conn = db.connection()?;
+
+        let count = |conn: &rusqlite::Connection| -> Result<(i64, i64)> {
+            Ok(conn.query_row(
+                "SELECT upvotes, downvotes FROM posts WHERE id = ?",
+                [posts[0].to_string()],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )?)
+        };
+
+        repo.upsert_vote_with_recount(&user_id, &posts[0], VoteDirection::Up)?;
+        assert_eq!(count(&conn)?, (1, 0));
+        assert!(repo.get_vote(&user_id, &posts[0])?.is_some());
+
+        // Changing the vote recounts in the same transaction.
+        repo.upsert_vote_with_recount(&user_id, &posts[0], VoteDirection::Down)?;
+        assert_eq!(count(&conn)?, (0, 1));
+
+        Ok(())
+    }
+
+    #[test]
+    fn upsert_vote_with_recount_rolls_back_on_failure() -> Result<()> {
+        let db = Database::in_memory()?;
+        db.initialize()?;
+        let (user_id, _posts) = seed(&db, 0)?;
+        let repo = VoteRepository::new(db.pool.clone());
+
+        // Voting on a non-existent post violates the votes.post_id foreign key,
+        // so the transaction aborts and nothing is written.
+        let orphan_post = Uuid::new_v4();
+        let result = repo.upsert_vote_with_recount(&user_id, &orphan_post, VoteDirection::Up);
+        assert!(result.is_err(), "FK violation should fail the write");
+        assert!(
+            repo.get_vote(&user_id, &orphan_post)?.is_none(),
+            "no vote row may survive the rolled-back transaction"
+        );
         Ok(())
     }
 }

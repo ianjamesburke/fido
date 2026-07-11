@@ -230,12 +230,17 @@ impl DirectMessageRepository {
 
     /// Delete conversation for a specific user (soft delete - hides from their view only)
     pub fn delete_conversation(&self, user_id: &Uuid, other_user_id: &Uuid) -> Result<()> {
-        let conn = self.pool.get()?;
+        let mut conn = self.pool.get()?;
+        // Both soft-delete UPDATEs run in one transaction so a crash between them
+        // cannot leave the conversation half-hidden (one direction deleted).
+        let tx = conn
+            .transaction()
+            .context("Failed to begin DM soft-delete transaction")?;
 
         // Mark messages as deleted for this user only
         // For messages where user is the sender: set deleted_by_from_user = 1
-        conn.execute(
-            "UPDATE direct_messages 
+        tx.execute(
+            "UPDATE direct_messages
              SET deleted_by_from_user = 1
              WHERE from_user_id = ? AND to_user_id = ?",
             (user_id.to_string(), other_user_id.to_string()),
@@ -243,14 +248,16 @@ impl DirectMessageRepository {
         .context("Failed to mark sent messages as deleted")?;
 
         // For messages where user is the receiver: set deleted_by_to_user = 1
-        conn.execute(
-            "UPDATE direct_messages 
+        tx.execute(
+            "UPDATE direct_messages
              SET deleted_by_to_user = 1
              WHERE to_user_id = ? AND from_user_id = ?",
             (user_id.to_string(), other_user_id.to_string()),
         )
         .context("Failed to mark received messages as deleted")?;
 
+        tx.commit()
+            .context("Failed to commit DM soft-delete transaction")?;
         Ok(())
     }
 }

@@ -216,9 +216,11 @@ impl DMService {
             ));
         }
 
+        // The responder must be the recipient of the request, not its initiator:
+        // the request must have been initiated by the other party (requester_id).
         if conversation.initiator_id != *requester_id {
             return Err(ApiError::Forbidden(
-                "Only the request recipient can update this DM request".to_string(),
+                "You cannot accept or decline a DM request you initiated".to_string(),
             ));
         }
 

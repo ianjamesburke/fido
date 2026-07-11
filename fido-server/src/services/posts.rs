@@ -374,8 +374,9 @@ impl PostService {
             ));
         }
 
-        self.repos.votes.upsert_vote(user_id, post_id, direction)?;
-        self.repos.posts.update_vote_counts(post_id)?;
+        self.repos
+            .votes
+            .upsert_vote_with_recount(user_id, post_id, direction)?;
 
         Ok(())
     }
