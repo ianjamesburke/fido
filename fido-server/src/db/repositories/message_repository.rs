@@ -1,4 +1,3 @@
-
 use anyhow::{Context, Result};
 use rusqlite::params;
 use uuid::Uuid;

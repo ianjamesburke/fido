@@ -1,4 +1,3 @@
-
 use anyhow::{Context, Result};
 use rusqlite::types::Type;
 use rusqlite::OptionalExtension;

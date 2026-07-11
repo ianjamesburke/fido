@@ -51,7 +51,10 @@ pub async fn security_headers_middleware(
 
     // X-Content-Type-Options: Prevents MIME type sniffing
     // Requirement 9.1
-    headers.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
 
     // X-Frame-Options: Prevents clickjacking attacks
     // Requirement 9.2
@@ -59,7 +62,10 @@ pub async fn security_headers_middleware(
 
     // X-XSS-Protection: Enables XSS filtering in older browsers
     // Requirement 9.3
-    headers.insert(header::X_XSS_PROTECTION, HeaderValue::from_static("1; mode=block"));
+    headers.insert(
+        header::X_XSS_PROTECTION,
+        HeaderValue::from_static("1; mode=block"),
+    );
 
     // Content-Security-Policy: Restricts resource loading to same origin
     // Requirement 9.4
