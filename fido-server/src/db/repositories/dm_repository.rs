@@ -2,17 +2,24 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use fido_types::DirectMessage;
+use fido_types::{DirectMessage, DmConversationState};
 
 use crate::db::{row, DbPool};
 
 /// Summary of a direct message conversation, without the full message history.
+///
+/// The other user's username and the conversation's state/initiator are joined
+/// in by `get_conversation_summaries` so the service layer renders the list
+/// without a per-conversation `users.get_by_id` + `dm_conversations.get` (N+1).
 #[derive(Debug, Clone)]
 pub struct DirectMessageConversationSummary {
     pub other_user_id: Uuid,
+    pub other_username: String,
     pub last_message: String,
     pub last_message_time: DateTime<Utc>,
     pub unread_count: usize,
+    pub state: DmConversationState,
+    pub initiator_id: Uuid,
 }
 
 #[derive(Clone)]
@@ -141,28 +148,65 @@ impl DirectMessageRepository {
                         ORDER BY created_at DESC
                     ) AS recency_rank
                 FROM visible_messages
+             ),
+             summary AS (
+                SELECT
+                    other_user_id,
+                    MAX(CASE WHEN recency_rank = 1 THEN content END) AS last_message,
+                    MAX(CASE WHEN recency_rank = 1 THEN created_at END) AS last_message_time,
+                    SUM(unread) AS unread_count
+                FROM ranked_messages
+                GROUP BY other_user_id
              )
              SELECT
-                other_user_id,
-                MAX(CASE WHEN recency_rank = 1 THEN content END) AS last_message,
-                MAX(CASE WHEN recency_rank = 1 THEN created_at END) AS last_message_time,
-                SUM(unread) AS unread_count
-             FROM ranked_messages
-             GROUP BY other_user_id
-             ORDER BY last_message_time DESC",
+                s.other_user_id,
+                s.last_message,
+                s.last_message_time,
+                s.unread_count,
+                u.username,
+                dc.state,
+                dc.initiator_id
+             FROM summary s
+             JOIN users u ON u.id = s.other_user_id
+             JOIN dm_conversations dc
+                ON dc.user_a = MIN(?, s.other_user_id)
+               AND dc.user_b = MAX(?, s.other_user_id)
+             ORDER BY s.last_message_time DESC",
         )?;
 
         let summaries = stmt
             .query_map(
-                (&user_id_str, &user_id_str, &user_id_str, &user_id_str),
+                (
+                    &user_id_str,
+                    &user_id_str,
+                    &user_id_str,
+                    &user_id_str,
+                    &user_id_str,
+                    &user_id_str,
+                ),
                 |row| {
                     let other_user_id: String = row.get(0)?;
                     let last_message_time: String = row.get(2)?;
+                    let state_str: String = row.get(5)?;
+                    let initiator_id: String = row.get(6)?;
+                    let state = DmConversationState::parse(&state_str).ok_or_else(|| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            5,
+                            rusqlite::types::Type::Text,
+                            Box::new(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                format!("Invalid dm conversation state: {state_str}"),
+                            )),
+                        )
+                    })?;
                     Ok(DirectMessageConversationSummary {
                         other_user_id: row::parse_uuid(&other_user_id, 0)?,
                         last_message: row.get(1)?,
                         last_message_time: row::parse_datetime(&last_message_time, 2)?,
                         unread_count: row.get::<_, i64>(3)? as usize,
+                        other_username: row.get(4)?,
+                        state,
+                        initiator_id: row::parse_uuid(&initiator_id, 6)?,
                     })
                 },
             )?

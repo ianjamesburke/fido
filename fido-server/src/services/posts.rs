@@ -443,8 +443,21 @@ impl PostService {
     }
 
     fn populate_posts(&self, posts: &mut [Post], user_id: Option<Uuid>) -> ApiResult<()> {
+        let Some(uid) = user_id else {
+            return Ok(());
+        };
+        if posts.is_empty() {
+            return Ok(());
+        }
+
+        // One batched vote lookup for the whole slice instead of one query per
+        // post (N+1). Covers feed and reply trees, which both route here.
+        let ids: Vec<Uuid> = posts.iter().map(|post| post.id).collect();
+        let votes = self.repos.votes.get_votes_for_posts(&uid, &ids)?;
         for post in posts {
-            self.populate_post(post, user_id)?;
+            if let Some(direction) = votes.get(&post.id) {
+                post.user_vote = Some(direction.as_str().to_string());
+            }
         }
         Ok(())
     }
