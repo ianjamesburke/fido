@@ -145,11 +145,11 @@ pub async fn claim_community(
 /// GET /communities/:id/members - List a community's members, admins first
 pub async fn list_members(
     State(state): State<AppState>,
-    AuthenticatedUser(_user_id): AuthenticatedUser,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     Path(community_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<CommunityMemberResponse>>> {
     let service = CommunityService::new(state.repos.clone(), state.github_service);
-    let members = service.list_members_with_usernames(&community_id)?;
+    let members = service.list_members_with_usernames(user_id, &community_id)?;
 
     Ok(Json(
         members

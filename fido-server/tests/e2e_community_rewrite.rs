@@ -1072,3 +1072,40 @@ async fn user_search_and_profile_read_require_auth() -> Result<()> {
 
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Stint 0032: enforce membership on community roster/metadata reads
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn community_detail_and_roster_are_member_only() -> Result<()> {
+    let server = spawn_server(None).await?;
+    let repos = &server.state.repos;
+
+    let (community, _channel) = seed_community(repos, false)?;
+    let member = create_user(repos, "roster-member")?;
+    let outsider = create_user(repos, "roster-outsider")?;
+    add_member(repos, community.id, member.id, MembershipRole::Member)?;
+
+    let member_client = login(&server, &member)?;
+    let outsider_client = login(&server, &outsider)?;
+
+    let detail = format!("/communities/{}", community.id);
+    let roster = format!("/communities/{}/members", community.id);
+
+    // Members get 200 on both.
+    assert_eq!(member_client.get(&detail).await?.status(), StatusCode::OK);
+    assert_eq!(member_client.get(&roster).await?.status(), StatusCode::OK);
+
+    // Non-members are forbidden on both.
+    assert_eq!(
+        outsider_client.get(&detail).await?.status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        outsider_client.get(&roster).await?.status(),
+        StatusCode::FORBIDDEN
+    );
+
+    Ok(())
+}

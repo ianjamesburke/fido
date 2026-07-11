@@ -96,12 +96,24 @@ impl CommunityService {
             .collect()
     }
 
+    /// Guard: the caller must belong to the community. Roster and metadata reads
+    /// are member-only even though communities map to public GitHub repos.
+    fn require_membership(&self, user_id: Uuid, community_id: &Uuid) -> ApiResult<()> {
+        if self.repos.memberships.get(community_id, &user_id)?.is_none() {
+            return Err(ApiError::Forbidden(
+                "You are not a member of this community".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn get_view(&self, user_id: Uuid, community_id: Uuid) -> ApiResult<CommunityView> {
         let community = self
             .repos
             .communities
             .get_by_id(&community_id)?
             .ok_or_else(|| ApiError::NotFound("Community not found".to_string()))?;
+        self.require_membership(user_id, &community.id)?;
         self.view_for_community(user_id, community)
     }
 
@@ -148,10 +160,13 @@ impl CommunityService {
     }
 
     /// Members of a community with usernames, admins first then alphabetical.
+    /// Requires the caller to be a member (roster is member-only).
     pub fn list_members_with_usernames(
         &self,
+        user_id: Uuid,
         community_id: &Uuid,
     ) -> ApiResult<Vec<(String, MembershipRole)>> {
+        self.require_membership(user_id, community_id)?;
         let memberships = self.repos.memberships.list_members(community_id)?;
         let mut members: Vec<(String, MembershipRole)> = memberships
             .into_iter()
@@ -482,9 +497,17 @@ mod tests {
         };
         let service = CommunityService::new(repos, github);
 
-        let members = service.list_members_with_usernames(&community.id)?;
+        // alice is a member, so she may read the roster.
+        let members = service.list_members_with_usernames(alice_id, &community.id)?;
         assert_eq!(members[0], ("alice".to_string(), MembershipRole::Admin));
         assert_eq!(members[1], ("zed".to_string(), MembershipRole::Member));
+
+        // A non-member is refused.
+        let outsider_id = Uuid::new_v4();
+        assert!(matches!(
+            service.list_members_with_usernames(outsider_id, &community.id),
+            Err(ApiError::Forbidden(_))
+        ));
         Ok(())
     }
 
