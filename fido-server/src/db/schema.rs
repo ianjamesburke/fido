@@ -78,6 +78,10 @@ CREATE INDEX IF NOT EXISTS idx_posts_parent_post_id ON posts(parent_post_id);
 -- Create index on community_id for efficient community-scoped lookups
 CREATE INDEX IF NOT EXISTS idx_posts_community_id ON posts(community_id);
 
+-- Author lookups (profile post_count, karma) filter on author_id; without this
+-- they full-scan the largest table on every profile view.
+CREATE INDEX IF NOT EXISTS idx_posts_author_id ON posts(author_id);
+
 -- Composite feed indexes match the release-critical board query:
 -- community + top-level + approval filter, then the selected sort key.
 CREATE INDEX IF NOT EXISTS idx_posts_feed_newest
@@ -100,6 +104,10 @@ CREATE TABLE IF NOT EXISTS memberships (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- The PK is (community_id, user_id), so `WHERE user_id = ?` (list_for_user,
+-- users_share_community — the latter runs on every DM send) cannot use it.
+CREATE INDEX IF NOT EXISTS idx_memberships_user_id ON memberships(user_id);
+
 -- Notifications table (generic "something happened to you" pipeline)
 CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY,
@@ -116,6 +124,10 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 -- Index for unread notification counts per user
 CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, read);
+
+-- Pagination orders by created_at DESC per user; idx_notifications_user_read
+-- can't serve the sort, so every page temp-sorts without this.
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC);
 
 -- DM conversations table (server-enforced message requests)
 CREATE TABLE IF NOT EXISTS dm_conversations (
@@ -474,3 +486,82 @@ INSERT OR IGNORE INTO follows (follower_id, following_id, created_at) VALUES
     ('550e8400-e29b-41d4-a716-446655440006', '550e8400-e29b-41d4-a716-446655440004', 1705190400),
     ('550e8400-e29b-41d4-a716-446655440008', '550e8400-e29b-41d4-a716-446655440004', 1705276800);
 "#;
+
+#[cfg(all(test, feature = "sqlite-tests"))]
+mod tests {
+    use crate::db::Database;
+    use anyhow::Result;
+    use uuid::Uuid;
+
+    /// Return the EXPLAIN QUERY PLAN `detail` column rows for a single-`user_id`
+    /// (plus optional LIMIT/OFFSET) query.
+    fn plan(conn: &rusqlite::Connection, query: &str, binds: usize) -> Result<Vec<String>> {
+        let explain = format!("EXPLAIN QUERY PLAN {query}");
+        let mut stmt = conn.prepare(&explain)?;
+        let params: Vec<Box<dyn rusqlite::ToSql>> = (0..binds)
+            .map(|i| {
+                if i == 0 {
+                    Box::new(Uuid::new_v4().to_string()) as Box<dyn rusqlite::ToSql>
+                } else {
+                    Box::new(50_i64) as Box<dyn rusqlite::ToSql>
+                }
+            })
+            .collect();
+        let refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|b| b.as_ref()).collect();
+        let rows = stmt
+            .query_map(refs.as_slice(), |row| row.get::<_, String>(3))?
+            .collect::<rusqlite::Result<Vec<String>>>()?;
+        Ok(rows)
+    }
+
+    fn assert_uses(plan: &[String], index: &str) {
+        assert!(
+            plan.iter().any(|r| r.contains(index)),
+            "expected plan to use {index}; plan:\n{}",
+            plan.join("\n")
+        );
+    }
+
+    fn assert_no_temp_sort(plan: &[String]) {
+        assert!(
+            plan.iter().all(|r| !r.contains("USE TEMP B-TREE")),
+            "expected index-backed ordering; plan:\n{}",
+            plan.join("\n")
+        );
+    }
+
+    #[test]
+    fn hot_path_queries_use_new_indexes() -> Result<()> {
+        let db = Database::in_memory()?;
+        db.initialize()?;
+        let conn = db.connection()?;
+
+        // memberships.user_id: the DM-send hotpath join filters on user_id, which
+        // the (community_id, user_id) PK cannot serve.
+        let membership_join = plan(
+            &conn,
+            "SELECT COUNT(*) FROM memberships m1
+             INNER JOIN memberships m2 ON m1.community_id = m2.community_id
+             WHERE m1.user_id = ?",
+            1,
+        )?;
+        assert_uses(&membership_join, "idx_memberships_user_id");
+
+        // posts.author_id: profile post_count.
+        let author_count = plan(&conn, "SELECT COUNT(*) FROM posts WHERE author_id = ?", 1)?;
+        assert_uses(&author_count, "idx_posts_author_id");
+
+        // notifications: paginated fetch orders by created_at DESC per user; the
+        // (user_id, created_at DESC) index serves both filter and sort.
+        let notif_page = plan(
+            &conn,
+            "SELECT id FROM notifications WHERE user_id = ?
+             ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            3,
+        )?;
+        assert_uses(&notif_page, "idx_notifications_user_created");
+        assert_no_temp_sort(&notif_page);
+
+        Ok(())
+    }
+}
