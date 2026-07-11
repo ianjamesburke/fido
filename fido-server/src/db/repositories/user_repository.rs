@@ -153,6 +153,21 @@ impl UserRepository {
         Ok(user)
     }
 
+    /// Current GitHub login for a user, if any. Unlike `username` (frozen at
+    /// first signup), this tracks GitHub renames on re-login.
+    pub fn get_github_login(&self, user_id: &Uuid) -> Result<Option<String>> {
+        let conn = self.pool.get()?;
+        let login = conn
+            .query_row(
+                "SELECT github_login FROM users WHERE id = ?",
+                [user_id.to_string()],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()?
+            .flatten();
+        Ok(login)
+    }
+
     /// Derive a username not already taken, appending `-2`, `-3`, ... on
     /// collision. GitHub logins are unique, so a collision here means an
     /// existing local (possibly stale) username, which must not block signup.
@@ -185,14 +200,31 @@ impl UserRepository {
         github_login: &str,
         name: Option<&str>,
     ) -> Result<User> {
-        // Existing user: refresh the stored login and return.
-        if let Some(existing_user) = self.get_by_github_id(github_id)? {
+        // Existing user: refresh the stored login and display username on a
+        // GitHub rename. The username is only re-pointed when the new login is
+        // not held by a different local user (it has a UNIQUE constraint); the
+        // github_login always tracks the rename regardless.
+        if let Some(mut existing_user) = self.get_by_github_id(github_id)? {
+            let username_is_free = match self.get_by_username(github_login)? {
+                Some(other) => other.id == existing_user.id,
+                None => true,
+            };
+
             let conn = self.pool.get()?;
-            conn.execute(
-                "UPDATE users SET github_login = ? WHERE id = ?",
-                [github_login, &existing_user.id.to_string()],
-            )
-            .context("Failed to update user GitHub login")?;
+            if username_is_free && !existing_user.username.eq_ignore_ascii_case(github_login) {
+                conn.execute(
+                    "UPDATE users SET github_login = ?, username = ? WHERE id = ?",
+                    [github_login, github_login, &existing_user.id.to_string()],
+                )
+                .context("Failed to update user GitHub identity")?;
+                existing_user.username = github_login.to_string();
+            } else {
+                conn.execute(
+                    "UPDATE users SET github_login = ? WHERE id = ?",
+                    [github_login, &existing_user.id.to_string()],
+                )
+                .context("Failed to update user GitHub login")?;
+            }
 
             return Ok(existing_user);
         }
@@ -297,6 +329,44 @@ mod tests {
         let user = repo.create_or_update_from_github(99, "octocat", None)?;
         assert_eq!(user.username, "octocat-2");
         assert_eq!(repo.get_by_github_id(99)?.map(|u| u.username).as_deref(), Some("octocat-2"));
+        Ok(())
+    }
+
+    #[test]
+    fn github_rename_updates_login_and_username() -> Result<()> {
+        let (_db, repo) = repo()?;
+        let created = repo.create_or_update_from_github(555, "old-login", None)?;
+        assert_eq!(created.username, "old-login");
+
+        // Same github_id, new login: both github_login and the display username
+        // track the rename when the new login is free.
+        let renamed = repo.create_or_update_from_github(555, "new-login", None)?;
+        assert_eq!(renamed.id, created.id);
+        assert_eq!(renamed.username, "new-login");
+        assert_eq!(repo.get_github_login(&created.id)?.as_deref(), Some("new-login"));
+        Ok(())
+    }
+
+    #[test]
+    fn github_rename_keeps_username_when_new_login_is_taken() -> Result<()> {
+        let (_db, repo) = repo()?;
+        // Someone else already holds "taken".
+        repo.create(&User {
+            id: Uuid::new_v4(),
+            username: "taken".to_string(),
+            bio: None,
+            join_date: Utc::now(),
+            is_test_user: true,
+            is_admin: false,
+        })?;
+        let user = repo.create_or_update_from_github(556, "original", None)?;
+
+        // Rename to a login another user already holds: login updates, username
+        // stays (UNIQUE constraint) so the row is never orphaned.
+        let renamed = repo.create_or_update_from_github(556, "taken", None)?;
+        assert_eq!(renamed.id, user.id);
+        assert_eq!(renamed.username, "original");
+        assert_eq!(repo.get_github_login(&user.id)?.as_deref(), Some("taken"));
         Ok(())
     }
 

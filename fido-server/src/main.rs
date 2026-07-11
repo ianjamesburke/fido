@@ -77,6 +77,20 @@ async fn main() {
             eprintln!("FATAL: FIDO_TOKEN_KEY validation failed: {}", e);
             std::process::exit(1);
         }
+
+        // GITHUB_CLIENT_SECRET is required to revoke GitHub grants on logout.
+        // Without it, logout deletes only the local ciphertext and leaves the
+        // upstream grant live indefinitely, so fail fast rather than silently
+        // skipping revocation in production.
+        if std::env::var("GITHUB_CLIENT_SECRET")
+            .ok()
+            .filter(|v| !v.trim().is_empty())
+            .is_none()
+        {
+            tracing::error!("GITHUB_CLIENT_SECRET is required in production");
+            eprintln!("FATAL: GITHUB_CLIENT_SECRET is required in production");
+            std::process::exit(1);
+        }
     }
 
     // Load settings with detailed error handling

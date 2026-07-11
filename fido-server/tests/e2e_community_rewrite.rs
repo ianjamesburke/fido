@@ -1169,3 +1169,30 @@ async fn self_vote_is_rejected_and_mentions_are_member_scoped() -> Result<()> {
 
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Stint 0037: case-insensitive GitHub contributor matching
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn contributor_role_matches_github_login_case_insensitively() -> Result<()> {
+    let fixture_base = github_fixture_server().await?;
+    let server = spawn_server(Some(&fixture_base)).await?;
+    let repos = &server.state.repos;
+
+    // The contributors fixture lists "alice"; this user's login differs only in
+    // case, so a case-insensitive match must grant the Contributor role.
+    let alice = create_user(repos, "ALICE")?;
+    let client = login(&server, &alice)?;
+
+    let response = client
+        .post(
+            "/communities/join",
+            &json!({ "owner": "octocat", "name": "Hello-World" }),
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK, "join should succeed");
+    let view = json_body(response).await?;
+    assert_eq!(view["membership"]["role"], "contributor");
+    Ok(())
+}

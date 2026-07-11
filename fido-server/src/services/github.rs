@@ -255,18 +255,28 @@ impl GithubService {
     }
 
     pub async fn is_contributor(&self, user_id: Uuid, owner: &str, name: &str) -> Result<bool> {
-        let user = self
-            .repos
-            .users
-            .get_by_id(&user_id)
-            .with_context(|| format!("Failed to load user {}", user_id))?
-            .ok_or_else(|| anyhow!("User {} not found", user_id))?;
-        let github_login = user.username;
+        // Prefer the current github_login (updated on re-login) over the frozen
+        // signup username, and compare case-insensitively since GitHub logins
+        // are case-insensitive. Falls back to username if no login is stored.
+        let github_login = match self.repos.users.get_github_login(&user_id)? {
+            Some(login) => login,
+            None => self
+                .repos
+                .users
+                .get_by_id(&user_id)
+                .with_context(|| format!("Failed to load user {}", user_id))?
+                .ok_or_else(|| anyhow!("User {} not found", user_id))?
+                .username,
+        };
         let url = format!("{}/repos/{}/{}/contributors", self.api_base, owner, name);
         let result = self
             .get_public::<Vec<GithubContributor>>(url, "is_contributor")
             .await
-            .map(|contributors| contributors.iter().any(|c| c.login == github_login));
+            .map(|contributors| {
+                contributors
+                    .iter()
+                    .any(|c| c.login.eq_ignore_ascii_case(&github_login))
+            });
 
         let op = format!("GET /repos/{}/{}/contributors", owner, name);
         self.log_result("is_contributor", user_id, Some(&op), &result);
@@ -372,12 +382,14 @@ impl GithubService {
 
     async fn try_revoke_remote_token(&self, token: &str) {
         let Some(client_id) = self.oauth_client_id.as_deref() else {
-            tracing::debug!("Skipping GitHub token revocation: GITHUB_CLIENT_ID not configured");
+            tracing::warn!(
+                "Skipping GitHub token revocation: GITHUB_CLIENT_ID not configured; the upstream grant remains live"
+            );
             return;
         };
         let Some(client_secret) = self.oauth_client_secret.as_deref() else {
-            tracing::debug!(
-                "Skipping GitHub token revocation: GITHUB_CLIENT_SECRET not configured"
+            tracing::warn!(
+                "Skipping GitHub token revocation: GITHUB_CLIENT_SECRET not configured; the upstream grant remains live"
             );
             return;
         };
