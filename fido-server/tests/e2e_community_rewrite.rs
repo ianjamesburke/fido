@@ -60,7 +60,10 @@ async fn spawn_server(github_api_base: Option<&str>) -> Result<TestServer> {
         std::env::remove_var("GITHUB_API_BASE");
         state
     };
-    let router = fido_server::create_router(state.clone());
+    let router = fido_server::create_router_with_security_config(
+        state.clone(),
+        &fido_server::security::SecurityConfig::default(),
+    );
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await

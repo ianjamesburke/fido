@@ -51,7 +51,10 @@ async fn spawn_server() -> Result<TestServer> {
 
     let repos = Repositories::new(db.pool.clone());
     let state = AppState::new_with_repos(db, repos).context("Failed to build app state")?;
-    let router = fido_server::create_router(state.clone());
+    let router = fido_server::create_router_with_security_config(
+        state.clone(),
+        &fido_server::security::SecurityConfig::default(),
+    );
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await

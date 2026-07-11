@@ -26,17 +26,6 @@ use rate_limit::RateLimiter;
 use state::AppState;
 use tower_http::limit::RequestBodyLimitLayer;
 
-/// Create the application router for testing
-///
-/// This function creates the same router used by the main server,
-/// but allows tests to create it with a custom AppState.
-pub fn create_router(state: AppState) -> Router {
-    // Configure CORS using environment-aware configuration
-    let security_config = security::SecurityConfig::from_env()
-        .unwrap_or_else(|_| security::SecurityConfig::default());
-    create_router_with_security_config(state, &security_config)
-}
-
 /// Create the shared API router used by production startup and tests.
 ///
 /// This intentionally excludes production-only static file fallback routing;
