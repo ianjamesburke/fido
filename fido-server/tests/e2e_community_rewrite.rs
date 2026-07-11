@@ -1196,3 +1196,31 @@ async fn contributor_role_matches_github_login_case_insensitively() -> Result<()
     assert_eq!(view["membership"]["role"], "contributor");
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Stint 0038: the server now accepts the session cookie as an auth source
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn session_cookie_authenticates_requests() -> Result<()> {
+    let server = spawn_server(None).await?;
+    let repos = &server.state.repos;
+    let alice = create_user(repos, "cookie-alice")?;
+    let token = server.state.session_manager.create_session(alice.id)?;
+
+    let base = format!("http://{}", server.addr);
+    let http = reqwest::Client::new();
+
+    // No credentials at all -> rejected.
+    let anon = http.get(format!("{base}/social/following")).send().await?;
+    assert_eq!(anon.status(), StatusCode::UNAUTHORIZED);
+
+    // Authenticated purely via the session_token cookie -> accepted.
+    let via_cookie = http
+        .get(format!("{base}/social/following"))
+        .header("Cookie", format!("session_token={token}"))
+        .send()
+        .await?;
+    assert_eq!(via_cookie.status(), StatusCode::OK);
+    Ok(())
+}

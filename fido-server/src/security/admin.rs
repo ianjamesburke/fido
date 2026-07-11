@@ -16,6 +16,23 @@ use crate::http::{extract_client_ip, extract_user_agent};
 use crate::security::{AuditEvent, AuditEventType};
 use crate::state::AppState;
 
+/// Whether the given GitHub login is granted admin via the `FIDO_ADMIN_LOGINS`
+/// allowlist (comma-separated, case-insensitive). This is the supported
+/// production grant path for the admin endpoints.
+fn admin_login_allowlisted(github_login: Option<&str>) -> bool {
+    let Some(login) = github_login else {
+        return false;
+    };
+    match std::env::var("FIDO_ADMIN_LOGINS") {
+        Ok(list) => list
+            .split(',')
+            .map(str::trim)
+            .filter(|entry| !entry.is_empty())
+            .any(|entry| entry.eq_ignore_ascii_case(login)),
+        Err(_) => false,
+    }
+}
+
 /// Middleware that requires the authenticated user to be an admin.
 ///
 /// This middleware:
@@ -146,8 +163,14 @@ pub async fn require_admin(
         }
     };
 
+    // A user is admin if the DB flag is set OR their current GitHub login is in
+    // the FIDO_ADMIN_LOGINS allowlist. The allowlist is the supported production
+    // grant path (seed-data admins are dev-only and not seeded in production).
+    let github_login = state.repos.users.get_github_login(&user_id).ok().flatten();
+    let is_admin = user.is_admin || admin_login_allowlisted(github_login.as_deref());
+
     // Check if user is an admin
-    if !user.is_admin {
+    if !is_admin {
         tracing::warn!(
             "Non-admin user {} ({}) attempted to access admin endpoint",
             user.username,
@@ -238,6 +261,21 @@ mod tests {
             .expect("User not found");
 
         assert!(user.is_admin, "Admin user should have is_admin = true");
+    }
+
+    #[test]
+    fn admin_allowlist_grants_case_insensitively() {
+        let _guard = crate::test_utils::env_lock().lock().unwrap();
+        std::env::set_var("FIDO_ADMIN_LOGINS", "octocat, Alice ,bob");
+
+        assert!(super::admin_login_allowlisted(Some("octocat")));
+        assert!(super::admin_login_allowlisted(Some("ALICE"))); // case-insensitive
+        assert!(super::admin_login_allowlisted(Some("bob")));
+        assert!(!super::admin_login_allowlisted(Some("mallory")));
+        assert!(!super::admin_login_allowlisted(None));
+
+        std::env::remove_var("FIDO_ADMIN_LOGINS");
+        assert!(!super::admin_login_allowlisted(Some("octocat")));
     }
 
     #[test]

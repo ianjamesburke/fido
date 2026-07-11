@@ -40,6 +40,11 @@ Variables:
 - `FIDO_TOKEN_KEY`
 - `ENVIRONMENT=production`
 - `RUST_LOG`
+- `MAX_REQUEST_SIZE` (optional, bytes; defaults to 1 MiB) — the request body
+  limit is enforced from this value.
+- `FIDO_ADMIN_LOGINS` (optional) — comma-separated GitHub logins granted access
+  to the admin endpoints (`/auth/cleanup-sessions`, `/admin/config/validate`).
+  This is the supported production grant path; seed-data admins are dev-only.
 - Persistent volume mounted at `/data`.
 
 ## Client default
