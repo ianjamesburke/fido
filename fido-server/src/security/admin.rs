@@ -12,30 +12,9 @@ use axum::{
 };
 use serde_json::json;
 
+use crate::http::{extract_client_ip, extract_user_agent};
 use crate::security::{AuditEvent, AuditEventType};
 use crate::state::AppState;
-
-/// Helper function to extract client IP address from headers
-fn extract_client_ip(headers: &axum::http::HeaderMap) -> Option<String> {
-    headers
-        .get("X-Forwarded-For")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
-        .or_else(|| {
-            headers
-                .get("X-Real-IP")
-                .and_then(|v| v.to_str().ok())
-                .map(|s| s.to_string())
-        })
-}
-
-/// Helper function to extract User-Agent from headers
-fn extract_user_agent(headers: &axum::http::HeaderMap) -> Option<String> {
-    headers
-        .get("User-Agent")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-}
 
 /// Middleware that requires the authenticated user to be an admin.
 ///
