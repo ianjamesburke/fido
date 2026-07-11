@@ -144,9 +144,21 @@ impl SessionStore {
         // Use atomic write: write to temporary file, then rename
         let temp_path = self.file_path.with_extension("tmp");
 
-        // Write to temporary file
-        let mut file =
-            fs::File::create(&temp_path).context("Failed to create temporary session file")?;
+        // Create the temp file 0600 up front with create_new so the plaintext
+        // token is never briefly group/other-readable through the umask window
+        // (a leak on shared hosts). A stale temp from a prior crash is removed
+        // first so create_new does not spuriously fail.
+        let _ = fs::remove_file(&temp_path);
+        let mut open_opts = fs::OpenOptions::new();
+        open_opts.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            open_opts.mode(0o600);
+        }
+        let mut file = open_opts
+            .open(&temp_path)
+            .context("Failed to create temporary session file")?;
 
         file.write_all(token.as_bytes())
             .context("Failed to write session token")?;
@@ -155,15 +167,6 @@ impl SessionStore {
             .context("Failed to sync session file to disk")?;
 
         drop(file);
-
-        // Set permissions to 0600 (owner read/write only)
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let permissions = fs::Permissions::from_mode(0o600);
-            fs::set_permissions(&temp_path, permissions)
-                .context("Failed to set session file permissions")?;
-        }
 
         // Atomic rename
         fs::rename(&temp_path, &self.file_path)

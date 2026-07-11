@@ -80,6 +80,24 @@ impl LogConfig {
     }
 }
 
+/// Open the log file 0600 (owner read/write only) on unix. When `truncate` is
+/// set the file is cleared; otherwise it is opened for append.
+fn open_log_file(path: &PathBuf, truncate: bool) -> std::io::Result<File> {
+    let mut opts = std::fs::OpenOptions::new();
+    opts.create(true);
+    if truncate {
+        opts.write(true).truncate(true);
+    } else {
+        opts.append(true);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    opts.open(path)
+}
+
 /// Initialize the logging system with the given configuration
 pub fn init_logging(config: &LogConfig) -> anyhow::Result<()> {
     if !config.enabled {
@@ -90,20 +108,22 @@ pub fn init_logging(config: &LogConfig) -> anyhow::Result<()> {
 
     // Clear log file if requested
     if config.clear_on_startup {
-        let _ = File::create(&config.log_file)?;
+        let _ = open_log_file(&config.log_file, true)?;
     }
 
-    // Open log file
-    let log_file = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&config.log_file)?;
+    // Open log file (owner-only, since debug logs may contain sensitive data).
+    let log_file = open_log_file(&config.log_file, false)?;
 
-    // Configure log format
+    // Configure log format. Third-party crates are capped below the app level:
+    // at TRACE, tungstenite dumps the WebSocket handshake — including the
+    // `x-session-token` header — into this plaintext file, so those targets are
+    // filtered out entirely rather than allowed to leak the credential.
     let log_config = ConfigBuilder::new()
         .set_time_format_rfc3339()
         .set_time_offset_to_local()
         .unwrap_or_else(|builder| builder)
+        .add_filter_ignore_str("tungstenite")
+        .add_filter_ignore_str("tokio_tungstenite")
         .build();
 
     // Initialize logger
