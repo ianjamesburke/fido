@@ -45,3 +45,6 @@ tempfile = "3.8"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = ["Win32_System_Console"] }
+
+[lints]
+workspace = true

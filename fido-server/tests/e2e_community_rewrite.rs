@@ -1163,7 +1163,10 @@ async fn self_vote_is_rejected_and_mentions_are_member_scoped() -> Result<()> {
     let outsider_notifs =
         json_body(login(&server, &outsider)?.get("/notifications").await?).await?;
     assert!(
-        outsider_notifs.as_array().map(|a| a.is_empty()).unwrap_or(true),
+        outsider_notifs
+            .as_array()
+            .map(|a| a.is_empty())
+            .unwrap_or(true),
         "non-member must not receive a mention notification"
     );
 

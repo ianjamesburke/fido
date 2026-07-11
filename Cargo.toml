@@ -59,3 +59,63 @@ aes-gcm-siv = "0.11"
 
 # Internal workspace crates
 fido-types = { path = "fido-types", version = "0.5.4" }
+
+# Workspace-wide lint policy. Each crate opts in with `[lints] workspace = true`.
+# CI runs `cargo clippy --workspace --all-targets --all-features -- -D warnings`,
+# so anything at `warn` here is a hard failure in CI.
+[workspace.lints.clippy]
+# The core groups (correctness/suspicious/style/complexity/perf) are denied: the
+# codebase is already clean against them, so this locks that state in.
+all = { level = "deny", priority = -1 }
+# Pedantic is enabled at warn to surface higher-signal issues in new code. The
+# group has lower priority so the individual `allow`s below win. The allowed
+# lints are the opinionated/stylistic ones that currently fire across the tree;
+# they were reviewed and judged not worth the churn, per the lint-enforcement
+# stint. Prefer fixing a new pedantic hit over adding it here.
+pedantic = { level = "warn", priority = -1 }
+# Surface real needless clones (0 today, so this is free and forward-looking).
+redundant_clone = "warn"
+# --- Allowed pedantic lints (noise / opinionated) ---
+assigning_clones = "allow"
+bool_to_int_with_if = "allow"
+cast_lossless = "allow"
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+case_sensitive_file_extension_comparisons = "allow"
+doc_markdown = "allow"
+explicit_iter_loop = "allow"
+format_collect = "allow"
+if_not_else = "allow"
+ignored_unit_patterns = "allow"
+items_after_statements = "allow"
+manual_let_else = "allow"
+map_unwrap_or = "allow"
+match_same_arms = "allow"
+match_wildcard_for_single_variants = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+needless_continue = "allow"
+needless_pass_by_value = "allow"
+needless_raw_string_hashes = "allow"
+range_plus_one = "allow"
+redundant_closure_for_method_calls = "allow"
+redundant_else = "allow"
+return_self_not_must_use = "allow"
+semicolon_if_nothing_returned = "allow"
+similar_names = "allow"
+single_match_else = "allow"
+struct_excessive_bools = "allow"
+too_many_lines = "allow"
+trivially_copy_pass_by_ref = "allow"
+uninlined_format_args = "allow"
+unnecessary_debug_formatting = "allow"
+unnecessary_wraps = "allow"
+unnested_or_patterns = "allow"
+unreadable_literal = "allow"
+unused_async = "allow"
+unused_self = "allow"
+wildcard_imports = "allow"

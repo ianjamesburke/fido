@@ -335,11 +335,7 @@ async fn ws_inbound_frame_flood_closes_connection() -> Result<()> {
 
     // Well past MAX_INBOUND_FRAMES_PER_WINDOW (60): the server must close.
     for i in 0..200u32 {
-        if ws
-            .send(WsMessage::Text(format!("spam {i}")))
-            .await
-            .is_err()
-        {
+        if ws.send(WsMessage::Text(format!("spam {i}"))).await.is_err() {
             break; // server already closed the socket
         }
     }

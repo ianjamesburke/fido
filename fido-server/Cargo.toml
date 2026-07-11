@@ -45,3 +45,6 @@ sha2 = "0.10"
 [dev-dependencies]
 tokio-tungstenite = "0.24"
 futures-util = "0.3"
+
+[lints]
+workspace = true

@@ -58,7 +58,9 @@ impl VoteRepository {
         direction: VoteDirection,
     ) -> Result<()> {
         let mut conn = self.pool.get()?;
-        let tx = conn.transaction().context("Failed to begin vote transaction")?;
+        let tx = conn
+            .transaction()
+            .context("Failed to begin vote transaction")?;
 
         tx.execute(
             "INSERT INTO votes (user_id, post_id, direction, created_at)
@@ -225,7 +227,7 @@ mod tests {
         let db = Database::in_memory()?;
         db.initialize()?;
         let (user_id, posts) = seed(&db, 5)?;
-        let repo = VoteRepository::new(db.pool.clone());
+        let repo = VoteRepository::new(db.pool);
 
         // Vote on a subset; leave the rest unvoted.
         repo.upsert_vote(&user_id, &posts[0], VoteDirection::Up)?;
@@ -249,7 +251,7 @@ mod tests {
     fn get_votes_for_posts_empty_input_is_noop() -> Result<()> {
         let db = Database::in_memory()?;
         db.initialize()?;
-        let repo = VoteRepository::new(db.pool.clone());
+        let repo = VoteRepository::new(db.pool);
         let votes = repo.get_votes_for_posts(&Uuid::new_v4(), &[])?;
         assert!(votes.is_empty());
         Ok(())
@@ -287,7 +289,7 @@ mod tests {
         let db = Database::in_memory()?;
         db.initialize()?;
         let (user_id, _posts) = seed(&db, 0)?;
-        let repo = VoteRepository::new(db.pool.clone());
+        let repo = VoteRepository::new(db.pool);
 
         // Voting on a non-existent post violates the votes.post_id foreign key,
         // so the transaction aborts and nothing is written.

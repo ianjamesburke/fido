@@ -99,7 +99,12 @@ impl CommunityService {
     /// Guard: the caller must belong to the community. Roster and metadata reads
     /// are member-only even though communities map to public GitHub repos.
     fn require_membership(&self, user_id: Uuid, community_id: &Uuid) -> ApiResult<()> {
-        if self.repos.memberships.get(community_id, &user_id)?.is_none() {
+        if self
+            .repos
+            .memberships
+            .get(community_id, &user_id)?
+            .is_none()
+        {
             return Err(ApiError::Forbidden(
                 "You are not a member of this community".to_string(),
             ));

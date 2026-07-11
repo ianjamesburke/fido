@@ -186,7 +186,10 @@ impl Database {
         )?;
 
         // Add threaded conversation support to posts table
-        run_add_column(&conn, "ALTER TABLE posts ADD COLUMN parent_post_id TEXT NULL")?;
+        run_add_column(
+            &conn,
+            "ALTER TABLE posts ADD COLUMN parent_post_id TEXT NULL",
+        )?;
         run_add_column(
             &conn,
             "ALTER TABLE posts ADD COLUMN reply_count INTEGER NOT NULL DEFAULT 0",

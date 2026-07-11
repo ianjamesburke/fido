@@ -260,13 +260,14 @@ impl GithubService {
         // are case-insensitive. Falls back to username if no login is stored.
         let github_login = match self.repos.users.get_github_login(&user_id)? {
             Some(login) => login,
-            None => self
-                .repos
-                .users
-                .get_by_id(&user_id)
-                .with_context(|| format!("Failed to load user {}", user_id))?
-                .ok_or_else(|| anyhow!("User {} not found", user_id))?
-                .username,
+            None => {
+                self.repos
+                    .users
+                    .get_by_id(&user_id)
+                    .with_context(|| format!("Failed to load user {}", user_id))?
+                    .ok_or_else(|| anyhow!("User {} not found", user_id))?
+                    .username
+            }
         };
         let url = format!("{}/repos/{}/{}/contributors", self.api_base, owner, name);
         let result = self

@@ -328,7 +328,10 @@ mod tests {
         // A new GitHub login colliding with that username still signs up.
         let user = repo.create_or_update_from_github(99, "octocat", None)?;
         assert_eq!(user.username, "octocat-2");
-        assert_eq!(repo.get_by_github_id(99)?.map(|u| u.username).as_deref(), Some("octocat-2"));
+        assert_eq!(
+            repo.get_by_github_id(99)?.map(|u| u.username).as_deref(),
+            Some("octocat-2")
+        );
         Ok(())
     }
 
@@ -343,7 +346,10 @@ mod tests {
         let renamed = repo.create_or_update_from_github(555, "new-login", None)?;
         assert_eq!(renamed.id, created.id);
         assert_eq!(renamed.username, "new-login");
-        assert_eq!(repo.get_github_login(&created.id)?.as_deref(), Some("new-login"));
+        assert_eq!(
+            repo.get_github_login(&created.id)?.as_deref(),
+            Some("new-login")
+        );
         Ok(())
     }
 
@@ -380,7 +386,7 @@ mod tests {
         let tmp = std::env::temp_dir().join(format!("fido-user-race-{}.sqlite", Uuid::new_v4()));
         let db = Database::new(&tmp)?;
         db.initialize()?;
-        let repo = Arc::new(UserRepository::new(db.pool.clone()));
+        let repo = Arc::new(UserRepository::new(db.pool));
 
         let handles: Vec<_> = (0..8)
             .map(|_| {
@@ -395,8 +401,15 @@ mod tests {
             let user = handle.join().expect("thread panicked")?;
             ids.insert(user.id);
         }
-        assert_eq!(ids.len(), 1, "concurrent callbacks must converge on one row");
-        assert_eq!(repo.get_by_github_id(7777)?.map(|u| u.id), ids.into_iter().next());
+        assert_eq!(
+            ids.len(),
+            1,
+            "concurrent callbacks must converge on one row"
+        );
+        assert_eq!(
+            repo.get_by_github_id(7777)?.map(|u| u.id),
+            ids.into_iter().next()
+        );
 
         let _ = std::fs::remove_file(&tmp);
         Ok(())
