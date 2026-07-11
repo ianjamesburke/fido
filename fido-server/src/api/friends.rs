@@ -27,6 +27,7 @@ pub struct UserSearchResponse {
 
 pub async fn search_users(
     State(state): State<AppState>,
+    AuthenticatedUser(_user_id): AuthenticatedUser,
     axum::extract::Query(query): axum::extract::Query<SearchQuery>,
 ) -> ApiResult<Json<Vec<UserSearchResponse>>> {
     let service = FriendsService::new(state.repos);

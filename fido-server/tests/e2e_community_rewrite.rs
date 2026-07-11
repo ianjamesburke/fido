@@ -1025,3 +1025,47 @@ async fn community_badge_is_public_and_reflects_member_count() -> Result<()> {
 
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Stint 0025: authenticate user search + profile-read endpoints
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn user_search_and_profile_read_require_auth() -> Result<()> {
+    let server = spawn_server(None).await?;
+    let repos = &server.state.repos;
+    let alice = create_user(repos, "e2e-auth-alice")?;
+
+    let anon = reqwest::Client::new();
+    let base = format!("http://{}", server.addr);
+
+    // Anonymous user search is rejected.
+    let search = anon
+        .get(format!("{}/users/search?q=e2e", base))
+        .send()
+        .await?;
+    assert_eq!(search.status(), StatusCode::UNAUTHORIZED);
+
+    // Anonymous profile read is rejected.
+    let profile = anon
+        .get(format!("{}/users/{}/profile", base, alice.id))
+        .send()
+        .await?;
+    assert_eq!(profile.status(), StatusCode::UNAUTHORIZED);
+
+    // With a valid session token both succeed.
+    let client = login(&server, &alice)?;
+    assert_eq!(
+        client.get("/users/search?q=e2e").await?.status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        client
+            .get(&format!("/users/{}/profile", alice.id))
+            .await?
+            .status(),
+        StatusCode::OK
+    );
+
+    Ok(())
+}
