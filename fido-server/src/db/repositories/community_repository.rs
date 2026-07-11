@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn test_create_and_get() -> Result<()> {
         let (db, _user) = setup()?;
-        let repo = CommunityRepository::new(db.pool.clone());
+        let repo = CommunityRepository::new(db.pool);
         let community = sample_community(42);
         repo.create(&community)?;
 
@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_get_by_owner_name_is_case_insensitive() -> Result<()> {
         let (db, _user) = setup()?;
-        let repo = CommunityRepository::new(db.pool.clone());
+        let repo = CommunityRepository::new(db.pool);
         let community = sample_community(99);
         repo.create(&community)?;
 

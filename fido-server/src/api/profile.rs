@@ -23,7 +23,7 @@ pub async fn get_profile(
     // Parse user ID
     let user_id = Uuid::parse_str(&user_id)
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
-    let service = ProfileService::new(state.repos.clone());
+    let service = ProfileService::new(state.repos);
     let profile = service.get_profile(&user_id)?;
 
     Ok(Json(profile))

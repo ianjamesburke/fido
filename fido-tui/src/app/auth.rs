@@ -28,11 +28,6 @@ impl App {
             }
         }
 
-        // Also clear old config_manager session for backwards compatibility
-        if let Err(e) = self.config_manager.delete_session(&self.instance_id) {
-            log::warn!("Failed to delete config_manager session: {}", e);
-        }
-
         // Reset app state
         self.auth_state.current_user = None;
         self.current_screen = Screen::Auth;
@@ -105,20 +100,6 @@ impl App {
                 self.auth_state.loading = false;
                 self.current_screen = Screen::Main;
 
-                // Save session data
-                let session_data = crate::config::SessionData {
-                    username: response.user.username.clone(),
-                    session_token: response.session_token.clone(),
-                    user_id: response.user.id.to_string(),
-                };
-
-                if let Err(e) = self
-                    .config_manager
-                    .save_session(&self.instance_id, &session_data)
-                {
-                    eprintln!("Warning: Failed to save session: {}", e);
-                }
-
                 let session_store =
                     crate::session::SessionStore::for_server(self.api_client.base_url());
                 if let Ok(session_store) = session_store {
@@ -130,8 +111,7 @@ impl App {
                 // Load user settings first (so posts use correct preferences)
                 let _ = self.load_settings().await;
 
-                // Load filter preference
-                self.load_filter_preference();
+                self.reset_filter();
 
                 let _ = self.init_community_context().await;
 

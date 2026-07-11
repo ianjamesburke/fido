@@ -211,25 +211,13 @@ impl EventLoop {
             }
         }
 
-        if self
-            .update_check_task
-            .as_ref()
-            .map(|task| task.is_finished())
-            .unwrap_or(false)
-        {
-            let handle = self.update_check_task.take().unwrap();
+        if let Some(handle) = self.update_check_task.take_if(|task| task.is_finished()) {
             if let Ok(Some(latest_version)) = handle.await {
                 app.update_available = Some(latest_version);
             }
         }
 
-        if self
-            .session_restore_task
-            .as_ref()
-            .map(|task| task.is_finished())
-            .unwrap_or(false)
-        {
-            let handle = self.session_restore_task.take().unwrap();
+        if let Some(handle) = self.session_restore_task.take_if(|task| task.is_finished()) {
             match handle.await {
                 Ok(Ok(Some(restored))) if app.current_screen == Screen::Auth => {
                     log::info!("Restored session for user: {}", restored.user.username);
@@ -268,7 +256,7 @@ impl EventLoop {
         if self.startup_data_load_pending && app.current_screen == Screen::Main {
             self.startup_data_load_pending = false;
             let _ = app.load_settings().await;
-            app.load_filter_preference();
+            app.reset_filter();
             let _ = app.init_community_context().await;
             let _ = app.load_posts().await;
         }
@@ -359,7 +347,7 @@ impl EventLoop {
 
         // Load initial data
         let _ = app.load_settings().await;
-        app.load_filter_preference();
+        app.reset_filter();
         let _ = app.init_community_context().await;
         let _ = app.load_posts().await;
 
@@ -924,8 +912,8 @@ impl EventLoop {
         match auth_flow.initiate_github_device_flow().await {
             Ok((device_code, user_code, verification_uri, interval)) => {
                 app.auth_state.github_device_code = Some(device_code);
-                app.auth_state.github_user_code = Some(user_code.clone());
-                app.auth_state.github_verification_uri = Some(verification_uri.clone());
+                app.auth_state.github_user_code = Some(user_code);
+                app.auth_state.github_verification_uri = Some(verification_uri);
                 app.auth_state.github_poll_interval = Some(interval);
                 app.auth_state.github_auth_in_progress = true;
                 app.auth_state.github_auth_start_time = Some(std::time::Instant::now());

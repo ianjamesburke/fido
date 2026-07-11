@@ -5,8 +5,8 @@ use std::path::PathBuf;
 
 /// Manages session token storage in the user's home directory.
 ///
-/// The session token is stored in `~/.fido/session` with 0600 permissions
-/// to ensure only the owner can read/write the file.
+/// Each server's token is stored in `~/.fido/session_<server-hash>` with 0600
+/// permissions so one server cannot overwrite another server's session.
 #[derive(Debug, Clone)]
 pub struct SessionStore {
     file_path: PathBuf,
@@ -196,10 +196,8 @@ impl SessionStore {
 
     /// Cleans up any old or stale session files.
     ///
-    /// This ensures only ONE session file exists per user by removing:
-    /// - Backup files (*.bak)
-    /// - Temporary files (*.tmp)
-    /// - Old session files with different extensions
+    /// Removes temporary and backup files plus legacy instance-scoped JSON
+    /// sessions. Tokens scoped to other servers are preserved.
     fn cleanup_old_files(&self) -> Result<()> {
         if let Some(parent) = self.file_path.parent() {
             if !parent.exists() {
@@ -225,7 +223,8 @@ impl SessionStore {
                         || (file_name.starts_with("session_")
                             && (file_name.ends_with(".tmp")
                                 || file_name.ends_with(".bak")
-                                || file_name.ends_with(".old")));
+                                || file_name.ends_with(".old")
+                                || file_name.ends_with(".json")));
 
                     if is_stale_session_file {
                         log::debug!("Removing old/stale session file: {}", path.display());
@@ -362,7 +361,7 @@ mod tests {
         assert!(!temp_dir.path().join("session.tmp").exists());
         assert!(!temp_dir.path().join("session.old").exists());
         assert!(temp_dir.path().join("session_deadbeef").exists());
-        assert!(temp_dir.path().join("session_deadbeef.json").exists());
+        assert!(!temp_dir.path().join("session_deadbeef.json").exists());
 
         // Check that the new session file exists
         assert!(store.file_path.exists());

@@ -129,12 +129,6 @@ impl UserRepository {
         Ok(users)
     }
 
-    /// Find user by username (alias for get_by_username for consistency)
-    #[allow(dead_code)]
-    pub fn find_by_username(&self, username: &str) -> Result<Option<User>> {
-        self.get_by_username(username)
-    }
-
     /// Get user by GitHub ID
     pub fn get_by_github_id(&self, github_id: i64) -> Result<Option<User>> {
         let conn = self.pool.get()?;

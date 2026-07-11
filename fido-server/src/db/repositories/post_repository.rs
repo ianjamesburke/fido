@@ -147,29 +147,6 @@ impl PostRepository {
         Ok(posts)
     }
 
-    /// Get posts by a specific user
-    #[allow(dead_code)]
-    pub fn get_by_user(&self, user_id: &Uuid) -> Result<Vec<Post>> {
-        let conn = self.pool.get()?;
-        let mut stmt = conn.prepare(
-            "SELECT p.id, p.author_id, u.username, p.content, p.created_at, p.upvotes, p.downvotes, p.parent_post_id,
-                    (SELECT COUNT(*) FROM posts WHERE parent_post_id = p.id) as reply_count,
-                    p.reply_to_user_id, u2.username as reply_to_username, p.community_id, p.approved,
-                    p.github_id, p.github_kind, p.github_state, p.github_html_url
-             FROM posts p
-             JOIN users u ON p.author_id = u.id
-             LEFT JOIN users u2 ON p.reply_to_user_id = u2.id
-             WHERE p.author_id = ?
-             ORDER BY p.created_at DESC"
-        )?;
-
-        let posts = stmt
-            .query_map([user_id.to_string()], map_post_row)?
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(posts)
-    }
-
     /// Get a single post by ID
     pub fn get_by_id(&self, post_id: &Uuid) -> Result<Option<Post>> {
         let conn = self.pool.get()?;
@@ -273,18 +250,6 @@ impl PostRepository {
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(replies)
-    }
-
-    /// Check if a post has replies
-    #[allow(dead_code)]
-    pub fn has_replies(&self, post_id: &Uuid) -> Result<bool> {
-        let conn = self.pool.get()?;
-        let count: i32 = conn.query_row(
-            "SELECT COUNT(*) FROM posts WHERE parent_post_id = ?",
-            [post_id.to_string()],
-            |row| row.get(0),
-        )?;
-        Ok(count > 0)
     }
 
     /// Get posts filtered by username
@@ -491,11 +456,7 @@ mod tests {
         tx.commit()?;
         drop(conn);
 
-        Ok((
-            db.clone(),
-            PostRepository::new(db.pool.clone()),
-            community_id,
-        ))
+        Ok((db.clone(), PostRepository::new(db.pool), community_id))
     }
 
     fn explain_query_plan(

@@ -4,7 +4,6 @@ use regex::Regex;
 use std::sync::OnceLock;
 
 /// Get the compiled regex for mention extraction
-#[allow(dead_code)]
 fn mention_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
@@ -17,7 +16,6 @@ fn mention_regex() -> &'static Regex {
 
 /// Extract all @username mentions from content
 /// Returns a vector of unique usernames (without the @ symbol)
-#[allow(dead_code)]
 pub fn extract_mentions(content: &str) -> Vec<String> {
     let re = mention_regex();
     let mut mentions = Vec::new();
@@ -33,16 +31,6 @@ pub fn extract_mentions(content: &str) -> Vec<String> {
     }
 
     mentions
-}
-
-/// Extract the first @username mention from content
-/// Returns None if no mentions found
-#[allow(dead_code)]
-pub fn extract_first_mention(content: &str) -> Option<String> {
-    let re = mention_regex();
-    re.captures(content)
-        .and_then(|cap| cap.get(1))
-        .map(|m| m.as_str().to_lowercase())
 }
 
 #[cfg(test)]
@@ -80,20 +68,5 @@ mod tests {
             extract_mentions("Email me at test@example.com"),
             Vec::<String>::new()
         );
-    }
-
-    #[test]
-    fn test_extract_first_mention() {
-        assert_eq!(
-            extract_first_mention("Hey @alice, what do you think?"),
-            Some("alice".to_string())
-        );
-
-        assert_eq!(
-            extract_first_mention("@bob and @charlie are both right"),
-            Some("bob".to_string())
-        );
-
-        assert_eq!(extract_first_mention("No mentions here"), None);
     }
 }

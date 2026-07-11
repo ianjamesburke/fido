@@ -184,19 +184,6 @@ impl DirectMessageRepository {
         Ok(())
     }
 
-    /// Get unread message count for a user (excluding deleted messages)
-    #[allow(dead_code)]
-    pub fn get_unread_count(&self, user_id: &Uuid) -> Result<i32> {
-        let conn = self.pool.get()?;
-        let count: i32 = conn.query_row(
-            "SELECT COUNT(*) FROM direct_messages 
-             WHERE to_user_id = ? AND is_read = 0 AND deleted_by_to_user = 0",
-            [user_id.to_string()],
-            |row| row.get(0),
-        )?;
-        Ok(count)
-    }
-
     /// Delete conversation for a specific user (soft delete - hides from their view only)
     pub fn delete_conversation(&self, user_id: &Uuid, other_user_id: &Uuid) -> Result<()> {
         let conn = self.pool.get()?;
@@ -219,31 +206,6 @@ impl DirectMessageRepository {
             (user_id.to_string(), other_user_id.to_string()),
         )
         .context("Failed to mark received messages as deleted")?;
-
-        Ok(())
-    }
-
-    /// Undelete conversation for a specific user (when they send a new message)
-    #[allow(dead_code)]
-    pub fn undelete_conversation(&self, user_id: &Uuid, other_user_id: &Uuid) -> Result<()> {
-        let conn = self.pool.get()?;
-
-        // Unmark messages as deleted for this user
-        conn.execute(
-            "UPDATE direct_messages 
-             SET deleted_by_from_user = 0
-             WHERE from_user_id = ? AND to_user_id = ?",
-            (user_id.to_string(), other_user_id.to_string()),
-        )
-        .context("Failed to unmark sent messages as deleted")?;
-
-        conn.execute(
-            "UPDATE direct_messages 
-             SET deleted_by_to_user = 0
-             WHERE from_user_id = ? AND to_user_id = ?",
-            (other_user_id.to_string(), user_id.to_string()),
-        )
-        .context("Failed to unmark received messages as deleted")?;
 
         Ok(())
     }

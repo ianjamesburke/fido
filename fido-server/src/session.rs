@@ -191,35 +191,6 @@ impl SessionManager {
 
         Ok(rows_affected)
     }
-
-    /// Invalidate all sessions for a user
-    ///
-    /// Removes all sessions associated with a user from the database.
-    /// This should be called before creating a new session on login to ensure
-    /// that previous sessions are invalidated for security.
-    ///
-    /// # Arguments
-    /// * `user_id` - The UUID of the user whose sessions should be invalidated
-    ///
-    /// # Returns
-    /// * `Result<usize>` - The number of sessions invalidated
-    #[allow(dead_code)]
-    pub fn invalidate_user_sessions(&self, user_id: Uuid) -> Result<usize> {
-        let rows_affected = self
-            .store
-            .invalidate_user_sessions(user_id)
-            .context("Failed to invalidate user sessions")?;
-
-        if rows_affected > 0 {
-            tracing::info!(
-                "Invalidated {} sessions for user {}",
-                rows_affected,
-                user_id
-            );
-        }
-
-        Ok(rows_affected)
-    }
 }
 
 #[cfg(all(test, feature = "sqlite-tests"))]
@@ -516,61 +487,5 @@ mod tests {
             time_diff < Duration::seconds(5),
             "last_activity should be updated to recent time"
         );
-    }
-
-    #[test]
-    fn test_invalidate_user_sessions() {
-        let db = setup_test_db();
-        let manager = setup_manager(&db);
-        let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
-
-        // Create multiple sessions for the user
-        let token1 = manager
-            .create_session(user_id)
-            .expect("Failed to create session 1");
-        let token2 = manager
-            .create_session(user_id)
-            .expect("Failed to create session 2");
-        let token3 = manager
-            .create_session(user_id)
-            .expect("Failed to create session 3");
-
-        // All sessions should be valid
-        assert!(manager.validate_session(&token1).is_ok());
-        assert!(manager.validate_session(&token2).is_ok());
-        assert!(manager.validate_session(&token3).is_ok());
-
-        // Invalidate all sessions for the user
-        let invalidated = manager
-            .invalidate_user_sessions(user_id)
-            .expect("Failed to invalidate sessions");
-        assert_eq!(invalidated, 3, "Should have invalidated 3 sessions");
-
-        // All sessions should now be invalid
-        assert!(
-            manager.validate_session(&token1).is_err(),
-            "Session 1 should be invalid after invalidation"
-        );
-        assert!(
-            manager.validate_session(&token2).is_err(),
-            "Session 2 should be invalid after invalidation"
-        );
-        assert!(
-            manager.validate_session(&token3).is_err(),
-            "Session 3 should be invalid after invalidation"
-        );
-    }
-
-    #[test]
-    fn test_invalidate_user_sessions_no_sessions() {
-        let db = setup_test_db();
-        let manager = setup_manager(&db);
-        let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
-
-        // Invalidate sessions for a user with no sessions
-        let invalidated = manager
-            .invalidate_user_sessions(user_id)
-            .expect("Failed to invalidate sessions");
-        assert_eq!(invalidated, 0, "Should have invalidated 0 sessions");
     }
 }

@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_insert_get_update_delete() -> Result<()> {
         let (db, community_id, user_id) = setup()?;
-        let repo = MembershipRepository::new(db.pool.clone());
+        let repo = MembershipRepository::new(db.pool);
 
         repo.insert(&membership(community_id, user_id, MembershipRole::Member))?;
         let got = repo

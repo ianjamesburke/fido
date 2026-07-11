@@ -316,26 +316,6 @@ impl App {
         Ok(())
     }
 
-    /// Open filter modal
-    #[allow(dead_code)]
-    pub fn open_filter_modal(&mut self) {
-        self.posts_state.show_filter_modal = true;
-        self.posts_state.filter_modal_state.selected_index = 0;
-        self.posts_state.filter_modal_state.search_input.clear();
-        self.input_mode = InputMode::Navigation;
-
-        // Reset and populate checked items from current active filter
-        self.posts_state.filter_modal_state.checked_hashtags.clear();
-        self.posts_state.filter_modal_state.checked_users.clear();
-
-        if let PostFilter::Multi { hashtags, users } = &self.posts_state.current_filter {
-            self.posts_state.filter_modal_state.checked_hashtags = hashtags.clone();
-            self.posts_state.filter_modal_state.checked_users = users.clone();
-        }
-
-        // Lists will be loaded async in main loop
-    }
-
     /// Load filter modal data (hashtags and following users)
     pub async fn load_filter_modal_data(&mut self) -> Result<()> {
         // Load both lists concurrently to keep filter modal snappy.
@@ -454,22 +434,15 @@ impl App {
 
     /// Apply filter and reload posts
     pub async fn apply_filter(&mut self, filter: PostFilter) -> Result<()> {
-        self.posts_state.current_filter = filter.clone();
+        self.posts_state.current_filter = filter;
         self.close_filter_modal();
-
-        // Save filter preference
-        self.save_filter_preference();
 
         // Set flag to trigger load in main loop instead of blocking here
         self.posts_state.pending_load = true;
         Ok(())
     }
 
-    /// Save current filter preference to disk
-    fn save_filter_preference(&self) {}
-
-    /// Load filter preference from disk
-    pub fn load_filter_preference(&mut self) {
+    pub fn reset_filter(&mut self) {
         self.posts_state.current_filter = PostFilter::All;
     }
 

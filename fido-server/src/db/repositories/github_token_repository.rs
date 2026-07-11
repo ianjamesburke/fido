@@ -105,7 +105,7 @@ mod tests {
     #[test]
     fn upsert_and_delete_github_token() {
         let db = setup_db();
-        let repo = GitHubTokenRepository::new(db.pool.clone());
+        let repo = GitHubTokenRepository::new(db.pool);
         let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440099").unwrap();
         let now = Utc::now();
 

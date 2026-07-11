@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn test_create_list_and_counts() -> Result<()> {
         let (db, recipient, actor) = setup()?;
-        let repo = NotificationRepository::new(db.pool.clone());
+        let repo = NotificationRepository::new(db.pool);
         let post_subject_id = Uuid::new_v4().to_string();
 
         repo.create(&notification_with_subject_id(
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn test_mark_read() -> Result<()> {
         let (db, recipient, actor) = setup()?;
-        let repo = NotificationRepository::new(db.pool.clone());
+        let repo = NotificationRepository::new(db.pool);
 
         let n = notification(recipient, actor, "post");
         repo.create(&n)?;

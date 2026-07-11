@@ -142,11 +142,6 @@ impl App {
     fn post_matches_current_filter(&self, post: &Post) -> bool {
         match &self.posts_state.current_filter {
             PostFilter::All => true,
-            PostFilter::Hashtag(tag) => post
-                .hashtags
-                .iter()
-                .any(|hashtag| hashtag.eq_ignore_ascii_case(tag)),
-            PostFilter::User(username) => post.author_username.eq_ignore_ascii_case(username),
             PostFilter::Multi { hashtags, users } => {
                 let hashtag_match = hashtags.iter().any(|tag| {
                     post.hashtags

@@ -99,13 +99,4 @@ impl SessionRepository {
             rusqlite::params![now.to_rfc3339()],
         )?)
     }
-
-    #[allow(dead_code)]
-    pub fn invalidate_user_sessions(&self, user_id: Uuid) -> Result<usize> {
-        let conn = self.pool.get()?;
-        Ok(conn.execute(
-            "DELETE FROM sessions WHERE user_id = ?1",
-            rusqlite::params![user_id.to_string()],
-        )?)
-    }
 }

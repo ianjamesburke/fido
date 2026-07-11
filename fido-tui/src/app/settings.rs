@@ -48,10 +48,13 @@ impl App {
             // Switch to pending tab
             self.current_tab = pending_tab;
         } else {
-            // No pending tab means logout/exit was requested
-            // Clear session file
-            if let Err(e) = self.config_manager.delete_session(&self.instance_id) {
-                eprintln!("Warning: Failed to delete session: {}", e);
+            // No pending tab means logout/exit was requested.
+            if let Ok(session_store) =
+                crate::session::SessionStore::for_server(self.api_client.base_url())
+            {
+                if let Err(e) = session_store.delete() {
+                    log::warn!("Failed to delete session file: {}", e);
+                }
             }
 
             // Reset app state

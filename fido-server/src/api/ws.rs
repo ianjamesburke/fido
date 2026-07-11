@@ -38,7 +38,7 @@ pub async fn ws_handler(
         .get_authenticated_user_id_from_token(&token)
         .ok_or_else(|| ApiError::Unauthorized("Invalid session token".to_string()))?;
 
-    let gateway = state.realtime.clone();
+    let gateway = state.realtime;
     Ok(ws.on_upgrade(move |socket| handle_connection(socket, user_id, gateway)))
 }
 

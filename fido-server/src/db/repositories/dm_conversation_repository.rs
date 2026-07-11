@@ -168,7 +168,7 @@ mod tests {
     #[test]
     fn test_create_get_any_order() -> Result<()> {
         let (db, a, b) = setup()?;
-        let repo = DmConversationRepository::new(db.pool.clone());
+        let repo = DmConversationRepository::new(db.pool);
 
         // Create with args in one order, fetch with the reverse order.
         let created = repo.create(&b, &a, &b, DmConversationState::Pending)?;
@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn test_set_state() -> Result<()> {
         let (db, a, b) = setup()?;
-        let repo = DmConversationRepository::new(db.pool.clone());
+        let repo = DmConversationRepository::new(db.pool);
 
         repo.create(&a, &b, &a, DmConversationState::Pending)?;
         repo.set_state(&b, &a, DmConversationState::Accepted)?;

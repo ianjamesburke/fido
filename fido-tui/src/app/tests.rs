@@ -1118,7 +1118,7 @@ fn realtime_channel_message_appends_once_to_open_channel() {
         created_at: chrono::Utc::now(),
     };
     let event = Event::MessageCreated(ChannelMessageEvent {
-        message: message.clone(),
+        message,
         community_id,
     });
 

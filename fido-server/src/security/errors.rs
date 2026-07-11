@@ -131,7 +131,7 @@ impl SecureError {
         Self::with_public_details(
             ErrorCode::NotFound,
             format!("Resource not found: {}", message),
-            message.clone(),
+            message,
         )
     }
 

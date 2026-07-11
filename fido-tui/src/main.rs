@@ -1,7 +1,6 @@
 mod api;
 mod app;
 mod auth;
-mod config;
 mod emoji;
 mod event_loop;
 #[macro_use]

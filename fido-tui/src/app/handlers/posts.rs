@@ -220,7 +220,7 @@ pub fn handle_full_post_modal_keys(app: &mut App, key: KeyEvent) -> Result<()> {
                         app.open_composer_reply(
                             post.id,
                             post.author_username.clone(),
-                            post.content.clone(),
+                            post.content,
                         );
                     }
                 }

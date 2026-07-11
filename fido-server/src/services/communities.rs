@@ -171,26 +171,6 @@ impl CommunityService {
         Ok(members)
     }
 
-    #[allow(dead_code)] // Reused by downstream moderation endpoints when those routes land.
-    pub fn require_role(
-        &self,
-        user_id: Uuid,
-        community_id: Uuid,
-        allowed_roles: &[MembershipRole],
-    ) -> ApiResult<Membership> {
-        let membership = self
-            .repos
-            .memberships
-            .get(&community_id, &user_id)?
-            .ok_or_else(|| ApiError::Forbidden("Community membership required".to_string()))?;
-        if !allowed_roles.contains(&membership.role) {
-            return Err(ApiError::Forbidden(
-                "Insufficient community role".to_string(),
-            ));
-        }
-        Ok(membership)
-    }
-
     fn annotate_starred_repo(
         &self,
         repo: GithubRepo,
@@ -448,7 +428,7 @@ mod tests {
     fn list_members_returns_usernames_admins_first() -> ApiResult<()> {
         let db = Database::in_memory()?;
         db.initialize()?;
-        let repos = Repositories::new(db.pool.clone());
+        let repos = Repositories::new(db.pool);
 
         let community = Community {
             id: Uuid::new_v4(),

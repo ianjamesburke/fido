@@ -33,10 +33,6 @@ pub struct DeviceCodeResponse {
 #[derive(Debug, Deserialize)]
 struct DeviceTokenResponse {
     access_token: Option<String>,
-    #[allow(dead_code)]
-    token_type: Option<String>,
-    #[allow(dead_code)]
-    scope: Option<String>,
     error: Option<String>,
     error_description: Option<String>,
 }

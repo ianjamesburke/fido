@@ -15,16 +15,6 @@ pub fn format_timestamp(timestamp: &chrono::DateTime<chrono::Utc>) -> String {
     timestamp.format("%Y-%m-%d %H:%M").to_string()
 }
 
-/// Format post content with hashtag highlighting and text wrapping
-#[allow(dead_code)]
-pub fn format_post_content(
-    content: &str,
-    is_selected: bool,
-    theme: &ThemeColors,
-) -> Vec<Line<'static>> {
-    format_post_content_with_width(content, is_selected, theme, 80)
-}
-
 /// Format post content with hashtag highlighting and text wrapping with specified width
 pub fn format_post_content_with_width(
     content: &str,
@@ -104,15 +94,6 @@ fn push_styled_word(
     spans.push(Span::styled(word.to_string(), style));
 }
 
-/// Format post content for input box (no indent, simpler formatting)
-#[allow(dead_code)]
-pub fn format_post_content_for_input(content: &str) -> Vec<Line<'static>> {
-    content
-        .lines()
-        .map(|line| Line::from(line.to_string()))
-        .collect()
-}
-
 /// Text for one row of the repo-activity feed, e.g.
 /// `⊙ #7 Fix login · issue opened by alice` or
 /// `⇄ #9 Dark mode · merged · bob`.
@@ -152,32 +133,6 @@ pub fn activity_glyph_color(post: &Post, theme: &ThemeColors) -> Color {
         Some(ActivityState::Merged) => Color::Magenta,
         None => theme.text_dim,
     }
-}
-
-/// Format bio content with wrapping
-#[allow(dead_code)]
-pub fn format_bio_content_with_width(
-    content: &str,
-    max_width: usize,
-    theme: &ThemeColors,
-) -> Vec<Line<'static>> {
-    let mut lines = vec![];
-
-    for line in content.lines() {
-        let wrapped = textwrap::wrap(line, max_width);
-        for wrapped_line in wrapped {
-            lines.push(Line::from(Span::styled(
-                wrapped_line.to_string(),
-                Style::default().fg(theme.text),
-            )));
-        }
-    }
-
-    if lines.is_empty() {
-        lines.push(Line::from(""));
-    }
-
-    lines
 }
 
 #[cfg(test)]

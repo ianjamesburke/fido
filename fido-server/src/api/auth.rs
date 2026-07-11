@@ -7,7 +7,7 @@ use axum::{
 use fido_types::{LoginRequest, LoginResponse, User};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{LazyLock, Mutex};
 
 use super::{ApiError, ApiResult};
 use crate::http::{extract_client_ip, extract_user_agent};
@@ -19,10 +19,8 @@ use crate::security::{
 use crate::state::AppState;
 
 // In-memory store for active device codes: device_code -> unix timestamp of creation
-lazy_static::lazy_static! {
-    static ref DEVICE_CODES: Arc<Mutex<HashMap<String, i64>>> =
-        Arc::new(Mutex::new(HashMap::new()));
-}
+static DEVICE_CODES: LazyLock<Mutex<HashMap<String, i64>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Response for GitHub Device Flow initiation
 #[derive(Serialize)]
@@ -98,7 +96,7 @@ pub async fn login(
             // Log login failure - database error
             let _ = state.audit_logger.log(
                 AuditEvent::new(AuditEventType::LoginFailure)
-                    .with_optional_ip_address(client_ip.clone())
+                    .with_optional_ip_address(client_ip)
                     .with_optional_user_agent(user_agent)
                     .with_details(format!(
                         "Database error during login for: {}",
