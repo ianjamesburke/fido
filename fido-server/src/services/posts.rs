@@ -367,6 +367,13 @@ impl PostService {
             .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
         self.ensure_visible(&post, *user_id)?;
 
+        // Reject self-votes so a user cannot inflate their own karma.
+        if post.author_id == *user_id {
+            return Err(ApiError::BadRequest(
+                "You cannot vote on your own post".to_string(),
+            ));
+        }
+
         self.repos.votes.upsert_vote(user_id, post_id, direction)?;
         self.repos.posts.update_vote_counts(post_id)?;
 
@@ -521,6 +528,16 @@ impl PostService {
         let notifications = NotificationService::new(self.repos.clone(), self.event_bus.clone());
         for username in extract_mentions(&post.content) {
             if let Some(user) = self.repos.users.get_by_username(&username)? {
+                // Only notify mentioned users who belong to this community, so a
+                // mention cannot fan out cross-community notification spam.
+                if self
+                    .repos
+                    .memberships
+                    .get(&post.community_id, &user.id)?
+                    .is_none()
+                {
+                    continue;
+                }
                 notifications.create(
                     user.id,
                     NotificationType::Mention,

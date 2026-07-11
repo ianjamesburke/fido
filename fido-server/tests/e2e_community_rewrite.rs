@@ -1109,3 +1109,63 @@ async fn community_detail_and_roster_are_member_only() -> Result<()> {
 
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Stint 0033: reject self-votes + scope mention notifications to members
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn self_vote_is_rejected_and_mentions_are_member_scoped() -> Result<()> {
+    let server = spawn_server(None).await?;
+    let repos = &server.state.repos;
+
+    let (community, _channel) = seed_community(repos, false)?;
+    let author = create_user(repos, "vote-author")?;
+    let member = create_user(repos, "mention-member")?;
+    let outsider = create_user(repos, "mention-outsider")?;
+    add_member(repos, community.id, author.id, MembershipRole::Member)?;
+    add_member(repos, community.id, member.id, MembershipRole::Member)?;
+    // `outsider` is a real user but NOT a member of this community.
+
+    let author_client = login(&server, &author)?;
+
+    // Author creates a thread mentioning both a member and a non-member.
+    let response = author_client
+        .post(
+            "/posts",
+            &json!({
+                "community_id": community.id,
+                "content": "hey @mention-member and @mention-outsider"
+            }),
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let post = json_body(response).await?;
+    let post_id = post["id"].as_str().unwrap().to_string();
+
+    // Self-vote is rejected.
+    let response = author_client
+        .post(
+            &format!("/posts/{}/vote", post_id),
+            &json!({ "direction": "up" }),
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    // The member mention produces a notification; the non-member's does not.
+    let member_notifs = json_body(login(&server, &member)?.get("/notifications").await?).await?;
+    assert_eq!(
+        member_notifs.as_array().map(|a| a.len()).unwrap_or(0),
+        1,
+        "member should receive the mention notification"
+    );
+
+    let outsider_notifs =
+        json_body(login(&server, &outsider)?.get("/notifications").await?).await?;
+    assert!(
+        outsider_notifs.as_array().map(|a| a.is_empty()).unwrap_or(true),
+        "non-member must not receive a mention notification"
+    );
+
+    Ok(())
+}
