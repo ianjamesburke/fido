@@ -7,6 +7,7 @@ Terminal client implementation: startup, terminal lifecycle, app state, input di
 ## Ownership
 
 - `main.rs` owns CLI parsing, startup sequencing, terminal initialization, and the main event loop handoff.
+- `legacy_cleanup.rs` owns startup removal of obsolete files previously written into the launch directory.
 - `event_loop.rs` drives events and redraws.
 - `repo_context.rs` detects GitHub repository context for directory-scoped communities.
 - `terminal.rs` owns terminal setup and restoration.
@@ -18,6 +19,7 @@ Terminal client implementation: startup, terminal lifecycle, app state, input di
 - Keep side effects out of render functions. Keep state transitions and key dispatch in `app/`.
 - Send HTTP and WebSocket work through `api/`; do not construct client requests from UI modules.
 - Always restore the terminal on exit or error paths.
+- Legacy cleanup is best-effort and must never prevent the TUI from starting.
 
 ## Verification
 

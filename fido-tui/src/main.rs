@@ -3,6 +3,7 @@ mod app;
 mod auth;
 mod emoji;
 mod event_loop;
+mod legacy_cleanup;
 #[macro_use]
 mod logging;
 mod repo_context;
@@ -188,6 +189,14 @@ async fn main() -> Result<()> {
     // Load environment variables from .env file
     load_env();
 
+    // Check runtime mode flags
+    let is_web_mode = env_flag("FIDO_WEB_MODE");
+    let launch_dir = if is_web_mode {
+        None
+    } else {
+        std::env::current_dir().ok()
+    };
+
     // Initialize logging system
     // Only enable logging if --verbose flag is passed (production default: disabled)
     let log_config = if cli.verbose {
@@ -197,11 +206,17 @@ async fn main() -> Result<()> {
     };
     logging::init_logging(&log_config)?;
 
+    if let Some(launch_dir) = &launch_dir {
+        if let Err(error) = legacy_cleanup::remove_reply_debug_log(launch_dir) {
+            log::warn!(
+                "Failed to remove legacy reply debug log from {}: {error}",
+                launch_dir.display()
+            );
+        }
+    }
+
     // Initialize terminal
     let mut tui = terminal::init()?;
-
-    // Check runtime mode flags
-    let is_web_mode = env_flag("FIDO_WEB_MODE");
 
     // Create app based on mode
     let mut app = if let Some(server_url) = cli.server {
@@ -220,10 +235,8 @@ async fn main() -> Result<()> {
 
     // The launch directory decides the community for the installed/local TUI.
     // Web mode is a public demo and must not infer a real repo from its host.
-    if !is_web_mode {
-        if let Ok(cwd) = std::env::current_dir() {
-            app.launch_repo = repo_context::detect_repo_context(&cwd);
-        }
+    if let Some(launch_dir) = &launch_dir {
+        app.launch_repo = repo_context::detect_repo_context(launch_dir);
     }
 
     let mut auth_flow = auth::AuthFlow::new(app.api_client.clone())?;
