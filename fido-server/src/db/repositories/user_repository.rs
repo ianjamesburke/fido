@@ -96,21 +96,31 @@ impl UserRepository {
     }
 
     /// Get a system user by name, creating it on first use.
+    ///
+    /// Uses `INSERT ... ON CONFLICT(username) DO NOTHING` then a re-select, so
+    /// concurrent callers race safely to one row instead of one of them hitting
+    /// the username UNIQUE constraint and 500ing.
     pub fn get_or_create_system_user(&self, username: &str) -> Result<User> {
         if let Some(user) = self.get_by_username(username)? {
             return Ok(user);
         }
 
-        let user = User {
-            id: Uuid::new_v4(),
-            username: username.to_string(),
-            bio: None,
-            join_date: Utc::now(),
-            is_test_user: false,
-            is_admin: false,
-        };
-        self.create(&user)?;
-        Ok(user)
+        let conn = self.pool.get()?;
+        conn.execute(
+            "INSERT INTO users (id, username, bio, join_date, is_test_user, is_admin)
+             VALUES (?, ?, NULL, ?, 0, 0)
+             ON CONFLICT(username) DO NOTHING",
+            (
+                Uuid::new_v4().to_string(),
+                username,
+                Utc::now().to_rfc3339(),
+            ),
+        )
+        .context("Failed to upsert system user")?;
+        drop(conn);
+
+        self.get_by_username(username)?
+            .with_context(|| format!("System user '{username}' missing after upsert"))
     }
 
     /// Get all users (for search)
@@ -143,54 +153,115 @@ impl UserRepository {
         Ok(user)
     }
 
-    /// Create or update user from GitHub OAuth
+    /// Current GitHub login for a user, if any. Unlike `username` (frozen at
+    /// first signup), this tracks GitHub renames on re-login.
+    pub fn get_github_login(&self, user_id: &Uuid) -> Result<Option<String>> {
+        let conn = self.pool.get()?;
+        let login = conn
+            .query_row(
+                "SELECT github_login FROM users WHERE id = ?",
+                [user_id.to_string()],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()?
+            .flatten();
+        Ok(login)
+    }
+
+    /// Derive a username not already taken, appending `-2`, `-3`, ... on
+    /// collision. GitHub logins are unique, so a collision here means an
+    /// existing local (possibly stale) username, which must not block signup.
+    fn unique_username(&self, base: &str) -> Result<String> {
+        if self.get_by_username(base)?.is_none() {
+            return Ok(base.to_string());
+        }
+        for suffix in 2..=1000 {
+            let candidate = format!("{base}-{suffix}");
+            if self.get_by_username(&candidate)?.is_none() {
+                return Ok(candidate);
+            }
+        }
+        Err(anyhow::anyhow!(
+            "Could not derive a unique username from '{base}'"
+        ))
+    }
+
+    /// Create or update user from GitHub OAuth.
+    ///
+    /// New-user creation is idempotent: `INSERT ... ON CONFLICT(github_id) DO
+    /// NOTHING` followed by a re-select, so concurrent first-time OAuth
+    /// callbacks converge on one row instead of one of them hitting the
+    /// `github_id`/`username` UNIQUE constraint and 500ing. A login that
+    /// collides with an existing local username is disambiguated rather than
+    /// rejected.
     pub fn create_or_update_from_github(
         &self,
         github_id: i64,
         github_login: &str,
         name: Option<&str>,
     ) -> Result<User> {
-        let conn = self.pool.get()?;
+        // Existing user: refresh the stored login and display username on a
+        // GitHub rename. The username is only re-pointed when the new login is
+        // not held by a different local user (it has a UNIQUE constraint); the
+        // github_login always tracks the rename regardless.
+        if let Some(mut existing_user) = self.get_by_github_id(github_id)? {
+            let username_is_free = match self.get_by_username(github_login)? {
+                Some(other) => other.id == existing_user.id,
+                None => true,
+            };
 
-        // Check if user already exists
-        if let Some(existing_user) = self.get_by_github_id(github_id)? {
-            // Update github_login if it changed
-            conn.execute(
-                "UPDATE users SET github_login = ? WHERE id = ?",
-                [github_login, &existing_user.id.to_string()],
-            )
-            .context("Failed to update user GitHub login")?;
+            let conn = self.pool.get()?;
+            if username_is_free && !existing_user.username.eq_ignore_ascii_case(github_login) {
+                conn.execute(
+                    "UPDATE users SET github_login = ?, username = ? WHERE id = ?",
+                    [github_login, github_login, &existing_user.id.to_string()],
+                )
+                .context("Failed to update user GitHub identity")?;
+                existing_user.username = github_login.to_string();
+            } else {
+                conn.execute(
+                    "UPDATE users SET github_login = ? WHERE id = ?",
+                    [github_login, &existing_user.id.to_string()],
+                )
+                .context("Failed to update user GitHub login")?;
+            }
 
             return Ok(existing_user);
         }
 
-        // Create new user
+        // New user: pick a free username and insert idempotently.
+        let username = self.unique_username(github_login)?;
         let user_id = Uuid::new_v4();
         let join_date = Utc::now();
         let bio = name.map(|s| s.to_string());
 
-        conn.execute(
-            "INSERT INTO users (id, username, bio, join_date, is_test_user, github_id, github_login) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                user_id.to_string(),
-                github_login,
-                bio.as_deref(),
-                join_date.to_rfc3339(),
-                0, // Not a test user
-                github_id,
-                github_login,
-            ),
-        ).context("Failed to create user from GitHub")?;
+        {
+            let conn = self.pool.get()?;
+            conn.execute(
+                // Bare ON CONFLICT DO NOTHING (no target) swallows a conflict on
+                // EITHER unique index: a concurrent callback for the same
+                // github_id also picked this username, so the loser would
+                // otherwise trip the username UNIQUE. The re-select below
+                // recovers the winning row.
+                "INSERT INTO users (id, username, bio, join_date, is_test_user, github_id, github_login)
+                 VALUES (?, ?, ?, ?, 0, ?, ?)
+                 ON CONFLICT DO NOTHING",
+                (
+                    user_id.to_string(),
+                    &username,
+                    bio.as_deref(),
+                    join_date.to_rfc3339(),
+                    github_id,
+                    github_login,
+                ),
+            )
+            .context("Failed to create user from GitHub")?;
+        }
 
-        Ok(User {
-            id: user_id,
-            username: github_login.to_string(),
-            bio,
-            join_date,
-            is_test_user: false,
-            is_admin: false,
-        })
+        // Re-select by github_id: returns our row, or the row a concurrent
+        // callback inserted first.
+        self.get_by_github_id(github_id)?
+            .with_context(|| format!("GitHub user {github_id} missing after upsert"))
     }
 }
 
@@ -206,4 +277,141 @@ fn map_user_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<User> {
         is_test_user: row.get::<_, i32>(4)? == 1,
         is_admin: row.get::<_, i32>(5)? == 1,
     })
+}
+
+#[cfg(all(test, feature = "sqlite-tests"))]
+mod tests {
+    use super::*;
+    use crate::db::Database;
+
+    fn repo() -> Result<(Database, UserRepository)> {
+        let db = Database::in_memory()?;
+        db.initialize()?;
+        let repo = UserRepository::new(db.pool.clone());
+        Ok((db, repo))
+    }
+
+    #[test]
+    fn get_or_create_system_user_is_idempotent() -> Result<()> {
+        let (_db, repo) = repo()?;
+        let first = repo.get_or_create_system_user("system-bot")?;
+        let second = repo.get_or_create_system_user("system-bot")?;
+        assert_eq!(first.id, second.id);
+        assert_eq!(second.username, "system-bot");
+        Ok(())
+    }
+
+    #[test]
+    fn create_or_update_from_github_is_idempotent_by_github_id() -> Result<()> {
+        let (_db, repo) = repo()?;
+        let first = repo.create_or_update_from_github(4242, "octocat", Some("Octo Cat"))?;
+        // A repeat callback for the same github_id returns the same row, no 500.
+        let second = repo.create_or_update_from_github(4242, "octocat", Some("Octo Cat"))?;
+        assert_eq!(first.id, second.id);
+        assert_eq!(second.username, "octocat");
+        Ok(())
+    }
+
+    #[test]
+    fn github_signup_disambiguates_colliding_username() -> Result<()> {
+        let (_db, repo) = repo()?;
+        // A pre-existing local user already holds the plain login.
+        repo.create(&User {
+            id: Uuid::new_v4(),
+            username: "octocat".to_string(),
+            bio: None,
+            join_date: Utc::now(),
+            is_test_user: true,
+            is_admin: false,
+        })?;
+
+        // A new GitHub login colliding with that username still signs up.
+        let user = repo.create_or_update_from_github(99, "octocat", None)?;
+        assert_eq!(user.username, "octocat-2");
+        assert_eq!(
+            repo.get_by_github_id(99)?.map(|u| u.username).as_deref(),
+            Some("octocat-2")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn github_rename_updates_login_and_username() -> Result<()> {
+        let (_db, repo) = repo()?;
+        let created = repo.create_or_update_from_github(555, "old-login", None)?;
+        assert_eq!(created.username, "old-login");
+
+        // Same github_id, new login: both github_login and the display username
+        // track the rename when the new login is free.
+        let renamed = repo.create_or_update_from_github(555, "new-login", None)?;
+        assert_eq!(renamed.id, created.id);
+        assert_eq!(renamed.username, "new-login");
+        assert_eq!(
+            repo.get_github_login(&created.id)?.as_deref(),
+            Some("new-login")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn github_rename_keeps_username_when_new_login_is_taken() -> Result<()> {
+        let (_db, repo) = repo()?;
+        // Someone else already holds "taken".
+        repo.create(&User {
+            id: Uuid::new_v4(),
+            username: "taken".to_string(),
+            bio: None,
+            join_date: Utc::now(),
+            is_test_user: true,
+            is_admin: false,
+        })?;
+        let user = repo.create_or_update_from_github(556, "original", None)?;
+
+        // Rename to a login another user already holds: login updates, username
+        // stays (UNIQUE constraint) so the row is never orphaned.
+        let renamed = repo.create_or_update_from_github(556, "taken", None)?;
+        assert_eq!(renamed.id, user.id);
+        assert_eq!(renamed.username, "original");
+        assert_eq!(repo.get_github_login(&user.id)?.as_deref(), Some("taken"));
+        Ok(())
+    }
+
+    #[test]
+    fn concurrent_github_signup_returns_one_row() -> Result<()> {
+        use std::collections::HashSet;
+        use std::sync::Arc;
+        use std::thread;
+
+        // Real file DB so a pool shared across threads sees one database.
+        let tmp = std::env::temp_dir().join(format!("fido-user-race-{}.sqlite", Uuid::new_v4()));
+        let db = Database::new(&tmp)?;
+        db.initialize()?;
+        let repo = Arc::new(UserRepository::new(db.pool));
+
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                let r = Arc::clone(&repo);
+                thread::spawn(move || r.create_or_update_from_github(7777, "racecat", None))
+            })
+            .collect();
+
+        let mut ids = HashSet::new();
+        for handle in handles {
+            // No callback may 500; each returns the shared row.
+            let user = handle.join().expect("thread panicked")?;
+            ids.insert(user.id);
+        }
+        assert_eq!(
+            ids.len(),
+            1,
+            "concurrent callbacks must converge on one row"
+        );
+        assert_eq!(
+            repo.get_by_github_id(7777)?.map(|u| u.id),
+            ids.into_iter().next()
+        );
+
+        let _ = std::fs::remove_file(&tmp);
+        Ok(())
+    }
 }

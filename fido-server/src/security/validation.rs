@@ -206,13 +206,21 @@ impl InputValidator {
         Ok(())
     }
 
-    /// Check if text contains potentially dangerous patterns
+    /// Heuristic input denylist for common XSS payloads (script tags, `on*=`
+    /// handlers, `javascript:`/`data:` URLs, `expression()`, `vbscript:`).
     ///
-    /// Detects common XSS attack patterns including:
-    /// - Script tags
-    /// - Event handlers (onclick, onerror, etc.)
-    /// - JavaScript URLs
-    /// - Data URLs with script content
+    /// # This is NOT the XSS boundary
+    ///
+    /// A denylist is defense-in-depth only and is trivially bypassable
+    /// (`<svg>`, `<iframe>`, `<img src=x>`, mixed/percent encodings, or plain
+    /// HTML injection with no event handler). XSS safety is guaranteed by
+    /// **contextual output encoding at every render sink**, not by this filter.
+    ///
+    /// Today the server never renders stored user content into HTML/SVG (the
+    /// TUI renders to a terminal, the badge interpolates only an `i64`, and the
+    /// static `web/` client inserts no user data), so there is no live XSS
+    /// surface. Do NOT add a render path that trusts this filter instead of
+    /// encoding its output — see `src/security/AGENTS.md`.
     fn contains_dangerous_patterns(&self, text: &str) -> bool {
         let lower = text.to_lowercase();
 

@@ -26,17 +26,6 @@ use rate_limit::RateLimiter;
 use state::AppState;
 use tower_http::limit::RequestBodyLimitLayer;
 
-/// Create the application router for testing
-///
-/// This function creates the same router used by the main server,
-/// but allows tests to create it with a custom AppState.
-pub fn create_router(state: AppState) -> Router {
-    // Configure CORS using environment-aware configuration
-    let security_config = security::SecurityConfig::from_env()
-        .unwrap_or_else(|_| security::SecurityConfig::default());
-    create_router_with_security_config(state, &security_config)
-}
-
 /// Create the shared API router used by production startup and tests.
 ///
 /// This intentionally excludes production-only static file fallback routing;
@@ -212,8 +201,8 @@ pub fn create_router_with_security_config(
         .layer(middleware::from_fn(
             security::headers::create_security_headers_layer(security_config.environment),
         ))
-        // Request body size limit: 1MB (1024 * 1024 bytes)
-        .layer(RequestBodyLimitLayer::new(1024 * 1024))
+        // Request body size limit from the configured MAX_REQUEST_SIZE.
+        .layer(RequestBodyLimitLayer::new(security_config.max_request_size))
 }
 
 async fn health_check() -> &'static str {
@@ -269,6 +258,33 @@ mod tests {
         };
 
         assert_eq!(status_for(config, "/users/test").await?, StatusCode::OK);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn configured_max_request_size_is_enforced() -> Result<()> {
+        // A tiny configured limit must reject a larger body with 413 before the
+        // request ever reaches a handler.
+        let config = security::SecurityConfig {
+            environment: security::Environment::Development,
+            max_request_size: 64,
+            ..Default::default()
+        };
+        let router = create_router_with_security_config(test_state()?, &config);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+        tokio::spawn(async move {
+            axum::serve(listener, router).await.expect("test server");
+        });
+
+        let big_body = "x".repeat(4096);
+        let response = reqwest::Client::new()
+            .post(format!("http://{addr}/posts"))
+            .header("content-type", "application/json")
+            .body(big_body)
+            .send()
+            .await?;
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
         Ok(())
     }
 

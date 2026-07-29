@@ -367,8 +367,16 @@ impl PostService {
             .ok_or_else(|| ApiError::NotFound("Post not found".to_string()))?;
         self.ensure_visible(&post, *user_id)?;
 
-        self.repos.votes.upsert_vote(user_id, post_id, direction)?;
-        self.repos.posts.update_vote_counts(post_id)?;
+        // Reject self-votes so a user cannot inflate their own karma.
+        if post.author_id == *user_id {
+            return Err(ApiError::BadRequest(
+                "You cannot vote on your own post".to_string(),
+            ));
+        }
+
+        self.repos
+            .votes
+            .upsert_vote_with_recount(user_id, post_id, direction)?;
 
         Ok(())
     }
@@ -443,8 +451,21 @@ impl PostService {
     }
 
     fn populate_posts(&self, posts: &mut [Post], user_id: Option<Uuid>) -> ApiResult<()> {
+        let Some(uid) = user_id else {
+            return Ok(());
+        };
+        if posts.is_empty() {
+            return Ok(());
+        }
+
+        // One batched vote lookup for the whole slice instead of one query per
+        // post (N+1). Covers feed and reply trees, which both route here.
+        let ids: Vec<Uuid> = posts.iter().map(|post| post.id).collect();
+        let votes = self.repos.votes.get_votes_for_posts(&uid, &ids)?;
         for post in posts {
-            self.populate_post(post, user_id)?;
+            if let Some(direction) = votes.get(&post.id) {
+                post.user_vote = Some(direction.as_str().to_string());
+            }
         }
         Ok(())
     }
@@ -508,6 +529,16 @@ impl PostService {
         let notifications = NotificationService::new(self.repos.clone(), self.event_bus.clone());
         for username in extract_mentions(&post.content) {
             if let Some(user) = self.repos.users.get_by_username(&username)? {
+                // Only notify mentioned users who belong to this community, so a
+                // mention cannot fan out cross-community notification spam.
+                if self
+                    .repos
+                    .memberships
+                    .get(&post.community_id, &user.id)?
+                    .is_none()
+                {
+                    continue;
+                }
                 notifications.create(
                     user.id,
                     NotificationType::Mention,

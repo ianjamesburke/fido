@@ -67,7 +67,11 @@ pub struct ApiClient {
     session_token: Option<String>,
 }
 
-const DEFAULT_PUBLIC_SERVER_URL: &str = "https://fido-web-production.up.railway.app";
+/// Default server for the installed TUI: the persistent **API** service, NOT the
+/// public web-terminal demo (fido-web-production), whose DB is ephemeral and is
+/// shared with anonymous ttyd visitors. These must be two separate Railway
+/// services; see docs/DEPLOY.md. Override with FIDO_SERVER_URL or ~/.fido/server_url.
+const DEFAULT_PUBLIC_SERVER_URL: &str = "https://fido-api-production.up.railway.app";
 
 fn read_server_url_from_config() -> Option<String> {
     let config_path = dirs::home_dir()?.join(".fido").join("server_url");
@@ -151,13 +155,35 @@ impl ApiClient {
         format!("{}/ws", websocket_base)
     }
 
+    /// Whether the session token may be transmitted to the configured server.
+    ///
+    /// The token is a bearer credential, so it must only travel over `https://`
+    /// or a loopback `http://` origin (local dev / the containerized web mode).
+    /// A plaintext remote would leak it on the wire.
+    fn token_transport_is_safe(&self) -> bool {
+        let url = self.base_url.trim();
+        if url.starts_with("https://") {
+            return true;
+        }
+        if let Some(rest) = url.strip_prefix("http://") {
+            let host = rest.split(['/', ':']).next().unwrap_or("");
+            return matches!(host, "127.0.0.1" | "localhost" | "[::1]" | "::1");
+        }
+        false
+    }
+
     /// Helper to add session token to request if available
     fn add_auth_header(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         if let Some(token) = &self.session_token {
-            req.header("X-Session-Token", token)
-        } else {
-            req
+            if self.token_transport_is_safe() {
+                return req.header("X-Session-Token", token);
+            }
+            log::warn!(
+                "Refusing to send session token over insecure transport ({}); use https:// or a loopback address",
+                self.base_url
+            );
         }
+        req
     }
 
     /// Helper to handle API responses
@@ -830,4 +856,19 @@ pub struct BrowseCommunityResponse {
 struct JoinCommunityRequest {
     owner: String,
     name: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ApiClient;
+
+    #[test]
+    fn token_transport_safety_allows_https_and_loopback_only() {
+        assert!(ApiClient::new("https://example.com").token_transport_is_safe());
+        assert!(ApiClient::new("http://127.0.0.1:3000").token_transport_is_safe());
+        assert!(ApiClient::new("http://localhost:3000/").token_transport_is_safe());
+        // Plaintext to a remote host must not carry the token.
+        assert!(!ApiClient::new("http://example.com").token_transport_is_safe());
+        assert!(!ApiClient::new("http://10.0.0.5:3000").token_transport_is_safe());
+    }
 }

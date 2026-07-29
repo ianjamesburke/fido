@@ -45,26 +45,14 @@ impl DMService {
 
         let mut conversations = Vec::with_capacity(summaries.len());
         for summary in summaries {
-            let user = self
-                .repos
-                .users
-                .get_by_id(&summary.other_user_id)?
-                .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
-
-            let conversation = self
-                .repos
-                .dm_conversations
-                .get(user_id, &summary.other_user_id)?
-                .ok_or_else(|| ApiError::NotFound("DM conversation not found".to_string()))?;
-
             conversations.push(ConversationSummary {
                 other_user_id: summary.other_user_id.to_string(),
-                other_username: user.username,
+                other_username: summary.other_username,
                 last_message: summary.last_message,
                 last_message_time: summary.last_message_time.to_rfc3339(),
                 unread_count: summary.unread_count,
-                state: conversation.state,
-                initiated_by_me: conversation.initiator_id == *user_id,
+                state: summary.state,
+                initiated_by_me: summary.initiator_id == *user_id,
             });
         }
 
@@ -228,9 +216,11 @@ impl DMService {
             ));
         }
 
+        // The responder must be the recipient of the request, not its initiator:
+        // the request must have been initiated by the other party (requester_id).
         if conversation.initiator_id != *requester_id {
             return Err(ApiError::Forbidden(
-                "Only the request recipient can update this DM request".to_string(),
+                "You cannot accept or decline a DM request you initiated".to_string(),
             ));
         }
 

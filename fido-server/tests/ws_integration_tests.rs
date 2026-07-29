@@ -51,7 +51,10 @@ async fn spawn_server() -> Result<TestServer> {
 
     let repos = Repositories::new(db.pool.clone());
     let state = AppState::new_with_repos(db, repos).context("Failed to build app state")?;
-    let router = fido_server::create_router(state.clone());
+    let router = fido_server::create_router_with_security_config(
+        state.clone(),
+        &fido_server::security::SecurityConfig::default(),
+    );
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -300,5 +303,76 @@ async fn ws_accepts_query_token_and_delivers_notifications_to_recipient_only() -
     assert_eq!(envelope["payload"]["content"], "hi over realtime");
     assert_eq!(envelope["payload"]["from_user_id"], sender.id.to_string());
     assert_eq!(envelope["payload"]["to_user_id"], recipient.id.to_string());
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Stint 0029: bound WebSocket resource usage per user
+// ---------------------------------------------------------------------------
+
+/// Drain frames until the socket closes (Close frame, stream end, or error),
+/// returning Ok(()) if it closed within the timeout.
+async fn expect_socket_closed(socket: &mut WsClient) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + RECV_TIMEOUT;
+    loop {
+        match tokio::time::timeout_at(deadline, socket.next()).await {
+            Ok(Some(Ok(WsMessage::Close(_)))) | Ok(None) => return Ok(()),
+            Ok(Some(Ok(_))) => continue, // pings/pongs/text before the close
+            Ok(Some(Err(_))) => return Ok(()), // connection reset counts as closed
+            Err(_) => anyhow::bail!("socket did not close within timeout"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn ws_inbound_frame_flood_closes_connection() -> Result<()> {
+    let server = spawn_server().await?;
+    let repos = &server.state.repos;
+    let user = create_user(repos, "flooder")?;
+    let token = server.state.session_manager.create_session(user.id)?;
+
+    let mut ws = connect_ws(server.addr, &token).await?;
+
+    // Well past MAX_INBOUND_FRAMES_PER_WINDOW (60): the server must close.
+    for i in 0..200u32 {
+        if ws.send(WsMessage::Text(format!("spam {i}"))).await.is_err() {
+            break; // server already closed the socket
+        }
+    }
+
+    expect_socket_closed(&mut ws).await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn ws_per_user_connection_cap_rejects_excess() -> Result<()> {
+    let server = spawn_server().await?;
+    let repos = &server.state.repos;
+    let user = create_user(repos, "greedy")?;
+    let token = server.state.session_manager.create_session(user.id)?;
+
+    let cap = fido_server::realtime::MAX_CONNECTIONS_PER_USER;
+
+    // Open exactly `cap` connections and wait until all are registered.
+    let mut sockets = Vec::new();
+    for _ in 0..cap {
+        sockets.push(connect_ws(server.addr, &token).await?);
+    }
+    let registry = server.state.realtime.registry();
+    let deadline = tokio::time::Instant::now() + RECV_TIMEOUT;
+    while registry.count(&user.id) < cap {
+        if tokio::time::Instant::now() >= deadline {
+            anyhow::bail!("connections never reached the cap");
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    // The next connection is over the cap: the server accepts the upgrade then
+    // immediately closes it with a policy-violation frame.
+    let mut excess = connect_ws(server.addr, &token).await?;
+    expect_socket_closed(&mut excess).await?;
+
+    // The original connections are unaffected and still counted.
+    assert_eq!(registry.count(&user.id), cap);
     Ok(())
 }

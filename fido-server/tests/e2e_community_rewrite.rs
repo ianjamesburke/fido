@@ -60,7 +60,10 @@ async fn spawn_server(github_api_base: Option<&str>) -> Result<TestServer> {
         std::env::remove_var("GITHUB_API_BASE");
         state
     };
-    let router = fido_server::create_router(state.clone());
+    let router = fido_server::create_router_with_security_config(
+        state.clone(),
+        &fido_server::security::SecurityConfig::default(),
+    );
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -82,7 +85,7 @@ async fn spawn_server(github_api_base: Option<&str>) -> Result<TestServer> {
 /// Deterministic fixture repo id so parallel joins of the same owner/name agree.
 fn fixture_repo_id(owner: &str, name: &str) -> i64 {
     let mut hash: i64 = 7;
-    for byte in owner.bytes().chain([b'/']).chain(name.bytes()) {
+    for byte in owner.bytes().chain(*b"/").chain(name.bytes()) {
         hash = hash.wrapping_mul(31).wrapping_add(byte as i64);
     }
     hash.abs().max(2)
@@ -1023,5 +1026,204 @@ async fn community_badge_is_public_and_reflects_member_count() -> Result<()> {
     let body = response.text().await?;
     assert!(body.contains("2 members"));
 
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Stint 0025: authenticate user search + profile-read endpoints
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn user_search_and_profile_read_require_auth() -> Result<()> {
+    let server = spawn_server(None).await?;
+    let repos = &server.state.repos;
+    let alice = create_user(repos, "e2e-auth-alice")?;
+
+    let anon = reqwest::Client::new();
+    let base = format!("http://{}", server.addr);
+
+    // Anonymous user search is rejected.
+    let search = anon
+        .get(format!("{}/users/search?q=e2e", base))
+        .send()
+        .await?;
+    assert_eq!(search.status(), StatusCode::UNAUTHORIZED);
+
+    // Anonymous profile read is rejected.
+    let profile = anon
+        .get(format!("{}/users/{}/profile", base, alice.id))
+        .send()
+        .await?;
+    assert_eq!(profile.status(), StatusCode::UNAUTHORIZED);
+
+    // With a valid session token both succeed.
+    let client = login(&server, &alice)?;
+    assert_eq!(
+        client.get("/users/search?q=e2e").await?.status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        client
+            .get(&format!("/users/{}/profile", alice.id))
+            .await?
+            .status(),
+        StatusCode::OK
+    );
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Stint 0032: enforce membership on community roster/metadata reads
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn community_detail_and_roster_are_member_only() -> Result<()> {
+    let server = spawn_server(None).await?;
+    let repos = &server.state.repos;
+
+    let (community, _channel) = seed_community(repos, false)?;
+    let member = create_user(repos, "roster-member")?;
+    let outsider = create_user(repos, "roster-outsider")?;
+    add_member(repos, community.id, member.id, MembershipRole::Member)?;
+
+    let member_client = login(&server, &member)?;
+    let outsider_client = login(&server, &outsider)?;
+
+    let detail = format!("/communities/{}", community.id);
+    let roster = format!("/communities/{}/members", community.id);
+
+    // Members get 200 on both.
+    assert_eq!(member_client.get(&detail).await?.status(), StatusCode::OK);
+    assert_eq!(member_client.get(&roster).await?.status(), StatusCode::OK);
+
+    // Non-members are forbidden on both.
+    assert_eq!(
+        outsider_client.get(&detail).await?.status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        outsider_client.get(&roster).await?.status(),
+        StatusCode::FORBIDDEN
+    );
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Stint 0033: reject self-votes + scope mention notifications to members
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn self_vote_is_rejected_and_mentions_are_member_scoped() -> Result<()> {
+    let server = spawn_server(None).await?;
+    let repos = &server.state.repos;
+
+    let (community, _channel) = seed_community(repos, false)?;
+    let author = create_user(repos, "vote-author")?;
+    let member = create_user(repos, "mention-member")?;
+    let outsider = create_user(repos, "mention-outsider")?;
+    add_member(repos, community.id, author.id, MembershipRole::Member)?;
+    add_member(repos, community.id, member.id, MembershipRole::Member)?;
+    // `outsider` is a real user but NOT a member of this community.
+
+    let author_client = login(&server, &author)?;
+
+    // Author creates a thread mentioning both a member and a non-member.
+    let response = author_client
+        .post(
+            "/posts",
+            &json!({
+                "community_id": community.id,
+                "content": "hey @mention-member and @mention-outsider"
+            }),
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let post = json_body(response).await?;
+    let post_id = post["id"].as_str().unwrap().to_string();
+
+    // Self-vote is rejected.
+    let response = author_client
+        .post(
+            &format!("/posts/{}/vote", post_id),
+            &json!({ "direction": "up" }),
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    // The member mention produces a notification; the non-member's does not.
+    let member_notifs = json_body(login(&server, &member)?.get("/notifications").await?).await?;
+    assert_eq!(
+        member_notifs.as_array().map(|a| a.len()).unwrap_or(0),
+        1,
+        "member should receive the mention notification"
+    );
+
+    let outsider_notifs =
+        json_body(login(&server, &outsider)?.get("/notifications").await?).await?;
+    assert!(
+        outsider_notifs
+            .as_array()
+            .map(|a| a.is_empty())
+            .unwrap_or(true),
+        "non-member must not receive a mention notification"
+    );
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Stint 0037: case-insensitive GitHub contributor matching
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn contributor_role_matches_github_login_case_insensitively() -> Result<()> {
+    let fixture_base = github_fixture_server().await?;
+    let server = spawn_server(Some(&fixture_base)).await?;
+    let repos = &server.state.repos;
+
+    // The contributors fixture lists "alice"; this user's login differs only in
+    // case, so a case-insensitive match must grant the Contributor role.
+    let alice = create_user(repos, "ALICE")?;
+    let client = login(&server, &alice)?;
+
+    let response = client
+        .post(
+            "/communities/join",
+            &json!({ "owner": "octocat", "name": "Hello-World" }),
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK, "join should succeed");
+    let view = json_body(response).await?;
+    assert_eq!(view["membership"]["role"], "contributor");
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Stint 0038: the server now accepts the session cookie as an auth source
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn session_cookie_authenticates_requests() -> Result<()> {
+    let server = spawn_server(None).await?;
+    let repos = &server.state.repos;
+    let alice = create_user(repos, "cookie-alice")?;
+    let token = server.state.session_manager.create_session(alice.id)?;
+
+    let base = format!("http://{}", server.addr);
+    let http = reqwest::Client::new();
+
+    // No credentials at all -> rejected.
+    let anon = http.get(format!("{base}/social/following")).send().await?;
+    assert_eq!(anon.status(), StatusCode::UNAUTHORIZED);
+
+    // Authenticated purely via the session_token cookie -> accepted.
+    let via_cookie = http
+        .get(format!("{base}/social/following"))
+        .header("Cookie", format!("session_token={token}"))
+        .send()
+        .await?;
+    assert_eq!(via_cookie.status(), StatusCode::OK);
     Ok(())
 }

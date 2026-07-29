@@ -150,11 +150,33 @@ async fn run_realtime_client(api_client: ApiClient, tx: mpsc::Sender<RealtimeCli
     }
 }
 
+/// The token may only travel over `wss://` or a loopback `ws://` origin.
+fn ws_transport_is_safe(url: &str) -> bool {
+    let url = url.trim();
+    if url.starts_with("wss://") {
+        return true;
+    }
+    if let Some(rest) = url.strip_prefix("ws://") {
+        let host = rest.split(['/', ':']).next().unwrap_or("");
+        return matches!(host, "127.0.0.1" | "localhost" | "[::1]" | "::1");
+    }
+    false
+}
+
 async fn connect_and_read(
     websocket_url: &str,
     token: &str,
     tx: &mpsc::Sender<RealtimeClientEvent>,
 ) -> ConnectionOutcome {
+    if !ws_transport_is_safe(websocket_url) {
+        log::warn!(
+            "Refusing to send session token over insecure transport ({websocket_url}); use wss:// or a loopback address"
+        );
+        return ConnectionOutcome::Unauthorized(
+            "insecure ws:// transport; use wss:// or a loopback server".to_string(),
+        );
+    }
+
     let mut request = match websocket_url.into_client_request() {
         Ok(request) => request,
         Err(e) => return ConnectionOutcome::Retry(format!("invalid websocket url: {e}")),
@@ -251,5 +273,15 @@ mod tests {
             ApiClient::new("http://127.0.0.1:3000/").websocket_url(),
             "ws://127.0.0.1:3000/ws"
         );
+    }
+
+    #[test]
+    fn ws_transport_safety_allows_wss_and_loopback_only() {
+        assert!(ws_transport_is_safe("wss://example.com/ws"));
+        assert!(ws_transport_is_safe("ws://127.0.0.1:3000/ws"));
+        assert!(ws_transport_is_safe("ws://localhost:3000/ws"));
+        // Plaintext to a remote host must not carry the token.
+        assert!(!ws_transport_is_safe("ws://example.com/ws"));
+        assert!(!ws_transport_is_safe("ws://10.0.0.5:3000/ws"));
     }
 }

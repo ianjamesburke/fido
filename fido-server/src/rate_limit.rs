@@ -22,7 +22,17 @@ const MAX_TRACKED_KEYS: usize = 100_000;
 const SOFT_PRUNE_THRESHOLD: usize = 10_000;
 
 /// Simple in-memory rate limiter
-/// Tracks requests per key (session token or client IP) with a sliding window
+/// Tracks requests per key (session token or client IP) with a sliding window.
+///
+/// # Scope / single-instance assumption
+///
+/// This counter lives in the process heap, so it is per-instance. With more
+/// than one server replica behind the load balancer, a client's requests are
+/// split across replicas and the effective per-IP/token limit multiplies by the
+/// replica count. It is a secondary, app-level guard only; the authoritative
+/// per-client edge limit is nginx's `limit_req` zone (see `nginx.conf`), which
+/// keys on the real_ip-resolved client address. Anonymous IP keys here rely on
+/// `http::extract_client_ip`, which trusts only the nginx-written `X-Real-IP`.
 #[derive(Clone)]
 pub struct RateLimiter {
     // Map of rate-limit key -> (request_count, window_start)
@@ -69,7 +79,9 @@ impl RateLimiter {
                 // Check if we're still in the same window
                 if now.duration_since(*window_start) < self.window_duration {
                     if *count >= self.max_requests {
-                        let remaining = self.window_duration - now.duration_since(*window_start);
+                        let remaining = self
+                            .window_duration
+                            .saturating_sub(now.duration_since(*window_start));
                         return RateLimitInfo {
                             exceeded: true,
                             request_count: *count,

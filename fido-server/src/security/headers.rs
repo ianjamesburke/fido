@@ -13,7 +13,7 @@
 
 use axum::{
     body::Body,
-    http::{header, Request, Response},
+    http::{header, HeaderValue, Request, Response},
     middleware::Next,
 };
 
@@ -51,30 +51,36 @@ pub async fn security_headers_middleware(
 
     // X-Content-Type-Options: Prevents MIME type sniffing
     // Requirement 9.1
-    headers.insert(header::X_CONTENT_TYPE_OPTIONS, "nosniff".parse().unwrap());
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
 
     // X-Frame-Options: Prevents clickjacking attacks
     // Requirement 9.2
-    headers.insert(header::X_FRAME_OPTIONS, "DENY".parse().unwrap());
+    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
 
     // X-XSS-Protection: Enables XSS filtering in older browsers
     // Requirement 9.3
-    headers.insert(header::X_XSS_PROTECTION, "1; mode=block".parse().unwrap());
+    headers.insert(
+        header::X_XSS_PROTECTION,
+        HeaderValue::from_static("1; mode=block"),
+    );
 
     // Content-Security-Policy: Restricts resource loading to same origin
     // Requirement 9.4
     headers.insert(
         header::CONTENT_SECURITY_POLICY,
-        "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'"
-            .parse()
-            .unwrap(),
+        HeaderValue::from_static(
+            "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'",
+        ),
     );
 
     // Referrer-Policy: Controls how much referrer information is sent
     // Requirement 9.5
     headers.insert(
         header::REFERRER_POLICY,
-        "strict-origin-when-cross-origin".parse().unwrap(),
+        HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
 
     // Strict-Transport-Security: Enforces HTTPS (production only)
@@ -82,7 +88,7 @@ pub async fn security_headers_middleware(
     if environment.is_production() {
         headers.insert(
             header::STRICT_TRANSPORT_SECURITY,
-            "max-age=31536000; includeSubDomains".parse().unwrap(),
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
         );
     }
 

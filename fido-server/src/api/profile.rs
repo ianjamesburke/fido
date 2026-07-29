@@ -18,6 +18,7 @@ use fido_types::{UpdateBioRequest, UserProfile};
 /// GET /users/:id/profile - Get user profile with stats
 pub async fn get_profile(
     State(state): State<AppState>,
+    AuthenticatedUser(_user_id): AuthenticatedUser,
     Path(user_id): Path<String>,
 ) -> ApiResult<Json<UserProfile>> {
     // Parse user ID

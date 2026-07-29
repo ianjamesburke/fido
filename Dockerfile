@@ -3,7 +3,16 @@
 
 # Stage 1: Build Rust binaries
 # Keep builder/runtime on the same Debian generation to avoid glibc ABI mismatch.
-FROM rust:1.91-bookworm as builder
+#
+# Base images are pinned by multi-arch manifest digest so builds are reproducible
+# and a registry-side tag change cannot silently alter the deployed image (same
+# care as the ttyd SHA-256 pin below). To refresh a digest, query the registry:
+#   TOKEN=$(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/rust:pull" | sed -E 's/.*"token":"([^"]+)".*/\1/')
+#   curl -sI -H "Authorization: Bearer $TOKEN" \
+#     -H "Accept: application/vnd.oci.image.index.v1+json" \
+#     https://registry-1.docker.io/v2/library/rust/manifests/1.91-bookworm \
+#     | tr -d '\r' | grep -i '^docker-content-digest:'
+FROM rust:1.91-bookworm@sha256:c1e5f19e773b7878c3f7a805dd00a495e747acbdc76fb2337a4ebf0418896b33 as builder
 
 WORKDIR /app
 
@@ -17,7 +26,9 @@ COPY fido-tui ./fido-tui
 RUN cargo build --release --bin fido-server --bin fido
 
 # Stage 2: Runtime image
-FROM debian:bookworm-slim
+# Pinned by digest (see the refresh command above; use repository library/debian
+# and tag bookworm-slim).
+FROM debian:bookworm-slim@sha256:60eac759739651111db372c07be67863818726f754804b8707c90979bda511df
 
 # Install runtime dependencies
 RUN apt-get update && \
@@ -42,6 +53,7 @@ COPY --from=builder /app/target/release/fido /usr/local/bin/fido
 
 # Copy configuration files
 COPY nginx.conf /etc/nginx/nginx.conf.template
+COPY nginx-api.conf /etc/nginx/nginx-api.conf.template
 COPY start.sh /usr/local/bin/start.sh
 
 # Copy web assets
@@ -70,6 +82,10 @@ ENV PORT=8080
 # Internal API listener (fido-server) behind nginx.
 ENV FIDO_SERVER_PORT=3000
 ENV TTYD_PORT=7681
+# Deployment mode: `demo` (default) runs the public web terminal; the persistent
+# API service overrides this to `api` (and mounts a volume at /data). One image,
+# two Railway services — see docs/DEPLOY.md.
+ENV FIDO_DEPLOY_MODE=demo
 ENV DATABASE_PATH=/tmp/fido-web-demo.db
 ENV LOG_DIR=/var/log/fido
 ENV RUST_LOG=info
