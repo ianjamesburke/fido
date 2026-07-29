@@ -87,14 +87,14 @@ impl App {
                     self.hashtags_state.error = None;
                 }
             }
-            KeyCode::Char('x') | KeyCode::Char('X') => {
-                // Unfollow selected hashtag (if not on "Follow Hashtag" option)
-                if self.hashtags_state.selected_hashtag < self.hashtags_state.hashtags.len() {
-                    let hashtag =
-                        self.hashtags_state.hashtags[self.hashtags_state.selected_hashtag].clone();
-                    self.hashtags_state.show_unfollow_confirmation = true;
-                    self.hashtags_state.hashtag_to_unfollow = Some(hashtag);
-                }
+            // Unfollow selected hashtag (if not on the "Follow Hashtag" option).
+            KeyCode::Char('x') | KeyCode::Char('X')
+                if self.hashtags_state.selected_hashtag < self.hashtags_state.hashtags.len() =>
+            {
+                let hashtag =
+                    self.hashtags_state.hashtags[self.hashtags_state.selected_hashtag].clone();
+                self.hashtags_state.show_unfollow_confirmation = true;
+                self.hashtags_state.hashtag_to_unfollow = Some(hashtag);
             }
             _ => {}
         }
