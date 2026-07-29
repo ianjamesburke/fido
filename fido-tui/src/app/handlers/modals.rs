@@ -132,14 +132,13 @@ pub fn handle_filter_modal_keys(app: &mut App, key: KeyEvent) -> Result<()> {
             app.toggle_filter_item();
         }
         KeyCode::Char('x') | KeyCode::Char('X') if in_hashtags_tab => {}
-        KeyCode::Enter => {
+        KeyCode::Enter
             if in_hashtags_tab
                 && app.posts_state.filter_modal_state.selected_index
-                    == app.posts_state.filter_modal_state.hashtag_list.len()
-            {
-                app.posts_state.filter_modal_state.show_add_hashtag_input = true;
-                app.posts_state.filter_modal_state.add_hashtag_input.clear();
-            }
+                    == app.posts_state.filter_modal_state.hashtag_list.len() =>
+        {
+            app.posts_state.filter_modal_state.show_add_hashtag_input = true;
+            app.posts_state.filter_modal_state.add_hashtag_input.clear();
         }
         _ => {}
     }

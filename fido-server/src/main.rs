@@ -214,7 +214,7 @@ async fn main() {
     // Start background task for periodic session cleanup
     let cleanup_state = state.clone();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(3600)); // Run every hour
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_hours(1));
         loop {
             interval.tick().await;
             tracing::debug!("Running periodic session cleanup...");

@@ -275,7 +275,7 @@ impl EventLoop {
 
         // Check for timeout (15 minutes)
         if let Some(start_time) = app.auth_state.github_auth_start_time {
-            if start_time.elapsed() > Duration::from_secs(900) {
+            if start_time.elapsed() > Duration::from_mins(15) {
                 log::warn!("GitHub Device Flow timeout after 15 minutes");
                 app.auth_state.error =
                     Some("Device authorization timeout: Please try again.".to_string());
@@ -389,10 +389,10 @@ impl EventLoop {
                     app.load_chat().await?;
                 }
             }
-            Tab::Settings => {
-                if app.settings_state.config.is_none() || app.settings_state.error.is_some() {
-                    app.load_settings().await?;
-                }
+            Tab::Settings
+                if app.settings_state.config.is_none() || app.settings_state.error.is_some() =>
+            {
+                app.load_settings().await?;
             }
             _ => {}
         }

@@ -82,7 +82,7 @@ async fn spawn_server(github_api_base: Option<&str>) -> Result<TestServer> {
 /// Deterministic fixture repo id so parallel joins of the same owner/name agree.
 fn fixture_repo_id(owner: &str, name: &str) -> i64 {
     let mut hash: i64 = 7;
-    for byte in owner.bytes().chain([b'/']).chain(name.bytes()) {
+    for byte in owner.bytes().chain(*b"/").chain(name.bytes()) {
         hash = hash.wrapping_mul(31).wrapping_add(byte as i64);
     }
     hash.abs().max(2)
