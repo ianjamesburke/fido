@@ -5,9 +5,9 @@
 # the SQLite database, and log files. GitHub is stubbed via GITHUB_API_BASE.
 #
 # Covers: test-user login, directory-scoped community join (repo mode),
-# board title with role, posting, channel chat, community modal, Home mode
-# outside a repo, opening a community from the Home list, search -> profile ->
-# DM, and GitHub issues synced as interactive posts.
+# legacy reply-log cleanup, board title with role, posting, channel chat,
+# community modal, Home mode outside a repo, opening a community from the Home
+# list, search -> profile -> DM, and GitHub issues synced as interactive posts.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -110,6 +110,7 @@ REPO="$WORK/testrepo"
 mkdir -p "$REPO"
 git -C "$REPO" init -q
 git -C "$REPO" remote add origin https://github.com/testowner/testrepo.git
+printf 'legacy reply trace\n' >"$REPO/fido_reply_debug.log"
 
 E2E_HOME="$WORK/home"
 mkdir -p "$E2E_HOME"
@@ -129,6 +130,7 @@ launch_tui_for() { # $1 = tmux session, $2 = HOME, $3 = working directory
 echo "==> scenario 1: repo mode join + post"
 launch_tui "$REPO"
 wait_for "Authentication" "auth screen"
+[[ ! -e "$REPO/fido_reply_debug.log" ]] || fail "legacy reply debug log was not removed"
 keys 'l'
 wait_for "alice" "test users list"
 keys Enter
