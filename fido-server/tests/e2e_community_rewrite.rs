@@ -114,6 +114,38 @@ async fn github_fixture_server() -> Result<String> {
         ]))
     }
 
+    // alice/alice-owned-repo is owned, acme-inc/acme-widgets is
+    // collaborator-affiliated, and octocat/Hello-World is also starred so the
+    // merge path collapses it into one row carrying both sources.
+    // Ids must agree with what GET /repos/:owner/:name reports for the same
+    // repo, otherwise joining a listed repo creates a community the listing
+    // can no longer match.
+    async fn affiliated() -> Json<Value> {
+        Json(json!([
+            {
+                "id": fixture_repo_id("alice", "alice-owned-repo"),
+                "name": "alice-owned-repo",
+                "full_name": "alice/alice-owned-repo",
+                "private": false,
+                "owner": { "login": "alice" }
+            },
+            {
+                "id": fixture_repo_id("acme-inc", "acme-widgets"),
+                "name": "acme-widgets",
+                "full_name": "acme-inc/acme-widgets",
+                "private": false,
+                "owner": { "login": "acme-inc" }
+            },
+            {
+                "id": 1296269,
+                "name": "Hello-World",
+                "full_name": "octocat/Hello-World",
+                "private": false,
+                "owner": { "login": "octocat" }
+            }
+        ]))
+    }
+
     async fn repo() -> Json<Value> {
         Json(json!({
             "id": 1296269,
@@ -158,6 +190,7 @@ async fn github_fixture_server() -> Result<String> {
 
     let app = Router::new()
         .route("/user/starred", get(starred))
+        .route("/user/repos", get(affiliated))
         .route("/repos/octocat/Hello-World", get(repo))
         .route("/repos/octocat/Hello-World/contributors", get(contributors))
         .route("/repos/:owner/:name", get(dynamic_repo))
@@ -390,9 +423,9 @@ async fn communities_browse_and_claim_e2e() -> Result<()> {
         .github_service
         .store_token(alice.id, "gho_recorded_fixture")?;
 
-    // Browse lists starred repos with no community state yet.
+    // Browse lists starred and affiliated repos with no community state yet.
     let browse = json_body(client.get("/communities/browse").await?).await?;
-    assert_eq!(browse.as_array().unwrap().len(), 1);
+    assert_eq!(browse.as_array().unwrap().len(), 3);
     assert_eq!(browse[0]["full_name"], "octocat/Hello-World");
     assert!(browse[0]["community"].is_null());
     assert!(browse[0]["membership"].is_null());
@@ -422,6 +455,74 @@ async fn communities_browse_and_claim_e2e() -> Result<()> {
     let view = json_body(response).await?;
     assert_eq!(view["community"]["claimed_by"], alice.id.to_string());
     assert_eq!(view["membership"]["role"], "admin");
+
+    Ok(())
+}
+
+/// Stint 0026: the browser surfaces owned and contributed repos alongside
+/// starred ones, deduplicating repos reachable through several relationships.
+#[tokio::test]
+async fn browse_merges_starred_owned_and_contributed_repos() -> Result<()> {
+    let fixture_base = github_fixture_server().await?;
+    let server = spawn_server(Some(&fixture_base)).await?;
+    let repos = &server.state.repos;
+
+    let alice = create_user(repos, "alice")?;
+    let client = login(&server, &alice)?;
+    server
+        .state
+        .github_service
+        .store_token(alice.id, "gho_recorded_fixture")?;
+
+    let browse = json_body(client.get("/communities/browse").await?).await?;
+    let items = browse.as_array().expect("browse returns an array");
+    assert_eq!(items.len(), 3, "one row per distinct repo");
+
+    let by_name = |full_name: &str| -> &Value {
+        items
+            .iter()
+            .find(|item| item["full_name"] == full_name)
+            .unwrap_or_else(|| panic!("{} should be listed", full_name))
+    };
+
+    // Starred and affiliated: one row, both sources.
+    assert_eq!(
+        by_name("octocat/Hello-World")["sources"],
+        json!(["starred", "contributor"])
+    );
+    // Owner login matches the caller's login.
+    assert_eq!(
+        by_name("alice/alice-owned-repo")["sources"],
+        json!(["owned"])
+    );
+    // Affiliated but not owned or starred.
+    assert_eq!(
+        by_name("acme-inc/acme-widgets")["sources"],
+        json!(["contributor"])
+    );
+
+    // An owned repo joins exactly like a starred one.
+    let response = client
+        .post(
+            "/communities/join",
+            &json!({ "owner": "alice", "name": "alice-owned-repo" }),
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let view = json_body(response).await?;
+    assert_eq!(view["community"]["owner"], "alice");
+    assert_eq!(view["community"]["name"], "alice-owned-repo");
+
+    let browse = json_body(client.get("/communities/browse").await?).await?;
+    let joined = browse
+        .as_array()
+        .expect("browse returns an array")
+        .iter()
+        .find(|item| item["full_name"] == "alice/alice-owned-repo")
+        .expect("owned repo still listed after joining")
+        .clone();
+    assert!(joined["community"].is_object());
+    assert!(joined["membership"].is_object());
 
     Ok(())
 }

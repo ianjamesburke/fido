@@ -201,7 +201,7 @@ impl App {
         move_home_selection(&mut self.home_state, -1);
     }
 
-    /// Open the starred-repo browser, loading it on first use.
+    /// Open the repo browser (starred, owned, and contributed), loading it on first use.
     pub async fn open_community_browser(&mut self) -> Result<()> {
         self.community_browser_state.show = true;
         self.community_browser_state.error = None;
@@ -233,7 +233,7 @@ impl App {
                 }
             }
             Err(e) => {
-                log::error!("Failed to browse starred communities: {}", e);
+                log::error!("Failed to browse communities: {}", e);
                 self.community_browser_state.error = Some(categorize_error(&e.to_string()));
             }
         }
@@ -307,8 +307,7 @@ impl App {
             KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => self.previous_browser_repo(),
             KeyCode::Char('r') | KeyCode::Char('R') => {
                 self.community_browser_state.loaded = false;
-                self.community_browser_state.message =
-                    Some("Reloading starred repos...".to_string());
+                self.community_browser_state.message = Some("Reloading repos...".to_string());
             }
             KeyCode::Enter => {}
             _ => {}

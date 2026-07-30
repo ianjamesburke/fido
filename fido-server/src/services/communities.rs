@@ -1,12 +1,15 @@
 //! Community-related business logic.
 
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+
 use chrono::Utc;
 use uuid::Uuid;
 
 use crate::api::{ApiError, ApiResult};
 use crate::db::repositories::Repositories;
 use crate::services::github::{GithubRepo, GithubService, RepoPermission};
-use fido_types::{Channel, Community, Membership, MembershipRole};
+use fido_types::{Channel, Community, Membership, MembershipRole, RepoSource};
 
 pub struct CommunityService {
     repos: Repositories,
@@ -20,6 +23,8 @@ pub struct BrowseCommunity {
     pub name: String,
     pub full_name: String,
     pub private: bool,
+    /// Every relationship that surfaced this repo, ordered and deduplicated.
+    pub sources: Vec<RepoSource>,
     pub community: Option<Community>,
     pub membership: Option<Membership>,
 }
@@ -37,12 +42,63 @@ impl CommunityService {
         Self { repos, github }
     }
 
-    pub async fn browse_starred(&self, user_id: Uuid) -> ApiResult<Vec<BrowseCommunity>> {
+    /// Browse every repo the user can turn into a community: the ones they
+    /// starred, plus the ones they own or are affiliated with. A repo reachable
+    /// through several relationships appears once, carrying all of them.
+    pub async fn browse(&self, user_id: Uuid) -> ApiResult<Vec<BrowseCommunity>> {
+        let login = self.github_login(&user_id)?;
         let starred = self.github.starred_repos(user_id).await?;
-        starred
+        let affiliated = self.github.affiliated_repos(user_id).await?;
+
+        let tagged = starred
             .into_iter()
-            .map(|repo| self.annotate_starred_repo(repo, &user_id))
+            .map(|repo| (RepoSource::Starred, repo))
+            .chain(affiliated.into_iter().map(|repo| {
+                let source = if repo.owner.login.eq_ignore_ascii_case(&login) {
+                    RepoSource::Owned
+                } else {
+                    RepoSource::Contributor
+                };
+                (source, repo)
+            }));
+
+        // Preserve first-seen order (starred first, then affiliated) so the
+        // list stays stable across reloads.
+        let mut order: Vec<i64> = Vec::new();
+        let mut merged: HashMap<i64, (GithubRepo, Vec<RepoSource>)> = HashMap::new();
+        for (source, repo) in tagged {
+            match merged.entry(repo.id) {
+                Entry::Occupied(mut existing) => {
+                    let sources = &mut existing.get_mut().1;
+                    if !sources.contains(&source) {
+                        sources.push(source);
+                        sources.sort();
+                    }
+                }
+                Entry::Vacant(slot) => {
+                    order.push(repo.id);
+                    slot.insert((repo, vec![source]));
+                }
+            }
+        }
+
+        order
+            .into_iter()
+            .map(|id| {
+                let (repo, sources) = merged
+                    .remove(&id)
+                    .expect("merged entry exists for every id recorded in order");
+                self.annotate_repo(repo, sources, &user_id)
+            })
             .collect()
+    }
+
+    fn github_login(&self, user_id: &Uuid) -> ApiResult<String> {
+        self.repos
+            .users
+            .get_by_id(user_id)?
+            .map(|user| user.username)
+            .ok_or_else(|| ApiError::NotFound(format!("User {} not found", user_id)))
     }
 
     pub async fn join(&self, user_id: Uuid, owner: &str, name: &str) -> ApiResult<CommunityView> {
@@ -171,9 +227,10 @@ impl CommunityService {
         Ok(members)
     }
 
-    fn annotate_starred_repo(
+    fn annotate_repo(
         &self,
         repo: GithubRepo,
+        sources: Vec<RepoSource>,
         user_id: &Uuid,
     ) -> ApiResult<BrowseCommunity> {
         let community = self.repos.communities.get_by_github_repo_id(repo.id)?;
@@ -189,6 +246,7 @@ impl CommunityService {
             name: repo.name,
             full_name: repo.full_name,
             private: repo.private,
+            sources,
             community,
             membership,
         })
@@ -279,8 +337,37 @@ mod tests {
             ]))
         }
 
+        // alice/dotfiles is owned; acme-inc/widgets is collaborator-affiliated;
+        // octocat/Hello-World is also starred, so it must merge into one row.
+        async fn affiliated() -> Json<serde_json::Value> {
+            Json(json!([
+                {
+                    "id": 900001,
+                    "name": "dotfiles",
+                    "full_name": "alice/dotfiles",
+                    "private": false,
+                    "owner": { "login": "alice" }
+                },
+                {
+                    "id": 900002,
+                    "name": "widgets",
+                    "full_name": "acme-inc/widgets",
+                    "private": false,
+                    "owner": { "login": "acme-inc" }
+                },
+                {
+                    "id": 1296269,
+                    "name": "Hello-World",
+                    "full_name": "octocat/Hello-World",
+                    "private": false,
+                    "owner": { "login": "octocat" }
+                }
+            ]))
+        }
+
         let app = Router::new()
             .route("/user/starred", get(starred))
+            .route("/user/repos", get(affiliated))
             .route("/repos/octocat/Hello-World", get(repo))
             .route("/repos/octocat/Hello-World/contributors", get(contributors));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -385,11 +472,28 @@ mod tests {
             CommunityService::new(repos.clone(), github)
         };
 
-        let browse = service.browse_starred(user_id).await.expect("browse");
-        assert_eq!(browse.len(), 1);
+        let browse = service.browse(user_id).await.expect("browse");
+        assert_eq!(browse.len(), 3, "starred + affiliated, deduplicated");
         assert_eq!(browse[0].full_name, "octocat/Hello-World");
         assert!(browse[0].community.is_none());
         assert!(browse[0].membership.is_none());
+        assert_eq!(
+            browse[0].sources,
+            vec![RepoSource::Starred, RepoSource::Contributor],
+            "a repo reachable both ways appears once carrying both sources"
+        );
+
+        let owned = browse
+            .iter()
+            .find(|item| item.full_name == "alice/dotfiles")
+            .expect("owned repo is listed");
+        assert_eq!(owned.sources, vec![RepoSource::Owned]);
+
+        let contributed = browse
+            .iter()
+            .find(|item| item.full_name == "acme-inc/widgets")
+            .expect("affiliated repo is listed");
+        assert_eq!(contributed.sources, vec![RepoSource::Contributor]);
 
         let joined = service
             .join(user_id, "octocat", "Hello-World")
@@ -403,10 +507,7 @@ mod tests {
             Some(MembershipRole::Contributor)
         );
 
-        let browse = service
-            .browse_starred(user_id)
-            .await
-            .expect("browse after join");
+        let browse = service.browse(user_id).await.expect("browse after join");
         assert!(browse[0].community.is_some());
         assert_eq!(
             browse[0].membership.as_ref().map(|m| m.role),

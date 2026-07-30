@@ -176,6 +176,31 @@ impl GithubService {
         result
     }
 
+    /// List repos the user owns or is affiliated with as a collaborator or org
+    /// member. GitHub exposes no "repos I have contributed commits to" listing,
+    /// so collaborator/org-member affiliation is the closest listable notion of
+    /// having contributed. Owned vs contributor is resolved by the caller from
+    /// each repo's owner login.
+    pub async fn affiliated_repos(&self, user_id: Uuid) -> Result<Vec<GithubRepo>> {
+        let result = self
+            .get_with_token(
+                user_id,
+                format!(
+                    "{}/user/repos?affiliation=owner,collaborator,organization_member&per_page=100&sort=updated",
+                    self.api_base
+                ),
+                "affiliated_repos",
+            )
+            .await;
+        self.log_result(
+            "affiliated_repos",
+            user_id,
+            Some("GET /user/repos"),
+            &result,
+        );
+        result
+    }
+
     /// Resolve a repo by owner/name. Uses the caller's stored token when present
     /// (required for private repos), otherwise queries unauthenticated.
     /// Returns Ok(None) when GitHub reports the repo does not exist (404).

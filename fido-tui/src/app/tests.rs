@@ -27,6 +27,7 @@ fn test_browse_repo(name: &str) -> crate::api::BrowseCommunityResponse {
         name: name.to_string(),
         full_name: format!("octocat/{}", name),
         private: false,
+        sources: vec![fido_types::RepoSource::Starred],
         community: None,
         membership: None,
     }

@@ -7,7 +7,8 @@
 # Covers: test-user login, directory-scoped community join (repo mode),
 # legacy reply-log cleanup, board title with role, posting, channel chat,
 # community modal, Home mode outside a repo, opening a community from the Home
-# list, search -> profile -> DM, and GitHub issues synced as interactive posts.
+# list, search -> profile -> DM, GitHub issues synced as interactive posts, and
+# the repo browser listing starred, owned, and contributed repos.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -366,6 +367,41 @@ wait_for "Stub issue for e2e" "stub issue interleaved into posts feed"
 
 count=$(sqlite3 "$WORK/fido.db" "SELECT COUNT(*) FROM posts WHERE github_id IS NOT NULL;")
 [ "$count" -ge 1 ] || fail "expected synced GitHub post"
+
+tmux kill-session -t "$SESSION"
+
+# --- Scenario 6: repo browser lists starred, owned, and contributed ----------
+# The stub serves /user/starred and /user/repos; testowner/testrepo appears in
+# both and must collapse into a single row carrying both sources.
+echo "==> scenario 6: browse starred + owned + contributed repos"
+launch_tui "$REPO"
+wait_for "testowner/testrepo" "repo community board (session restored, scenario 6)"
+
+keys 'b'
+wait_for "Browse repos" "community browser opens"
+wait_for "octocat/Hello-World" "starred repo listed"
+pane | grep -qE "alice/alice-owned-repo +owned" \
+    || fail "owned repo should be listed and labelled owned"
+pane | grep -qE "acme-inc/acme-widgets +contributor" \
+    || fail "contributed repo should be listed and labelled contributor"
+pane | grep -qF "starred+contributor" \
+    || fail "a repo reachable both ways should collapse into one row with both sources"
+
+# Joining from the owned source behaves exactly like joining a starred repo.
+keys Down
+keys Down
+pane | grep -qE "> alice/alice-owned-repo" || fail "owned repo should be selected"
+keys Enter
+wait_for "alice/alice-owned-repo" "board opened for the joined owned repo"
+
+OWNED_JOINED=$(sqlite3 "$WORK/fido.db" \
+    "SELECT count(*) FROM memberships m
+       JOIN communities c ON m.community_id = c.id
+       JOIN users u ON m.user_id = u.id
+      WHERE u.username = 'alice'
+        AND c.owner = 'alice'
+        AND c.name = 'alice-owned-repo';")
+[[ "$OWNED_JOINED" == "1" ]] || fail "joining an owned repo did not create a membership (count=$OWNED_JOINED)"
 
 tmux kill-session -t "$SESSION"
 

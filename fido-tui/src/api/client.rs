@@ -822,6 +822,8 @@ pub struct BrowseCommunityResponse {
     pub name: String,
     pub full_name: String,
     pub private: bool,
+    /// Every relationship that surfaced this repo (starred, owned, contributor).
+    pub sources: Vec<fido_types::RepoSource>,
     pub community: Option<CommunityResponse>,
     pub membership: Option<MembershipResponse>,
 }
