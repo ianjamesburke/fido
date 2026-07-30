@@ -57,6 +57,7 @@ fn test_rail_tab_order_matches_launch_shell() {
 fn test_community_browser_selection_wraps() {
     let mut app = App::new();
     app.community_browser_state.repos = vec![test_browse_repo("alpha"), test_browse_repo("beta")];
+    app.community_browser_state.apply_filter();
     app.community_browser_state.list_state.select(Some(0));
 
     app.next_browser_repo();
@@ -65,6 +66,111 @@ fn test_community_browser_selection_wraps() {
     assert_eq!(app.community_browser_state.list_state.selected(), Some(0));
     app.previous_browser_repo();
     assert_eq!(app.community_browser_state.list_state.selected(), Some(1));
+}
+
+/// Seed an open browser with repos spanning both sources, as the merged list
+/// from stint 0026 produces.
+fn browser_app_with_repos() -> App {
+    let mut app = App::new();
+    app.current_screen = Screen::Main;
+    app.community_browser_state.show = true;
+    app.community_browser_state.repos = vec![
+        test_browse_repo("hello-world"),
+        test_browse_repo("dotfiles"),
+        test_browse_repo("widget-factory"),
+    ];
+    app.community_browser_state.apply_filter();
+    app
+}
+
+fn visible_names(app: &App) -> Vec<String> {
+    app.community_browser_state
+        .visible_repos()
+        .map(|repo| repo.full_name.clone())
+        .collect()
+}
+
+fn type_filter(app: &mut App, text: &str) {
+    for c in text.chars() {
+        app.handle_key_event(key_event(KeyCode::Char(c))).unwrap();
+    }
+}
+
+#[test]
+fn typing_fuzzy_filters_the_browser_list() {
+    let mut app = browser_app_with_repos();
+    assert_eq!(
+        visible_names(&app).len(),
+        3,
+        "unfiltered list shows all rows"
+    );
+
+    // Non-contiguous subsequence: fuzzy, not substring.
+    type_filter(&mut app, "dtfl");
+
+    assert_eq!(app.community_browser_state.filter, "dtfl");
+    assert_eq!(visible_names(&app), vec!["octocat/dotfiles".to_string()]);
+    assert_eq!(
+        app.community_browser_state
+            .selected()
+            .map(|repo| repo.full_name.clone()),
+        Some("octocat/dotfiles".to_string()),
+        "selection follows the filtered list"
+    );
+}
+
+#[test]
+fn browser_filter_keys_do_not_leak_to_shortcuts() {
+    let mut app = browser_app_with_repos();
+
+    // 'b' closed the browser and 'r' reloaded it before the filter existed.
+    type_filter(&mut app, "b");
+    assert!(app.community_browser_state.show, "'b' must type, not close");
+    type_filter(&mut app, "r");
+    assert_eq!(app.community_browser_state.filter, "br");
+}
+
+#[test]
+fn backspace_narrows_then_widens_the_filter() {
+    let mut app = browser_app_with_repos();
+    type_filter(&mut app, "wid");
+    assert_eq!(visible_names(&app).len(), 1);
+
+    app.handle_key_event(key_event(KeyCode::Backspace)).unwrap();
+    app.handle_key_event(key_event(KeyCode::Backspace)).unwrap();
+    app.handle_key_event(key_event(KeyCode::Backspace)).unwrap();
+
+    assert_eq!(app.community_browser_state.filter, "");
+    assert_eq!(visible_names(&app).len(), 3, "clearing restores every row");
+}
+
+#[test]
+fn escape_clears_filter_before_closing_the_browser() {
+    let mut app = browser_app_with_repos();
+    type_filter(&mut app, "dot");
+
+    app.handle_key_event(key_event(KeyCode::Esc)).unwrap();
+    assert!(
+        app.community_browser_state.show,
+        "first Esc clears the filter and keeps the browser open"
+    );
+    assert_eq!(app.community_browser_state.filter, "");
+    assert_eq!(visible_names(&app).len(), 3);
+
+    app.handle_key_event(key_event(KeyCode::Esc)).unwrap();
+    assert!(!app.community_browser_state.show, "second Esc closes");
+}
+
+#[test]
+fn filter_with_no_matches_clears_the_selection() {
+    let mut app = browser_app_with_repos();
+    type_filter(&mut app, "zzzz");
+
+    assert!(app.community_browser_state.visible.is_empty());
+    assert!(
+        app.community_browser_state.selected().is_none(),
+        "nothing can be joined while nothing matches"
+    );
 }
 
 #[test]

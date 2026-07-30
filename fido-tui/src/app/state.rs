@@ -3,6 +3,8 @@ use fido_types::{
     UserProfile,
 };
 
+use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
+use nucleo_matcher::{Config, Matcher, Utf32Str};
 use ratatui::widgets::ListState;
 use std::collections::HashSet;
 use std::time::Instant;
@@ -299,6 +301,11 @@ impl ChatState {
 pub struct CommunityBrowserState {
     pub show: bool,
     pub repos: Vec<crate::api::BrowseCommunityResponse>,
+    /// Incremental fuzzy filter typed by the user.
+    pub filter: String,
+    /// Indices into `repos` that survive `filter`, best match first. Empty
+    /// filter means every repo in its original order.
+    pub visible: Vec<usize>,
     pub list_state: ListState,
     pub loading: bool,
     pub loaded: bool,
@@ -312,6 +319,8 @@ impl CommunityBrowserState {
         Self {
             show: false,
             repos: Vec::new(),
+            filter: String::new(),
+            visible: Vec::new(),
             list_state: ListState::default(),
             loading: false,
             loaded: false,
@@ -322,8 +331,51 @@ impl CommunityBrowserState {
     }
 
     pub fn selected(&self) -> Option<&crate::api::BrowseCommunityResponse> {
-        self.list_state.selected().and_then(|i| self.repos.get(i))
+        self.list_state
+            .selected()
+            .and_then(|row| self.visible.get(row))
+            .and_then(|&index| self.repos.get(index))
     }
+
+    /// Rows currently on screen, in display order.
+    pub fn visible_repos(&self) -> impl Iterator<Item = &crate::api::BrowseCommunityResponse> {
+        self.visible
+            .iter()
+            .filter_map(|&index| self.repos.get(index))
+    }
+
+    /// Recompute `visible` from `filter` and move the selection to the top.
+    /// Called on every keystroke and whenever `repos` is replaced.
+    pub fn apply_filter(&mut self) {
+        self.visible = fuzzy_filter(&self.repos, &self.filter);
+        if self.visible.is_empty() {
+            self.list_state.select(None);
+        } else {
+            self.list_state.select(Some(0));
+        }
+    }
+}
+
+/// Rank repos against `filter` by fuzzy match on their full name. Ties break on
+/// original order so the list stays stable while typing.
+fn fuzzy_filter(repos: &[crate::api::BrowseCommunityResponse], filter: &str) -> Vec<usize> {
+    if filter.trim().is_empty() {
+        return (0..repos.len()).collect();
+    }
+
+    let mut matcher = Matcher::new(Config::DEFAULT);
+    let pattern = Pattern::parse(filter, CaseMatching::Ignore, Normalization::Smart);
+    let mut scored: Vec<(usize, u32)> = repos
+        .iter()
+        .enumerate()
+        .filter_map(|(index, repo)| {
+            let mut buf = Vec::new();
+            let haystack = Utf32Str::new(&repo.full_name, &mut buf);
+            pattern.score(haystack, &mut matcher).map(|s| (index, s))
+        })
+        .collect();
+    scored.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    scored.into_iter().map(|(index, _)| index).collect()
 }
 
 /// Settings tab state

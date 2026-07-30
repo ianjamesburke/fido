@@ -5,7 +5,7 @@
 //! and let the user open one.
 
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::api::CommunityViewResponse;
 
@@ -215,6 +215,8 @@ impl App {
         self.community_browser_state.show = false;
         self.community_browser_state.error = None;
         self.community_browser_state.message = None;
+        self.community_browser_state.filter.clear();
+        self.community_browser_state.apply_filter();
     }
 
     pub async fn load_community_browser(&mut self) {
@@ -226,11 +228,8 @@ impl App {
             Ok(repos) => {
                 self.community_browser_state.repos = repos;
                 self.community_browser_state.loaded = true;
-                if self.community_browser_state.repos.is_empty() {
-                    self.community_browser_state.list_state.select(None);
-                } else {
-                    self.community_browser_state.list_state.select(Some(0));
-                }
+                // Reloading keeps whatever the user has typed so far.
+                self.community_browser_state.apply_filter();
             }
             Err(e) => {
                 log::error!("Failed to browse communities: {}", e);
@@ -298,18 +297,33 @@ impl App {
         move_browser_selection(&mut self.community_browser_state, -1);
     }
 
+    /// The browser is a text-input surface: plain characters type into the
+    /// fuzzy filter, so navigation is arrow-keys only and reload moved to
+    /// Ctrl+R (handled in the event loop, which owns the async reload).
     pub fn handle_community_browser_keys(&mut self, key: KeyEvent) -> Result<()> {
         match key.code {
-            KeyCode::Esc | KeyCode::Char('b') | KeyCode::Char('B') => {
-                self.close_community_browser();
+            // Esc clears an active filter first, and only closes once empty.
+            KeyCode::Esc => {
+                if self.community_browser_state.filter.is_empty() {
+                    self.close_community_browser();
+                } else {
+                    self.community_browser_state.filter.clear();
+                    self.community_browser_state.apply_filter();
+                }
             }
-            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => self.next_browser_repo(),
-            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => self.previous_browser_repo(),
-            KeyCode::Char('r') | KeyCode::Char('R') => {
-                self.community_browser_state.loaded = false;
-                self.community_browser_state.message = Some("Reloading repos...".to_string());
+            KeyCode::Down => self.next_browser_repo(),
+            KeyCode::Up => self.previous_browser_repo(),
+            KeyCode::Backspace => {
+                self.community_browser_state.filter.pop();
+                self.community_browser_state.apply_filter();
             }
-            KeyCode::Enter => {}
+            KeyCode::Char(c)
+                if !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && !key.modifiers.contains(KeyModifiers::ALT) =>
+            {
+                self.community_browser_state.filter.push(c);
+                self.community_browser_state.apply_filter();
+            }
             _ => {}
         }
         Ok(())
@@ -328,7 +342,8 @@ fn move_home_selection(home: &mut crate::app::state::HomeState, delta: i64) {
 }
 
 fn move_browser_selection(browser: &mut crate::app::state::CommunityBrowserState, delta: i64) {
-    let len = browser.repos.len();
+    // Navigation walks the filtered rows, not the full repo list.
+    let len = browser.visible.len();
     if len == 0 {
         browser.list_state.select(None);
         return;

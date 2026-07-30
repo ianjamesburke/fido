@@ -30,6 +30,7 @@ tokio.workspace = true
 tokio-tungstenite.workspace = true
 futures-util.workspace = true
 
+nucleo-matcher = "0.3"
 emojis = "0.6"
 dirs = "5.0"
 textwrap = "0.16.2"

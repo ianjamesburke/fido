@@ -598,8 +598,32 @@ fn render_community_browser(frame: &mut Frame, app: &mut App, area: Rect) {
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(3)])
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(0),
+            Constraint::Length(3),
+        ])
         .split(popup_area);
+
+    let filter_display = if app.community_browser_state.filter.is_empty() {
+        Span::styled(
+            "type to filter",
+            Style::default()
+                .fg(theme.text_dim)
+                .add_modifier(Modifier::ITALIC),
+        )
+    } else {
+        Span::styled(
+            app.community_browser_state.filter.clone(),
+            Style::default().fg(theme.text),
+        )
+    };
+    let filter_input = Paragraph::new(Line::from(vec![
+        Span::styled("> ", Style::default().fg(theme.success)),
+        filter_display,
+    ]))
+    .block(Block::default().borders(Borders::ALL).title(" Filter "));
+    frame.render_widget(filter_input, chunks[0]);
 
     let items: Vec<ListItem> = if app.community_browser_state.loading {
         vec![ListItem::new(Line::from(Span::styled(
@@ -616,10 +640,17 @@ fn render_community_browser(frame: &mut Frame, app: &mut App, area: Rect) {
             "No starred, owned, or contributed repositories found.",
             Style::default().fg(theme.text_dim),
         )))]
+    } else if app.community_browser_state.visible.is_empty() {
+        vec![ListItem::new(Line::from(Span::styled(
+            format!(
+                "No repositories match \"{}\".",
+                app.community_browser_state.filter
+            ),
+            Style::default().fg(theme.text_dim),
+        )))]
     } else {
         app.community_browser_state
-            .repos
-            .iter()
+            .visible_repos()
             .map(|repo| {
                 let status = if repo.private {
                     "private"
@@ -658,16 +689,18 @@ fn render_community_browser(frame: &mut Frame, app: &mut App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("> ");
-    frame.render_stateful_widget(list, chunks[0], &mut app.community_browser_state.list_state);
+    frame.render_stateful_widget(list, chunks[1], &mut app.community_browser_state.list_state);
 
     let footer = if app.community_browser_state.joining {
         "Joining..."
+    } else if app.community_browser_state.filter.is_empty() {
+        "Type: Filter | Up/Down: Move | Enter: Open/Join | Ctrl+R: Reload | Esc: Close"
     } else {
-        "Enter: Open/Join | r: Reload | b/Esc: Close"
+        "Type: Filter | Up/Down: Move | Enter: Open/Join | Ctrl+R: Reload | Esc: Clear filter"
     };
     render_footer_with_style(
         frame,
-        chunks[1],
+        chunks[2],
         footer,
         &theme,
         Style::default().fg(theme.text_dim),

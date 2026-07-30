@@ -521,6 +521,30 @@ impl EventLoop {
             return Ok(());
         }
 
+        // The community browser types into its fuzzy filter, so it must claim
+        // every key before the arms below can read plain characters as their
+        // own shortcuts. Only its two async actions live here; the rest is
+        // synchronous and handled by handle_community_browser_keys.
+        if app.current_screen == Screen::Main && app.community_browser_state.show {
+            let busy = app.community_browser_state.loading || app.community_browser_state.joining;
+            match key.code {
+                KeyCode::Enter if !busy => {
+                    app.open_or_join_browser_selection().await?;
+                }
+                KeyCode::Char('r' | 'R')
+                    if !busy
+                        && key
+                            .modifiers
+                            .contains(crossterm::event::KeyModifiers::CONTROL) =>
+                {
+                    app.community_browser_state.loaded = false;
+                    app.load_community_browser().await;
+                }
+                _ => app.handle_key_event(key)?,
+            }
+            return Ok(());
+        }
+
         // Handle the async key events that were previously in main.rs
         match key.code {
             KeyCode::Char('l') if app.current_screen == Screen::Auth && !app.auth_state.loading => {
@@ -594,23 +618,6 @@ impl EventLoop {
                     && app.user_profile_view.is_none() =>
             {
                 app.open_community_browser().await?;
-            }
-            KeyCode::Enter
-                if app.current_screen == Screen::Main
-                    && app.community_browser_state.show
-                    && !app.community_browser_state.loading
-                    && !app.community_browser_state.joining =>
-            {
-                app.open_or_join_browser_selection().await?;
-            }
-            KeyCode::Char('r') | KeyCode::Char('R')
-                if app.current_screen == Screen::Main
-                    && app.community_browser_state.show
-                    && !app.community_browser_state.loading
-                    && !app.community_browser_state.joining =>
-            {
-                app.community_browser_state.loaded = false;
-                app.load_community_browser().await;
             }
             KeyCode::Enter | KeyCode::Char(' ')
                 if app.current_tab == Tab::Posts
