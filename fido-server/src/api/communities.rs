@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use fido_types::{Channel, Community, Membership, MembershipRole};
+use fido_types::{Channel, Community, Membership, MembershipRole, RepoSource};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -21,6 +21,7 @@ pub struct BrowseCommunityResponse {
     pub name: String,
     pub full_name: String,
     pub private: bool,
+    pub sources: Vec<RepoSource>,
     pub community: Option<CommunityResponse>,
     pub membership: Option<MembershipResponse>,
 }
@@ -72,13 +73,14 @@ pub struct CommunityMemberResponse {
     pub role: MembershipRole,
 }
 
-/// GET /communities/browse - Browse the user's starred repos with community state
+/// GET /communities/browse - Browse the user's starred, owned, and affiliated
+/// repos with community state
 pub async fn browse_communities(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> ApiResult<Json<Vec<BrowseCommunityResponse>>> {
     let service = CommunityService::new(state.repos.clone(), state.github_service);
-    let communities = service.browse_starred(user_id).await?;
+    let communities = service.browse(user_id).await?;
 
     Ok(Json(
         communities.into_iter().map(map_browse_community).collect(),
@@ -180,6 +182,7 @@ fn map_browse_community(item: BrowseCommunity) -> BrowseCommunityResponse {
         name: item.name,
         full_name: item.full_name,
         private: item.private,
+        sources: item.sources,
         community: item.community.map(map_community),
         membership: item.membership.map(map_membership),
     }

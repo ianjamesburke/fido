@@ -18,6 +18,11 @@ use crate::security::{
 };
 use crate::state::AppState;
 
+/// Placeholder GitHub token stored for test-user logins so token-backed GitHub
+/// calls resolve against the local stub. Only reachable from the dev-only
+/// test-login route.
+const TEST_USER_GITHUB_TOKEN: &str = "gho_test_user_stub_token";
+
 // In-memory store for active device codes: device_code -> unix timestamp of creation
 static DEVICE_CODES: LazyLock<Mutex<HashMap<String, i64>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -126,6 +131,16 @@ pub async fn login(
     let session_token = state
         .session_manager
         .create_session(user.id)
+        .map_err(|e| ApiError::InternalError(e.to_string()))?;
+
+    // A real OAuth login leaves the user holding a GitHub token; without one
+    // here, test users sit in a state no real user is ever in and every
+    // token-backed GitHub call (repo browsing especially) is untestable. This
+    // route is only mounted outside production, so the placeholder never
+    // reaches a real deployment.
+    state
+        .github_service
+        .store_token(user.id, TEST_USER_GITHUB_TOKEN)
         .map_err(|e| ApiError::InternalError(e.to_string()))?;
 
     // Log successful login

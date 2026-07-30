@@ -3,8 +3,10 @@
 
 Resolves any /repos/:owner/:name with a deterministic id, returns an empty
 contributors list, one stub open issue from /repos/:owner/:name/issues, and
-404s owner "ghost" to exercise the unresolvable-repo path. Mirrors the
-fixture server in fido-server/tests/e2e_community_rewrite.rs.
+404s owner "ghost" to exercise the unresolvable-repo path. Also serves the two
+community-browser listings: /user/starred and /user/repos (owned plus
+collaborator-affiliated, under the "acme-inc" test org). Mirrors the fixture
+server in fido-server/tests/e2e_community_rewrite.rs.
 """
 
 import json
@@ -24,9 +26,41 @@ def repo_id(owner: str, name: str) -> int:
     return max(h, 2)
 
 
+def repo_entry(owner: str, name: str) -> dict:
+    return {
+        "id": repo_id(owner, name),
+        "name": name,
+        "full_name": f"{owner}/{name}",
+        "private": False,
+        "owner": {"login": owner},
+    }
+
+
+# The e2e harness logs in as the seeded test user "alice", so owned repos sit
+# under that login. acme-inc/* stands in for a repo she collaborates on but
+# does not own, and testowner/testrepo is deliberately both starred and
+# affiliated to exercise the dedup path.
+STARRED_REPOS = [
+    repo_entry("octocat", "Hello-World"),
+    repo_entry("testowner", "testrepo"),
+]
+
+AFFILIATED_REPOS = [
+    repo_entry("alice", "alice-owned-repo"),
+    repo_entry("acme-inc", "acme-widgets"),
+    repo_entry("testowner", "testrepo"),
+]
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?")[0]
+        if path == "/user/starred":
+            return self._reply(200, STARRED_REPOS)
+
+        if path == "/user/repos":
+            return self._reply(200, AFFILIATED_REPOS)
+
         if CONTRIBUTORS_RE.fullmatch(path):
             return self._reply(200, [])
 

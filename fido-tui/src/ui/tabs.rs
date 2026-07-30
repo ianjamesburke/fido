@@ -582,6 +582,15 @@ fn rail_line(selected: bool, label: &str, accent: Color, theme: &ThemeColors) ->
     Line::from(Span::styled(format!("{} {}", prefix, label), style))
 }
 
+/// Render a repo's relationships as one compact label, e.g. "starred+owned".
+fn repo_sources_label(sources: &[fido_types::RepoSource]) -> String {
+    sources
+        .iter()
+        .map(|source| source.as_str())
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
 fn render_community_browser(frame: &mut Frame, app: &mut App, area: Rect) {
     let theme = get_theme_colors(app);
     let popup_area = centered_rect(76, 76, area);
@@ -594,7 +603,7 @@ fn render_community_browser(frame: &mut Frame, app: &mut App, area: Rect) {
 
     let items: Vec<ListItem> = if app.community_browser_state.loading {
         vec![ListItem::new(Line::from(Span::styled(
-            "Loading starred repositories...",
+            "Loading repositories...",
             Style::default().fg(theme.text_dim),
         )))]
     } else if let Some(error) = &app.community_browser_state.error {
@@ -604,7 +613,7 @@ fn render_community_browser(frame: &mut Frame, app: &mut App, area: Rect) {
         )))]
     } else if app.community_browser_state.repos.is_empty() {
         vec![ListItem::new(Line::from(Span::styled(
-            "No starred repositories found.",
+            "No starred, owned, or contributed repositories found.",
             Style::default().fg(theme.text_dim),
         )))]
     } else {
@@ -626,6 +635,10 @@ fn render_community_browser(frame: &mut Frame, app: &mut App, area: Rect) {
                         format!("{:<38}", repo.full_name),
                         Style::default().fg(theme.text),
                     ),
+                    Span::styled(
+                        format!("{:<24}", repo_sources_label(&repo.sources)),
+                        Style::default().fg(theme.secondary),
+                    ),
                     Span::styled(status, Style::default().fg(theme.text_dim)),
                 ]))
             })
@@ -636,7 +649,7 @@ fn render_community_browser(frame: &mut Frame, app: &mut App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" Browse starred repos "),
+                .title(" Browse repos (starred · owned · contributed) "),
         )
         .highlight_style(
             Style::default()

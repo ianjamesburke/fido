@@ -108,6 +108,40 @@ impl MembershipRole {
     }
 }
 
+/// How a repo surfaced in the community browser. A repo can reach the browser
+/// through more than one relationship, so items carry a set of these rather
+/// than a single value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RepoSource {
+    /// The user starred the repo (`GET /user/starred`).
+    Starred,
+    /// The repo's GitHub owner login is the user's own login.
+    Owned,
+    /// The user is a collaborator or org member on the repo, GitHub's closest
+    /// listable notion of "contributed to".
+    Contributor,
+}
+
+impl RepoSource {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            RepoSource::Starred => "starred",
+            RepoSource::Owned => "owned",
+            RepoSource::Contributor => "contributor",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "starred" => Some(RepoSource::Starred),
+            "owned" => Some(RepoSource::Owned),
+            "contributor" => Some(RepoSource::Contributor),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NotificationType {
