@@ -413,7 +413,10 @@ tmux kill-session -t "$SESSION"
 # matches nothing else, so a substring filter would not find it.
 echo "==> scenario 7: fuzzy filter narrows the repo browser"
 launch_tui "$REPO"
-wait_for "Fido" "TUI ready (session restored, scenario 7)"
+# Wait on the board title, not the header: "Fido" is painted on the very first
+# frame (rendered before network startup work by design), so keying off it
+# presses 'b' before session restore lands and the browser never opens.
+wait_for "testowner/testrepo" "repo community board (session restored, scenario 7)"
 
 # The global footer permanently reads "b: Browse repos", so popup presence
 # must be asserted on markers that only the popup renders.
