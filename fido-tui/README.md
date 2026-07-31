@@ -24,6 +24,7 @@ Login with GitHub or try a test user. Press `?` for help.
 - **Home mode** - Browse communities you have joined
 - **Threads and channels** - Talk inside the repo context
 - **Direct messages** - Message other developers
+- **Notifications** - Replies, mentions, and DM requests in one panel
 - **GitHub auth** - Login with your GitHub account
 - **Keyboard-driven** - `j/k` to navigate, `u/d` to vote, `n` to post
 
@@ -35,6 +36,8 @@ Login with GitHub or try a test user. Press `?` for help.
 - `i` - Open community settings
 - `u/d` - Upvote/Downvote
 - `n` - New post
+- `v` - Open notifications
+- `b` - Browse repos to join
 - `?` - Help
 - `q` - Quit
 
