@@ -8,7 +8,8 @@
 # legacy reply-log cleanup, board title with role, posting, channel chat,
 # community modal, Home mode outside a repo, opening a community from the Home
 # list, search -> profile -> DM, GitHub issues synced as interactive posts, and
-# the repo browser listing starred, owned, and contributed repos.
+# the repo browser listing starred, owned, and contributed repos with a fuzzy
+# filter.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -378,7 +379,9 @@ launch_tui "$REPO"
 wait_for "testowner/testrepo" "repo community board (session restored, scenario 6)"
 
 keys 'b'
-wait_for "Browse repos" "community browser opens"
+# "Browse repos" alone also matches the global footer hint, so key off the
+# filter placeholder, which only the popup renders.
+wait_for "type to filter" "community browser opens"
 wait_for "octocat/Hello-World" "starred repo listed"
 pane | grep -qE "alice/alice-owned-repo +owned" \
     || fail "owned repo should be listed and labelled owned"
@@ -402,6 +405,42 @@ OWNED_JOINED=$(sqlite3 "$WORK/fido.db" \
         AND c.owner = 'alice'
         AND c.name = 'alice-owned-repo';")
 [[ "$OWNED_JOINED" == "1" ]] || fail "joining an owned repo did not create a membership (count=$OWNED_JOINED)"
+
+tmux kill-session -t "$SESSION"
+
+# --- Scenario 7: fuzzy filter in the repo browser ---------------------------
+# "acmwid" is a non-contiguous subsequence of "acme-inc/acme-widgets" and
+# matches nothing else, so a substring filter would not find it.
+echo "==> scenario 7: fuzzy filter narrows the repo browser"
+launch_tui "$REPO"
+wait_for "Fido" "TUI ready (session restored, scenario 7)"
+
+# The global footer permanently reads "b: Browse repos", so popup presence
+# must be asserted on markers that only the popup renders.
+keys 'b'
+wait_for "type to filter" "community browser opens with an empty filter"
+pane | grep -qF "octocat/Hello-World" || fail "unfiltered list should show every repo"
+
+tmux send-keys -t "$SESSION" -l "acmwid"
+sleep 0.5
+wait_for "acme-inc/acme-widgets" "fuzzy match survives the filter"
+# octocat/Hello-World is never joined, so it only ever appears inside the
+# popup; the header and rail cannot produce a false match for it.
+pane | grep -qF "octocat/Hello-World" \
+    && fail "non-matching repos should be filtered out"
+
+# Letters that used to be shortcuts now type into the filter instead.
+tmux send-keys -t "$SESSION" -l "b"
+sleep 0.4
+pane | grep -qF "acmwidb" || fail "'b' must type into the filter, not close the browser"
+
+# First Esc clears the filter, second closes the browser.
+keys Escape
+wait_for "type to filter" "Esc clears the filter"
+pane | grep -qF "octocat/Hello-World" || fail "clearing the filter should restore every repo"
+keys Escape
+sleep 0.4
+pane | grep -qF "type to filter" && fail "second Esc should close the browser"
 
 tmux kill-session -t "$SESSION"
 
