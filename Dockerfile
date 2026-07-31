@@ -68,7 +68,7 @@ ENV HOST=0.0.0.0
 # External listener (nginx). Railway/Cloud Run inject PORT at runtime.
 ENV PORT=8080
 # Internal API listener (fido-server) behind nginx.
-ENV FIDO_SERVER_PORT=3000
+ENV FIDO_SERVER_PORT=4747
 ENV TTYD_PORT=7681
 ENV DATABASE_PATH=/tmp/fido-web-demo.db
 ENV LOG_DIR=/var/log/fido

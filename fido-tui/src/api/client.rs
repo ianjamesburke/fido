@@ -746,8 +746,9 @@ impl Default for ApiClient {
     fn default() -> Self {
         // Determine the appropriate base URL based on environment
         let base_url = if std::env::var("FIDO_WEB_MODE").is_ok() {
-            // In web mode (containerized ttyd), connect to localhost API server
-            "http://127.0.0.1:3000".to_string()
+            // In web mode (containerized ttyd), connect to the API server on
+            // the internal port nginx proxies to (see Dockerfile FIDO_SERVER_PORT).
+            "http://127.0.0.1:4747".to_string()
         } else {
             // For local TUI client:
             // 1) explicit runtime override

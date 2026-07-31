@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 # `PORT` is the externally exposed port in managed environments (Railway/Cloud Run).
 # Keep fido-server on an internal port to avoid colliding with nginx.
 APP_PORT=${PORT:-8080}
-FIDO_SERVER_PORT=${FIDO_SERVER_PORT:-3000}
+FIDO_SERVER_PORT=${FIDO_SERVER_PORT:-4747}
 TTYD_PORT=${TTYD_PORT:-7681}
 NGINX_PORT=${NGINX_PORT:-$APP_PORT}
 DATABASE_PATH=${DATABASE_PATH:-${TMPDIR:-/tmp}/fido-web-demo.db}
