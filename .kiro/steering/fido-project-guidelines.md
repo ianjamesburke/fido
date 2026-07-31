@@ -59,9 +59,15 @@ Fido is a blazing-fast, keyboard-driven social platform for developers, featurin
 ## API Design Standards
 
 ### Core Routes
+Posts are scoped to a community, never global. Every board read names the
+community it belongs to.
+
 - `POST /login/github` - GitHub OAuth authentication
-- `GET /posts` - List global board posts (with sort options)
-- `POST /posts` - Create new post (markdown body)
+- `GET /communities/browse` - Browse the caller's starred, owned, and contributed repos
+- `POST /communities/join` - Join a community, lazily creating it from a GitHub repo
+- `GET /communities` - List communities the caller has joined
+- `GET /posts?community_id=<uuid>` - List a community's board posts (required `community_id`, with sort options)
+- `POST /posts` - Create new post in a community (markdown body)
 - `GET /dms` - List direct messages for user
 - `POST /dms` - Send direct message
 - `POST /vote` - Vote on post (single endpoint with direction param)
@@ -77,9 +83,14 @@ Use single `/vote` endpoint with direction parameter:
 
 ### Core Tables
 - **users**: id (uuid), github_id, username
-- **posts**: id (uuid), author_id, content (text), created_at, upvotes, downvotes
+- **communities**: id (uuid), github_repo_id, owner, name, claimed_by, created_at
+- **memberships**: community_id, user_id, role ('admin'|'contributor'|'member')
+- **posts**: id (uuid), author_id, community_id (required, FK to communities), content (text), created_at, upvotes, downvotes, approved, parent_post_id
 - **votes**: user_id, post_id, direction ('up'|'down') - PRIMARY KEY (user_id, post_id)
 - **dms**: id (uuid), from_id, to_id, content, created_at
+
+A post cannot exist outside a community: `community_id` is NOT NULL and
+foreign-keyed, so every board read is community-scoped.
 
 ## Development Workflow
 
