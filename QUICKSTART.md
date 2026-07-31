@@ -94,6 +94,8 @@ selected repo community. `r` reloads the list.
 - `j/k` or arrows - Navigate
 - `Enter` - Open selected item or submit focused input
 - `Esc` - Back, clear input, close modal, or quit from Home
+- `v` - Open notifications
+- `b` - Browse repos to join
 - `?` - Help
 - `q` - Quit
 - `Shift+L` - Logout
