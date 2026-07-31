@@ -1,9 +1,27 @@
 set dotenv-load
 
-# Start the Fido server locally with SQLite
-server:
+# Refuse to start when the port is already taken, naming the process holding it.
+# Without this the server can appear to start while something else answers:
+# a process bound to IPv6 *:PORT and fido-server bound to IPv4 127.0.0.1:PORT
+# coexist without a bind error, and `localhost` resolves to IPv6 first on macOS.
+_server-preflight:
     #!/usr/bin/env bash
     set -euo pipefail
+    port="${PORT:-4747}"
+    if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+        echo "FATAL: port $port is already in use. fido-server will not start." >&2
+        echo "" >&2
+        lsof -nP -iTCP:"$port" -sTCP:LISTEN >&2
+        echo "" >&2
+        echo "Stop that process, or run on another port: PORT=<free port> just server" >&2
+        exit 1
+    fi
+
+# Start the Fido server locally with SQLite
+server: _server-preflight
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export ENVIRONMENT="${ENVIRONMENT:-development}"
     log="${FIDO_SERVER_LOG:-logs/fido-server.log}"
     max_bytes="${FIDO_SERVER_LOG_MAX_BYTES:-10485760}"
     mkdir -p "$(dirname "$log")"
@@ -18,9 +36,10 @@ server:
     done
 
 # Start the Fido server with fresh database (deletes and recreates)
-server-reset:
+server-reset: _server-preflight
     #!/usr/bin/env bash
     set -euo pipefail
+    export ENVIRONMENT="${ENVIRONMENT:-development}"
     log="${FIDO_SERVER_LOG:-logs/fido-server.log}"
     max_bytes="${FIDO_SERVER_LOG_MAX_BYTES:-10485760}"
     mkdir -p "$(dirname "$log")"
@@ -44,9 +63,12 @@ server-log:
 tui:
     cargo run --bin fido
 
-# Start TUI connected to local server
+# Start TUI connected to local server.
+# 127.0.0.1, never `localhost`: localhost resolves to IPv6 ::1 first on macOS
+# while fido-server binds IPv4, so `localhost` can silently reach a different
+# process listening on the same port over IPv6.
 tui-local:
-    cargo run --bin fido -- --server http://localhost:3000
+    cargo run --bin fido -- --server http://127.0.0.1:{{env_var_or_default("PORT", "4747")}}
 
 # Start full local web stack (fido-server + ttyd + nginx)
 web:

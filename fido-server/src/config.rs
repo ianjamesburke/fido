@@ -5,7 +5,7 @@ use std::path::PathBuf;
 // Configuration constants
 const CONFIG_FILE_NAME: &str = "settings.toml";
 const DEFAULT_HOST: &str = "0.0.0.0";
-const DEFAULT_PORT: u16 = 3000;
+const DEFAULT_PORT: u16 = 4747;
 const DEFAULT_DB_PATH: &str = "fido.db";
 const DEV_CONFIG_DIR: &str = "fido-server";
 

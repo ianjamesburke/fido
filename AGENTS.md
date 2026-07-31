@@ -64,7 +64,7 @@ cargo run --bin fido
 cargo run --bin fido-server
 
 # Run client against local server
-cargo run --bin fido -- --server http://localhost:3000
+cargo run --bin fido -- --server http://127.0.0.1:4747
 
 # Build for release
 cargo build --release
@@ -357,7 +357,7 @@ Important runtime pitfall:
 ### Web Terminal Stack (see `start.sh`)
 - **nginx** (port 8080): Reverse proxy for static files and routing
 - **ttyd** (port 7681): Terminal-over-WebSocket server, runs `fido-tui` against the real API server
-- **fido-server** (port 3000): API server
+- **fido-server** (port 4747): API server
 
 ## Testing Strategy
 

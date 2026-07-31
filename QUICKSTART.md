@@ -119,7 +119,7 @@ Or use Cargo directly:
 
 ```bash
 cargo run --bin fido-server
-cargo run --bin fido -- --server http://localhost:3000
+cargo run --bin fido -- --server http://127.0.0.1:4747
 ```
 
 Required server environment for GitHub auth:

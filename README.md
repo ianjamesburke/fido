@@ -110,7 +110,7 @@ Or use Cargo directly:
 
 ```bash
 cargo run --bin fido-server
-cargo run --bin fido -- --server http://localhost:3000
+cargo run --bin fido -- --server http://127.0.0.1:4747
 ```
 
 Required server environment:
@@ -135,7 +135,7 @@ Run the browser-based terminal stack:
 
 This starts:
 
-- `fido-server` on port 3000
+- `fido-server` on port 4747
 - `ttyd` on port 7681
 - `nginx` on port 8080
 
