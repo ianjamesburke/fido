@@ -41,6 +41,7 @@ regex = "1.10"
 base64.workspace = true
 aes-gcm-siv.workspace = true
 sha2 = "0.10"
+badgelib = "0.5.1"
 
 [dev-dependencies]
 tokio-tungstenite = "0.24"
