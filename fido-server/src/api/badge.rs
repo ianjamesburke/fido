@@ -3,12 +3,11 @@ use axum::{
     http::{header, StatusCode},
     response::{IntoResponse, Response},
 };
+use badgelib::{Badge, Color, Style};
 
 use crate::state::AppState;
 
 const LABEL: &str = "fido";
-const CHAR_WIDTH: usize = 7; // approximate Verdana 11px advance, shields-style
-const PAD: usize = 10;
 
 /// Render a shields-flat-style badge: `fido | N members`. Pure — no I/O.
 pub fn render_badge_svg(member_count: i64) -> String {
@@ -17,20 +16,14 @@ pub fn render_badge_svg(member_count: i64) -> String {
     } else {
         format!("{} members", member_count)
     };
-    let left_w = LABEL.len() * CHAR_WIDTH + PAD;
-    let right_w = value.len() * CHAR_WIDTH + PAD;
-    let total = left_w + right_w;
-    let lx = left_w / 2;
-    let rx = left_w + right_w / 2;
-    format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{total}\" height=\"20\" role=\"img\" aria-label=\"{LABEL}: {value}\">\
-<rect width=\"{left_w}\" height=\"20\" fill=\"#555\"/>\
-<rect x=\"{left_w}\" width=\"{right_w}\" height=\"20\" fill=\"#4c1\"/>\
-<g fill=\"#fff\" text-anchor=\"middle\" font-family=\"Verdana,Geneva,DejaVu Sans,sans-serif\" font-size=\"11\">\
-<text x=\"{lx}\" y=\"14\">{LABEL}</text>\
-<text x=\"{rx}\" y=\"14\">{value}</text>\
-</g></svg>"
-    )
+
+    Badge::new()
+        .label(LABEL)
+        .value(&value)
+        .label_color(Color::Hex("555".into()))
+        .value_color(Color::Hex("4c1".into()))
+        .style(Style::FlatSquare)
+        .to_svg()
 }
 
 /// GET /badge/:owner/:repo.svg — public, no auth.
